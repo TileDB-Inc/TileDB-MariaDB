@@ -203,7 +203,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
  */
 int tile::mytile::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) {
     DBUG_ENTER("tile::mytile::create");
-    DBUG_RETURN(create_array(name, table_arg, create_info, ctx));
+    DBUG_RETURN(create_array(table_arg->s->table_name.str, table_arg, create_info, ctx));
 }
 
 int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info, tiledb::Context ctx) {
@@ -280,9 +280,9 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
         schema.set_tile_order(TILEDB_COL_MAJOR);
     }
 
-    std::string uri = name;
+    std::string create_uri = name;
     if (create_info->option_struct->array_uri != nullptr)
-        uri = create_info->option_struct->array_uri;
+        create_uri = create_info->option_struct->array_uri;
     else
         create_info->option_struct->array_uri = const_cast<char*>(name);
 
@@ -295,7 +295,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
     }
 
     // Create the array on storage
-    tiledb::Array::create(uri, schema);
+    tiledb::Array::create(create_uri, schema);
     DBUG_RETURN(rc);
 }
 

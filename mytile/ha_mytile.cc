@@ -193,6 +193,17 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 /**
+ * Main handler
+ * @param hton
+ * @param table_arg
+ */
+tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
+    : handler(hton, table_arg) {
+  config = tiledb::Config();
+  ctx = tiledb::Context(config);
+};
+
+/**
  * Create a table structure and TileDB array schema
  * @param name
  * @param table_arg
@@ -204,6 +215,71 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
   DBUG_ENTER("tile::mytile::create");
   DBUG_RETURN(
       create_array(table_arg->s->table_name.str, table_arg, create_info, ctx));
+}
+
+/**
+ * Open array
+ * @param name
+ * @param mode
+ * @param test_if_locked
+ * @return
+ */
+int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
+  DBUG_ENTER("tile::mytile::open");
+
+  // We are suppose to get a lock here, but tiledb doesn't require locks.
+  /*if (!(share = get_share()))
+      DBUG_RETURN(1);
+  thr_lock_data_init(&share->lock, &lock, nullptr);*/
+
+  // Open TileDB Array
+  try {
+    uri = name;
+    if (this->table->s->option_struct->array_uri != nullptr)
+      uri = this->table->s->option_struct->array_uri;
+
+    // Always open in read only mode, we'll re-open for writes if we hit init
+    // write
+    tiledb_query_type_t openType = tiledb_query_type_t::TILEDB_READ;
+
+    //    if (mode == O_RDWR)
+    //      openType = tiledb_query_type_t::TILEDB_WRITE;
+
+    array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
+    DBUG_RETURN(-10);
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
+    DBUG_RETURN(-11);
+  }
+  DBUG_RETURN(0);
+}
+
+/**
+ * Close array
+ * @return
+ */
+int tile::mytile::close(void) {
+  DBUG_ENTER("tile::mytile::create");
+  try {
+    this->array->close();
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "close error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
+    DBUG_RETURN(-20);
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "close error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
+    DBUG_RETURN(-21);
+  }
+  DBUG_RETURN(0);
 }
 
 /**
@@ -347,12 +423,13 @@ int tile::mytile::info(uint) {
  */
 ulonglong tile::mytile::table_flags(void) const {
   DBUG_ENTER("tile::mytile::table_flags");
-  DBUG_RETURN(
-      HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER | HA_REQUIRE_PRIMARY_KEY |
-      HA_PRIMARY_KEY_IN_READ_INDEX | HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
-      HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT | HA_CONCURRENT_OPTIMIZE |
-      HA_CAN_ONLINE_BACKUPS | HA_CAN_BIT_FIELD | HA_FILE_BASED |
-      HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
+  DBUG_RETURN(HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
+              HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
+              HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
+              HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT |
+              HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
+              HA_CAN_BIT_FIELD | HA_FILE_BASED | HA_BINLOG_ROW_CAPABLE |
+              HA_BINLOG_STMT_CAPABLE);
 }
 
 /**

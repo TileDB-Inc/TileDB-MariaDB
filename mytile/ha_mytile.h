@@ -77,7 +77,7 @@ public:
    * @param hton
    * @param table_arg
    */
-  mytile(handlerton *hton, TABLE_SHARE *table_arg) : handler(hton, table_arg){};
+  mytile(handlerton *hton, TABLE_SHARE *table_arg);
 
   ~mytile() noexcept(true){};
 
@@ -118,21 +118,19 @@ public:
   // int rename_table(const char *from, const char *to) override;
 
   /**
-   * Open array, not implemented
+   * Open array
    * @param name
    * @param mode
    * @param test_if_locked
    * @return
    */
-  int open(const char *name, int mode, uint test_if_locked) override {
-    return 0;
-  };
+  int open(const char *name, int mode, uint test_if_locked) override;
 
   /**
-   * Close array, not implemented
+   * Close array
    * @return
    */
-  int close(void) override { return 0; };
+  int close(void) override;
 
   /* Table Scanning */
   int rnd_init(bool scan) override { return 0; };
@@ -206,5 +204,17 @@ private:
 
   // TileDB context
   tiledb::Context ctx;
+
+  // TileDB Config
+  tiledb::Config config;
+
+  // TileDB Array
+  std::shared_ptr<tiledb::Array> array;
+
+  // TileDB Query
+  std::shared_ptr<tiledb::Query> query;
+
+  // Current record row
+  uint64_t record_index;
 };
 } // namespace tile

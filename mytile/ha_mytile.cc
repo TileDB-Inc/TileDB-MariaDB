@@ -75,7 +75,7 @@ static void init_mytile_psi_keys() {
 
 #endif
 
-
+// Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
     HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", TILEDB_SPARSE),
@@ -85,6 +85,7 @@ ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_END
 };
 
+// Structure for specific field options
 ha_create_table_option mytile_field_option_list[] =
 {
     /*
@@ -99,6 +100,9 @@ ha_create_table_option mytile_field_option_list[] =
     HA_FOPTION_END
 };
 
+/**
+ * Basic lock structure
+ */
 tile::mytile_share::mytile_share() {
     thr_lock_init(&lock);
     mysql_mutex_init(ex_key_mutex_mytile_share_mutex,
@@ -158,6 +162,7 @@ static int mytile_init_func(void *p) {
     mytile_hton->tablefile_extensions = mytile_exts;
     mytile_hton->table_options = mytile_table_option_list;
     mytile_hton->field_options = mytile_field_option_list;
+    // Set table discovery functions
     mytile_hton->discover_table = tile::mytile_discover_table;
     mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
 
@@ -195,7 +200,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 /**
- * Create a table structure and TileDB map schema
+ * Create a table structure and TileDB array schema
  * @param name
  * @param table_arg
  * @param create_info
@@ -206,6 +211,14 @@ int tile::mytile::create(const char *name, TABLE *table_arg, HA_CREATE_INFO *cre
     DBUG_RETURN(create_array(table_arg->s->table_name.str, table_arg, create_info, ctx));
 }
 
+/**
+ * Creates the actual tiledb array
+ * @param name
+ * @param table_arg
+ * @param create_info
+ * @param ctx
+ * @return
+ */
 int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info, tiledb::Context ctx) {
     DBUG_ENTER("tile::create_array");
     int rc = 0;
@@ -220,8 +233,11 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
     // Create array schema
     tiledb::ArraySchema schema(ctx, arrayType);
 
+    // Create domain
     tiledb::Domain domain(ctx);
 
+    // Only a single key is support, and that is the primary key. We can use the primary key as an alternative
+    // to get which fields are suppose to be the dimensions
     KEY key_info = table_arg->key_info[0];
     std::map<std::string, bool> primaryKeyParts;
     for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
@@ -229,10 +245,29 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
         primaryKeyParts[field->field_name.str] = true;
     }
 
-    // Create attributes
+    // Create attributes or dimensions
     for (Field **ffield = table_arg->field; *ffield; ffield++) {
         Field *field = (*ffield);
-        if (!field->option_struct->dimension && primaryKeyParts.find(field->field_name.str) == primaryKeyParts.end()) {
+        // If the field has the dimension flag set or it is part of the primary key we treat it is a dimension
+        if (field->option_struct->dimension || primaryKeyParts.find(field->field_name.str) == primaryKeyParts.end()) {
+            if (field->option_struct->lower_bound == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
+                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s lower_bound was not set, can not create table",
+                                ME_ERROR_LOG | ME_FATAL, field->field_name);
+                DBUG_RETURN(-11);
+            }
+            if (field->option_struct->upper_bound == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
+                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s upper_bound was not set, can not create table",
+                                ME_ERROR_LOG | ME_FATAL, field->field_name);
+                DBUG_RETURN(-12);
+            }
+            if (field->option_struct->tile_extent == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
+                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s tile_extent was not set, can not create table",
+                                ME_ERROR_LOG | ME_FATAL, field->field_name);
+                DBUG_RETURN(-13);
+            }
+            domain.add_dimension(create_field_dimension(ctx, field));
+        } else { // Else this is treated as a dimension
+            // Currently hard code the filter list to zstd compression
             tiledb::FilterList filterList(ctx);
             tiledb::Filter filter(ctx, TILEDB_FILTER_ZSTD);
             filterList.add_filter(filter);
@@ -241,23 +276,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
             tiledb_datatype_to_str(attr.type(), &typeString);
             std::cout << attr.name() << typeString << std::endl;
             schema.add_attribute(attr);
-        } else {
-            if (field->option_struct->lower_bound == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
-                //sql_print_error("Dimension field %s lower bound was not set, can not create table", (*field)->field_name);
-                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s lower_bound was not set, can not create table", ME_ERROR_LOG | ME_FATAL, field->field_name);
-                DBUG_RETURN(-11);
-            }
-            if (field->option_struct->upper_bound == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
-                //sql_print_error("Dimension field %s upper bound was not set, can not create table", (*field)->field_name);
-                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s upper_bound was not set, can not create table", ME_ERROR_LOG | ME_FATAL, field->field_name);
-                DBUG_RETURN(-12);
-            }
-            if (field->option_struct->tile_extent == nullptr || strcmp(field->option_struct->lower_bound, "") == 0) {
-                //sql_print_error("Dimension field %s tile extent was not set, can not create table", (*field)->field_name);
-                my_printf_error(ER_UNKNOWN_ERROR, "Dimension field %s tile_extent was not set, can not create table", ME_ERROR_LOG | ME_FATAL, field->field_name);
-                DBUG_RETURN(-13);
-            }
-            domain.add_dimension(create_field_dimension(ctx, field));
         };
     }
 
@@ -280,6 +298,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
         schema.set_tile_order(TILEDB_COL_MAJOR);
     }
 
+    // Get array uri from name or table option
     std::string create_uri = name;
     if (create_info->option_struct->array_uri != nullptr)
         create_uri = create_info->option_struct->array_uri;
@@ -290,7 +309,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg, HA_CREATE_INF
     try {
         schema.check();
     } catch (tiledb::TileDBError &e) {
-        sql_print_error("Error in building schema %s", e.what());
+        my_printf_error(ER_UNKNOWN_ERROR, "Error in building schema %s",
+                        ME_ERROR_LOG | ME_FATAL, e.what());
         DBUG_RETURN(-10);
     }
 

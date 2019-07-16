@@ -5,7 +5,7 @@
 #include "mytile.h"
 #include <log.h>
 
-tiledb::Attribute tile::create_field_attribute(tiledb::Context &ctx, Field *field, tiledb::FilterList filterList) {
+tiledb::Attribute tile::create_field_attribute(tiledb::Context &ctx, Field *field, const tiledb::FilterList &filterList) {
 
     std::cout << field->field_name.str << " - " << field->type() << std::endl;
     switch (field->type()) {
@@ -103,7 +103,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                 double tileExtent = std::strtod(field->option_struct->tile_extent, nullptr);
                 return tiledb::Dimension::create<double>(ctx, field->field_name.str, domain, tileExtent);
             }
-            //return tiledb::Dimension::create<double>(ctx, field->field_name.str, domain);
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
         }
@@ -122,7 +121,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                 float tileExtent = std::strtof(field->option_struct->tile_extent, nullptr);
                 return tiledb::Dimension::create<float>(ctx, field->field_name.str, domain, tileExtent);
             }
-            //return tiledb::Dimension::create<float>(ctx, field->field_name.str, domain);
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
         }
@@ -142,7 +140,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     uint8_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str, domain);
             } else {
                 std::array<int8_t, 2> domain = {INT8_MIN, INT8_MAX - 1};
                 if (field->option_struct->lower_bound != nullptr) {
@@ -157,7 +154,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     int8_t tileExtent = std::strtol(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<int8_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<int8_t>(ctx, field->field_name.str, domain);
             }
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
@@ -178,7 +174,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     uint16_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<uint16_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-               // return tiledb::Dimension::create<uint16_t>(ctx, field->field_name.str, domain);
             } else {
                 std::array<int16_t, 2> domain = {INT16_MIN, INT16_MAX - 1};
                 if (field->option_struct->lower_bound != nullptr) {
@@ -193,7 +188,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     int16_t tileExtent = std::strtol(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<int16_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<int16_t>(ctx, field->field_name.str, domain);
             }
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
@@ -212,7 +206,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                 uint64_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                 return tiledb::Dimension::create<uint16_t>(ctx, field->field_name.str, domain, tileExtent);
             }
-            //return tiledb::Dimension::create<uint16_t>(ctx, field->field_name.str, domain);
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
         }
@@ -232,7 +225,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     uint32_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<uint32_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<uint32_t>(ctx, field->field_name.str, domain);
             } else {
                 std::array<int32_t, 2> domain = {INT32_MIN, INT32_MAX - 1};
                 if (field->option_struct->lower_bound != nullptr) {
@@ -247,7 +239,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     int32_t tileExtent = std::strtol(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<int32_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<int32_t>(ctx, field->field_name.str, domain);
             }
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
@@ -269,7 +260,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     uint64_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<uint64_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-                //return tiledb::Dimension::create<uint64_t>(ctx, field->field_name.str, domain);
             } else {
                 std::array<int64_t, 2> domain = {INT64_MIN, INT64_MAX - 1};
                 if (field->option_struct->lower_bound != nullptr) {
@@ -284,7 +274,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                     int64_t tileExtent = std::strtol(field->option_struct->tile_extent, nullptr, 10);
                     return tiledb::Dimension::create<int64_t>(ctx, field->field_name.str, domain, tileExtent);
                 }
-               // return tiledb::Dimension::create<int64_t>(ctx, field->field_name.str, domain);
             }
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
@@ -305,7 +294,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                 uint64_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                 return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str, domain, tileExtent);
             }
-            //return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str, domain);
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
         }
@@ -316,7 +304,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
         case MYSQL_TYPE_SET: {
             sql_print_error("Varchar fields not supported for tiledb dimension fields");
             break;
-            //return tiledb::Dimension::create<uint8>(ctx, field->field_name.str, {0, 0});
         }
 
         case MYSQL_TYPE_GEOMETRY:
@@ -327,7 +314,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
         case MYSQL_TYPE_ENUM: {
             sql_print_error("Blob or enum fields not supported for tiledb dimension fields");
             break;
-            //return tiledb::Dimension::create<uint8>(ctx, field->field_name.str, {0, 0});
         }
         case MYSQL_TYPE_DATE:
         case MYSQL_TYPE_DATETIME:
@@ -350,14 +336,12 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx, Field *fiel
                 uint64_t tileExtent = std::strtoul(field->option_struct->tile_extent, nullptr, 10);
                 return tiledb::Dimension::create<uint64_t>(ctx, field->field_name.str, domain, tileExtent);
             }
-            //return tiledb::Dimension::create<uint64_t>(ctx, field->field_name.str, domain);
             sql_print_error("Invalid dimension, must specify tile extent");
             break;
         }
         default: {
             sql_print_error("Unknown mysql data type in creating tiledb field attribute");
             break;
-            //return tiledb::Dimension::create<uint8>(ctx, field->field_name.str, {0,0});
         }
     }
     return tiledb::Dimension::create<uint8>(ctx, field->field_name.str, std::array<uint8, 2>{0,0}, 10);

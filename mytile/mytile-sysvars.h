@@ -35,15 +35,19 @@
 #include <handler.h>
 
 #include <my_global.h>
+
+// list of system parameters
 extern struct st_mysql_sys_var* mytile_system_variables[];
 
-
+// Read buffer size, currently unused
 static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG,
                               "", NULL, NULL, 10485760, 0, ~0UL, 0);
 
+// Write buffer size, currently unused
 static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG,
                               "", NULL, NULL, 10485760, 0, ~0UL, 0);
 
+// system variables
 struct st_mysql_sys_var* mytile_system_variables[]= {
     MYSQL_SYSVAR(read_buffer_size),
     MYSQL_SYSVAR(write_buffer_size),

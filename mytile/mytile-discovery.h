@@ -36,9 +36,44 @@
 #include <handler.h>
 
 namespace tile {
+    /**
+     * Converts a mysql type to a tiledb_datatype_t
+     * @param type
+     * @param signedInt
+     * @return
+     */
   tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
+
+  /**
+   * Converts a tiledb_datatype_t to a mysql type
+   * @param type
+   * @return
+   */
   int TileDBTypeToMysqlType(tiledb_datatype_t type);
+
+  /**
+   * Create the text string for a mysql type
+   * e.g. MYSQL_TYPE_TINY -> "TINY"
+   * @param type
+   * @return
+   */
   std::string MysqlTypeString(int type);
+
+  /**
+   * Discover an array structure dynamically, builds the "create table" sql strings and init's the TABLE_SHARE
+   * @param hton
+   * @param thd
+   * @param ts
+   * @return
+   */
   int mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts);
+
+  /**
+   * Checks if an array exists or not
+   * @param hton
+   * @param db
+   * @param name
+   * @return
+   */
   int mytile_discover_table_existence(handlerton *hton, const char *db, const char *name);
 }

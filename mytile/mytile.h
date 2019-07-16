@@ -27,7 +27,7 @@ namespace tile {
     typedef struct ::ha_table_option_struct ha_table_option_struct;
     typedef struct ::ha_field_option_struct ha_field_option_struct;
 
-    tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field, tiledb::FilterList filterList);
+    tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field, const tiledb::FilterList &filterList);
 
     tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field);
 }

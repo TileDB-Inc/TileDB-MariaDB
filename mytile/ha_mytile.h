@@ -73,35 +73,99 @@ namespace tile {
     class mytile : public handler {
     public:
 
+        /**
+         * Main handler
+         * @param hton
+         * @param table_arg
+         */
         mytile(handlerton *hton, TABLE_SHARE *table_arg) : handler(hton, table_arg) {};
 
         ~mytile() noexcept(true) {};
 
+        /**
+         * flags for supported table features
+         * @return
+         */
         ulonglong table_flags(void) const override;
 
+        /**
+         * Create table
+         * @param name
+         * @param table_arg
+         * @param create_info
+         * @return
+         */
         int create(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info) override;
 
+        /**
+         * Create array functionality
+         * @param name
+         * @param table_arg
+         * @param create_info
+         * @param ctx
+         * @return
+         */
         int create_array(const char *name, TABLE *table_arg, HA_CREATE_INFO *create_info, tiledb::Context ctx);
 
+        /**
+         * Delete table, not implemented
+         * @param name
+         * @return
+         */
         int delete_table(const char *name) override {return 0;};
 
         //int rename_table(const char *from, const char *to) override;
 
+        /**
+         * Open array, not implemented
+         * @param name
+         * @param mode
+         * @param test_if_locked
+         * @return
+         */
         int open(const char *name, int mode, uint test_if_locked) override {return 0;};
 
+        /**
+         * Close array, not implemented
+         * @return
+         */
         int close(void) override {return 0;};
 
         /* Table Scanning */
         int rnd_init(bool scan) override {return 0;};
 
+        /**
+         * Read next row, not implemented
+         * @param buf
+         * @return
+         */
         int rnd_next(uchar *buf) override {return 0;};
 
+        /**
+         * Read position, not implemented
+         * @param buf
+         * @param pos
+         * @return
+         */
         int rnd_pos(uchar *buf, uchar *pos) override {return 0;};
 
+        /**
+         * End read, not implemented
+         * @return
+         */
         int rnd_end() override {return 0;};
 
+        /**
+         * Get current record coordinates and save to allow for later lookup
+         * @param record
+         */
         void position(const uchar *record) override {};
 
+        /**
+         * Write row, not implemented
+         * @param buf
+         * @return
+         */
         int write_row(uchar *buf __attribute__((unused))) override {return 0;};
 
         ulong index_flags(uint idx, uint part, bool all_parts) const override;
@@ -114,20 +178,20 @@ namespace tile {
             return 1;
         }
 
-        //const COND *cond_push(const COND *cond) override;
-
-        // bool check_primary_key_exists(uchar *buf);
-
-       // int tile_write_row(uchar *buf);
-
-        // int delete_row(const uchar *buf) override;
-
-        //int update_row(const uchar *old_data, uchar *new_data) override;
-
+        /*
+         * Store lock
+         */
         THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to, enum thr_lock_type lock_type) override;
 
+        /*
+         * External lock for table locking
+         */
         int external_lock(THD *thd, int lock_type) override;
 
+        /**
+         * Table info
+         * @return
+         */
         int info(uint) override;
 
     private:
@@ -141,66 +205,5 @@ namespace tile {
 
         // TileDB context
         tiledb::Context ctx;
-
-        //std::unique_ptr<tiledb::Array> array;
-
-        //std::unique_ptr<tiledb::Query> query;
-
-        //void allocBuffers(uint64_t readBufferSize);
-
-        //void setSubarray(void *subarray);
-
-        /*void *buildSubArray(bool tableScan);
-
-        template<typename T>
-        T *buildSubArray(bool tableScan) {
-            DBUG_ENTER("mytile::buildSubArray");
-            tiledb::ArraySchema schema = array->schema();
-            tiledb::Domain domain = schema.domain();
-            auto dimensions = domain.dimensions();
-            auto nonEmptyDomains = array->non_empty_domain<T>();
-
-            T *subarray = new T[domain.ndim()];
-
-            for (size_t i = 0; i < nonEmptyDomains.size(); i++) {
-                subarray[2 * i] = nonEmptyDomains[i].second.first;
-                subarray[2 * i + 1] = nonEmptyDomains[i].second.second;
-            }
-
-            DBUG_RETURN(subarray);
-        }
-
-        uint64_t computeRecordsUB(void *subarray);
-
-        template<typename T>
-        uint64_t computeRecordsUB(void *subarray) {
-            T* s = static_cast<T*>(subarray);
-            size_t elements = array->schema().domain().ndim();
-            // Get max buffer sizes to build
-            const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>> &maxSizes = array->max_buffer_elements<T>(
-                    std::vector<T>(s, s + elements));
-
-            // Compute an upper bound on the number of results in the subarray.
-            return maxSizes.find(TILEDB_COORDS)->second.second / dimensionIndexes.size();
-        }*/
-
-        //bool isDimension(std::string name);
-
-        //bool isDimension(LEX_CSTRING name);
-
-        //std::unordered_map<std::string, uint64_t> dimensionIndexes;
-
-        // This is a vector holding buffers based the MariaDB field index
-        //std::vector<std::unique_ptr<buffer>> buffers;
-
-        // Coordinates have dedicated buffer since they are referenced often.
-//        buffer coordinates;
-//
-//        uint64_t bufferSizeBytes = 0;
-//        int64_t currentRowPosition = -1;
-//        int64_t currentNumRecords = -2;
-//        uint64_t totalNumRecordsUB = 0;
-//        uint64_t numRecordsRead = 0;
-//        tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;
     };
 }

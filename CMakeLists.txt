@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.3)
 
 project(mytile)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/")
+
 if (CMAKE_VERSION VERSION_LESS "3.1")
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++14")
@@ -9,6 +11,36 @@ if (CMAKE_VERSION VERSION_LESS "3.1")
 else ()
     set (CMAKE_CXX_STANDARD 14)
 endif ()
+
+
+############################################################
+# "make format" and "make check-format" targets
+############################################################
+
+set(SCRIPTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts")
+
+find_package(ClangTools)
+if (${CLANG_FORMAT_FOUND})
+    # runs clang format and updates files in place.
+    add_custom_target(format ${SCRIPTS_DIR}/run-clang-format.sh ${CMAKE_CURRENT_SOURCE_DIR} ${CLANG_FORMAT_BIN} 1
+            `find ${CMAKE_CURRENT_SOURCE_DIR}/tiledb
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools
+            -name \\*.cc -or -name \\*.c -or -name \\*.h`)
+
+    # runs clang format and exits with a non-zero exit code if any files need to be reformatted
+    add_custom_target(check-format ${SCRIPTS_DIR}/run-clang-format.sh ${CMAKE_CURRENT_SOURCE_DIR} ${CLANG_FORMAT_BIN} 0
+            `find ${CMAKE_CURRENT_SOURCE_DIR}/tiledb
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/src
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools
+            -name \\*.cc -or -name \\*.c -or -name \\*.h`)
+endif()
+
+####################
+# Add MYSQL Plugin #
+####################
 
 file(GLOB SOURCE_FILES mytile/*.cc)
 
@@ -61,3 +93,4 @@ if(TARGET mytile)
     target_link_libraries(mytile TileDB::tiledb_shared)
   endif()
 endif()
+

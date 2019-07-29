@@ -523,9 +523,9 @@ case TILEDB_STRING_ASCII:
                     
  */ /** UTF-8 string */  /*
 case TILEDB_STRING_UTF8:
- return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
  
- */                      /** UTF-16 string */
+*/                      /** UTF-16 string */
                         /*
 case TILEDB_STRING_UTF16:
   return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);

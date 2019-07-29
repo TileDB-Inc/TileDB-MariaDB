@@ -150,18 +150,18 @@ public:
   int rnd_end() override;
 
   /**
-   * Read position, not implemented
+   * Read position
    * @param buf
    * @param pos
    * @return
    */
-  int rnd_pos(uchar *buf, uchar *pos) override { return 0; };
+  int rnd_pos(uchar *buf, uchar *pos) override;
 
   /**
    * Get current record coordinates and save to allow for later lookup
    * @param record
    */
-  void position(const uchar *record) override{};
+  void position(const uchar *record) override;
 
   /**
    * Write row, not implemented

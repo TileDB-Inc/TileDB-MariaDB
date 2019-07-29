@@ -410,16 +410,16 @@ int tile::mytile::rnd_init(bool scan) {
   this->records_read = 0;
   this->status = tiledb::Query::Status::UNINITIALIZED;
 
-  read_buffer_size = THDVAR(this->ha_thd(), read_buffer_size);
+  this->read_buffer_size = THDVAR(this->ha_thd(), read_buffer_size);
 
   this->query = std::make_shared<tiledb::Query>(
       ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
 
-  alloc_buffers(read_buffer_size);
+  alloc_buffers(this->read_buffer_size);
 
   auto domain = this->array->schema().domain();
   auto dims = domain.dimensions();
-  ndim = dims.size();
+  this->ndim = dims.size();
   uint64_t subarray_size =
       tiledb_datatype_size(domain.type()) * dims.size() * 2;
   std::unique_ptr<void, decltype(&std::free)> subarray(malloc(subarray_size),
@@ -458,13 +458,13 @@ int tile::mytile::rnd_next(uchar *buf) {
   // note the upper bound of records might be *more* than actual results, thus
   // this check is not guaranteed see the next check were we look for complete
   // query and row position
-  if (records_read >= total_num_records_UB) {
+  if (this->records_read >= this->total_num_records_UB) {
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
   // If we are complete and there is no more records we report EOF
-  if (status == tiledb::Query::Status::COMPLETE &&
-      static_cast<int64_t>(record_index) >= records) {
+  if (this->status == tiledb::Query::Status::COMPLETE &&
+      static_cast<int64_t>(this->record_index) >= this->records) {
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -473,7 +473,7 @@ int tile::mytile::rnd_next(uchar *buf) {
     // (or if this is the first time), (re)submit the query->
     if (static_cast<int64_t>(this->record_index) >= this->records) {
       do {
-        status = query->submit();
+        this->status = query->submit();
 
         // Compute the number of cells (records) that were returned by the
         // query->
@@ -498,11 +498,11 @@ int tile::mytile::rnd_next(uchar *buf) {
         // Increase the buffer allocation and resubmit if necessary.
         if (this->status == tiledb::Query::Status::INCOMPLETE &&
             this->records == 0) { // VERY IMPORTANT!!
-          read_buffer_size = read_buffer_size * 2;
+          this->read_buffer_size = read_buffer_size * 2;
           dealloc_buffers();
           alloc_buffers(read_buffer_size);
         } else if (records > 0) {
-          record_index = 0;
+          this->record_index = 0;
           // Break out of resubmit loop as we have some results.
           break;
         }
@@ -511,8 +511,8 @@ int tile::mytile::rnd_next(uchar *buf) {
 
     tileToFields(record_index, false);
 
-    record_index++;
-    records_read++;
+    this->record_index++;
+    this->records_read++;
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -538,6 +538,45 @@ int tile::mytile::rnd_end() {
   dealloc_buffers();
   DBUG_RETURN(0);
 };
+
+/**
+ * Read position
+ * Will this ever be interleaved with table scans? I am not sure, need to ask
+ * MariaDB We assume it wont :/
+ * @param buf
+ * @param pos
+ * @return
+ */
+int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
+  DBUG_ENTER("tile::mytile::rnd_pos");
+  ctx.handle_error(tiledb_query_set_subarray(ctx.ptr().get(),
+                                             this->query->ptr().get(), pos));
+  this->total_num_records_UB = computeRecordsUB(this->array, pos);
+
+  // Reset indicators
+  this->record_index = 0;
+  this->records = 0;
+  this->records_read = 0;
+  this->status = tiledb::Query::Status::UNINITIALIZED;
+  DBUG_RETURN(rnd_next(buf));
+}
+
+/**
+ * Get current record coordinates and save to allow for later lookup
+ * @param record
+ */
+void tile::mytile::position(const uchar *record) {
+  DBUG_ENTER("tile::mytile::position");
+  // copy the subarray
+  uint64_t size = this->ndim * tiledb_datatype_size(this->coord_buffer->type);
+  uint64_t index_offset = this->record_index * this->ndim *
+                          tiledb_datatype_size(this->coord_buffer->type);
+
+  memcpy(this->ref,
+         static_cast<const char *>(this->coord_buffer->buffer) + index_offset,
+         size);
+  DBUG_VOID_RETURN;
+}
 
 void tile::mytile::dealloc_buffers() {
   DBUG_ENTER("tile::mytile::dealloc_buffers");

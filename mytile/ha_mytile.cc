@@ -228,9 +228,9 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   DBUG_ENTER("tile::mytile::open");
 
   // We are suppose to get a lock here, but tiledb doesn't require locks.
-  /*if (!(share = get_share()))
-      DBUG_RETURN(1);
-  thr_lock_data_init(&share->lock, &lock, nullptr);*/
+  if (!(share = get_share()))
+    DBUG_RETURN(1);
+  thr_lock_data_init(&share->lock, &lock, nullptr);
 
   // Open TileDB Array
   try {
@@ -357,9 +357,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       tiledb::Filter filter(ctx, TILEDB_FILTER_ZSTD);
       filterList.add_filter(filter);
       tiledb::Attribute attr = create_field_attribute(ctx, field, filterList);
-      const char *typeString;
-      tiledb_datatype_to_str(attr.type(), &typeString);
-      std::cout << attr.name() << typeString << std::endl;
       schema.add_attribute(attr);
     };
   }
@@ -404,6 +401,170 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   DBUG_RETURN(rc);
 }
 
+/* Table Scanning */
+int tile::mytile::rnd_init(bool scan) {
+  DBUG_ENTER("tile::mytile::rnd_init");
+  // Reset indicators
+  this->record_index = 0;
+  this->records = 0;
+  this->records_read = 0;
+  this->status = tiledb::Query::Status::UNINITIALIZED;
+
+  read_buffer_size = THDVAR(this->ha_thd(), read_buffer_size);
+
+  this->query = std::make_shared<tiledb::Query>(
+      ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
+
+  alloc_buffers(read_buffer_size);
+
+  auto domain = this->array->schema().domain();
+  auto dims = domain.dimensions();
+  ndim = dims.size();
+  uint64_t subarray_size =
+      tiledb_datatype_size(domain.type()) * dims.size() * 2;
+  std::unique_ptr<void, decltype(&std::free)> subarray(malloc(subarray_size),
+                                                       &std::free);
+  int empty;
+
+  ctx.handle_error(tiledb_array_get_non_empty_domain(
+      ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
+
+  if (empty)
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+
+  // this->query->set_subarray(subarray, dims.size());
+  // Set subarray using capi
+  ctx.handle_error(tiledb_query_set_subarray(
+      ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
+
+  this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
+
+  DBUG_RETURN(0);
+};
+
+/**
+ * Read next row
+ * @param buf
+ * @return
+ */
+int tile::mytile::rnd_next(uchar *buf) {
+  DBUG_ENTER("tile::mytile::rnd_next");
+  int rc = 0;
+  const char *query_status;
+  tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
+                             &query_status);
+
+  // If we have run out of records report EOF
+  // note the upper bound of records might be *more* than actual results, thus
+  // this check is not guaranteed see the next check were we look for complete
+  // query and row position
+  if (records_read >= total_num_records_UB) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  // If we are complete and there is no more records we report EOF
+  if (status == tiledb::Query::Status::COMPLETE &&
+      static_cast<int64_t>(record_index) >= records) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  try {
+    // If the cursor has passed the number of records from the previous query
+    // (or if this is the first time), (re)submit the query->
+    if (static_cast<int64_t>(this->record_index) >= this->records) {
+      do {
+        status = query->submit();
+
+        // Compute the number of cells (records) that were returned by the
+        // query->
+        const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>
+            &queryResultBufferElements = query->result_buffer_elements();
+        auto coords = queryResultBufferElements.find(TILEDB_COORDS);
+        this->records = coords->second.second / this->ndim;
+
+        for (auto &buff : this->buffers) {
+
+          if (buff->dimension) {
+            buff->result_offset_buffer_size = coords->second.first;
+            buff->result_buffer_size = coords->second.second;
+          } else {
+            auto result_size =
+                queryResultBufferElements.find(buff->name)->second;
+            buff->result_offset_buffer_size = result_size.first;
+            buff->result_buffer_size = result_size.second;
+          }
+        }
+
+        // Increase the buffer allocation and resubmit if necessary.
+        if (this->status == tiledb::Query::Status::INCOMPLETE &&
+            this->records == 0) { // VERY IMPORTANT!!
+          read_buffer_size = read_buffer_size * 2;
+          dealloc_buffers();
+          alloc_buffers(read_buffer_size);
+        } else if (records > 0) {
+          record_index = 0;
+          // Break out of resubmit loop as we have some results.
+          break;
+        }
+      } while (status == tiledb::Query::Status::INCOMPLETE);
+    }
+
+    tileToFields(record_index, false);
+
+    record_index++;
+    records_read++;
+
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                    e.what());
+    rc = -101;
+  } catch (const std::exception &e) {
+    // Log errors
+    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                    e.what());
+    rc = -102;
+  }
+
+  DBUG_RETURN(rc);
+}
+
+/**
+ * End read
+ * @return
+ */
+int tile::mytile::rnd_end() {
+  DBUG_ENTER("tile::mytile::rnd_end");
+  dealloc_buffers();
+  DBUG_RETURN(0);
+};
+
+void tile::mytile::dealloc_buffers() {
+  DBUG_ENTER("tile::mytile::dealloc_buffers");
+  // Free allocated buffers
+  for (auto &buff : this->buffers) {
+    if (!buff->dimension) {
+      if (buff->offset_buffer != nullptr) {
+        free(buff->offset_buffer);
+        buff->offset_buffer = nullptr;
+      }
+
+      if (buff->buffer != nullptr) {
+        free(buff->buffer);
+        buff->buffer = nullptr;
+      }
+    }
+  }
+
+  if (this->coord_buffer != nullptr && this->coord_buffer->buffer != nullptr) {
+    free(this->coord_buffer->buffer);
+    this->coord_buffer->buffer = nullptr;
+    this->coord_buffer = nullptr;
+  }
+
+  this->buffers.clear();
+  DBUG_VOID_RETURN;
+}
 /**
  * This should return relevant stats of the underlying tiledb map,
  * currently just sets row count to 2, to avoid 0/1 row optimizations
@@ -431,6 +592,111 @@ ulonglong tile::mytile::table_flags(void) const {
               HA_CAN_BIT_FIELD | HA_FILE_BASED | HA_BINLOG_ROW_CAPABLE |
               HA_BINLOG_STMT_CAPABLE);
 }
+
+void tile::mytile::alloc_buffers(uint64_t size) {
+  DBUG_ENTER("tile::mytile::alloc_buffers");
+  // Set Attribute Buffers
+
+  auto schema = this->array->schema();
+  auto domain = schema.domain();
+  auto dims = domain.dimensions();
+
+  // Set Coordinate Buffer
+  // We don't use set_coords to avoid needing to switch on datatype
+  auto coords_buffer = alloc_buffer(domain.type(), size);
+  this->query->set_buffer(TILEDB_COORDS, coords_buffer,
+                          size / tiledb_datatype_size(domain.type()));
+
+  for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
+    Field *field = table->field[fieldIndex];
+    std::string field_name = field->field_name.str;
+    // Create buffer
+    std::shared_ptr<buffer> buff = std::make_shared<buffer>();
+    buff->name = field_name;
+    buff->dimension = false;
+    buff->buffer_offset = 0;
+    buff->fixed_size_elements = 1;
+
+    if (schema.domain().has_dimension(field_name)) {
+      buff->buffer = coords_buffer;
+      buff->type = domain.type();
+      buff->dimension = true;
+      for (size_t i = 0; i < dims.size(); i++) {
+        if (dims[i].name() == field_name) {
+          buff->buffer_offset = i;
+          break;
+        }
+      }
+      this->coord_buffer = buff;
+    } else { // attribute
+      tiledb::Attribute attr = schema.attribute(field_name);
+      uint64_t *offset_buffer = nullptr;
+      auto data_buffer = alloc_buffer(attr.type(), size);
+      uint64_t nelements = size / tiledb_datatype_size(attr.type());
+      if (attr.variable_sized()) {
+        offset_buffer = static_cast<uint64_t *>(
+            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+        this->query->set_buffer(
+            field_name, offset_buffer,
+            size / tiledb_datatype_size(tiledb_datatype_t::TILEDB_UINT64),
+            data_buffer, nelements);
+        buff->fixed_size_elements = 0;
+      } else {
+        this->query->set_buffer(field_name, data_buffer, nelements);
+        buff->fixed_size_elements = attr.cell_val_num();
+      }
+
+      buff->offset_buffer = offset_buffer;
+      buff->buffer = data_buffer;
+      buff->type = attr.type();
+    }
+    this->buffers.push_back(buff);
+  }
+  DBUG_VOID_RETURN;
+}
+
+/**
+ * Converts a tiledb record to mysql buffer using mysql fields
+ * @param index
+ * @return
+ */
+int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only) {
+  DBUG_ENTER("tile::mytile::tileToFields");
+  int rc = 0;
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->write_set);
+  try {
+    for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
+      uint64_t index = orignal_index;
+      Field *field = table->field[fieldIndex];
+      field->set_notnull();
+
+      std::shared_ptr<buffer> buff = this->buffers[fieldIndex];
+
+      if (buff->dimension) {
+        index = (index * ndim) + buff->buffer_offset;
+      } else if (dimensions_only) {
+        continue;
+      }
+
+      set_field(ha_thd(), field, buff, index);
+    }
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                    e.what());
+    rc = -101;
+  } catch (const std::exception &e) {
+    // Log errors
+    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                    e.what());
+    rc = -102;
+  }
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->write_set, orig);
+  DBUG_RETURN(rc);
+};
 
 /**
  *

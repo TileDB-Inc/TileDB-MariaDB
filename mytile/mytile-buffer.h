@@ -1,5 +1,5 @@
 /**
- * @file   mytile-sysvars.h
+ * @file   mytile-buffer.h
  *
  * @section LICENSE
  *
@@ -27,26 +27,23 @@
  *
  * @section DESCRIPTION
  *
- * This declares the system variables for the storage engine
+ * This declares the buffer struct
  */
 
 #pragma once
 
-#include <handler.h>
+#include <tiledb/tiledb>
 
-#include <my_global.h>
-
-// list of system parameters
-extern struct st_mysql_sys_var *mytile_system_variables[];
-
-// Read buffer size
-static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-// Write buffer size, currently unused
-static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-// system variables
-struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size), NULL};
+typedef struct mytile_buffer {
+  uint64_t *offset_buffer;            /* offset buffer for varlen data */
+  void *buffer;                       /* data buffer */
+  uint64_t result_offset_buffer_size; /* size of effective results */
+  uint64_t result_buffer_size;        /* size of effective results */
+  tiledb_datatype_t type;             /* type buffer */
+  std::string name;                   /* field name */
+  bool dimension;                     /* is this buffer for a dimension */
+  int64_t buffer_offset; /* offset of buffer, used for dimensions only to split
+                            coordinates */
+  uint64_t fixed_size_elements; /* If the attribute is fixed size, this will
+                                   indicate the element count */
+} buffer;

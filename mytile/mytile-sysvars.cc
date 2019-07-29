@@ -1,5 +1,5 @@
 /**
- * @file   mytile-sysvars.h
+ * @file   mytile-sysvars.cc
  *
  * @section LICENSE
  *
@@ -27,28 +27,9 @@
  *
  * @section DESCRIPTION
  *
- * This declares the system variables for the storage engine
+ * This defines the system variables for the storage engine
  */
 
-#pragma once
-
-#ifndef MYTILE_SYSVARS_H
-#define MYTILE_SYSVARS_H
-
-#include <handler.h>
 #include <my_global.h>
+#include "mytile-sysvars.h"
 
-// list of system parameters
-extern struct st_mysql_sys_var *mytile_system_variables[];
-
-// Read buffer size
-static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-// Write buffer size, currently unused
-static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-
-
-#endif // MYTILE_SYSVARS_H

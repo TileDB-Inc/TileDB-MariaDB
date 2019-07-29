@@ -1,5 +1,5 @@
 /**
- * @file   mytile-sysvars.h
+ * @file   ha_mytile_share.h
  *
  * @section LICENSE
  *
@@ -27,28 +27,27 @@
  *
  * @section DESCRIPTION
  *
- * This declares the system variables for the storage engine
+ * This is the handler share implementation
  */
 
 #pragma once
 
-#ifndef MYTILE_SYSVARS_H
-#define MYTILE_SYSVARS_H
+namespace tile {
+    /** @brief
+  mytile_share is a class that will be shared among all open handlers.
+  This mytile implements the minimum of what you will probably need.
+*/
 
-#include <handler.h>
-#include <my_global.h>
+    class mytile_share : public Handler_share {
+    public:
+        mysql_mutex_t mutex;
+        THR_LOCK lock;
 
-// list of system parameters
-extern struct st_mysql_sys_var *mytile_system_variables[];
+        mytile_share();
 
-// Read buffer size
-static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-// Write buffer size, currently unused
-static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
-                              NULL, 10485760, 0, ~0UL, 0);
-
-
-
-#endif // MYTILE_SYSVARS_H
+        ~mytile_share() override {
+            thr_lock_delete(&lock);
+            mysql_mutex_destroy(&mutex);
+        }
+    };
+}

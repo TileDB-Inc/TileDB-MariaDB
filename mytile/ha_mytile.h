@@ -38,6 +38,7 @@
 
 #include "mytile-buffer.h"
 #include "mytile-sysvars.h"
+#include "ha_mytile-pushdown.h"
 #include <handler.h>
 #include <memory>
 #include <tiledb/tiledb>
@@ -52,24 +53,6 @@
 // Handler for mytile engine
 extern handlerton *mytile_hton;
 namespace tile {
-
-/** @brief
-  mytile_share is a class that will be shared among all open handlers.
-  This mytile implements the minimum of what you will probably need.
-*/
-
-class mytile_share : public Handler_share {
-public:
-  mysql_mutex_t mutex;
-  THR_LOCK lock;
-
-  mytile_share();
-
-  ~mytile_share() override {
-    thr_lock_delete(&lock);
-    mysql_mutex_destroy(&mutex);
-  }
-};
 
 class mytile : public handler {
 public:
@@ -133,8 +116,20 @@ public:
    */
   int close(void) override;
 
+  /**
+   * Initialize table scanning
+   * @return
+   */
+  int init_scan(THD *thd, std::unique_ptr<void, decltype(&std::free)> subarray);
+
   /* Table Scanning */
   int rnd_init(bool scan) override;
+
+  /**
+   * Rext next Row
+   * @return
+   */
+  int rnd_row(TABLE *table);
 
   /**
    * Read next row
@@ -170,6 +165,36 @@ public:
    */
   int write_row(const uchar *buf) override { return 0; };
 
+    /**
+    Push condition down to the table handler.
+
+    @param  cond   Condition to be pushed. The condition tree must not be
+                   modified by the by the caller.
+
+    @return
+      The 'remainder' condition that caller must use to filter out records.
+      NULL means the handler will not return rows that do not match the
+      passed condition.
+
+    @note
+    The pushed conditions form a stack (from which one can remove the
+    last pushed condition using cond_pop).
+    The table handler filters out rows using (pushed_cond1 AND pushed_cond2
+    AND ... AND pushed_condN)
+    or less restrictive condition, depending on handler's capabilities.
+
+    handler->ha_reset() call empties the condition stack.
+    Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
+    condition stack.
+  */
+    const COND *cond_push(const COND *cond) override;
+
+  /**
+    Pop the top condition from the condition stack of the storage engine
+    for each partition.
+  */
+  void cond_pop() override;
+
   ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
   /**
@@ -193,6 +218,10 @@ public:
    * Helper function to allocate all buffers
    */
   void alloc_buffers(uint64_t size);
+
+  /**
+   * Helper to free buffers
+   */
   void dealloc_buffers();
 
   /**
@@ -201,7 +230,7 @@ public:
    * @param dimensions_only
    * @return
    */
-  int tileToFields(uint64_t record_position, bool dimensions_only);
+  int tileToFields(uint64_t record_position, bool dimensions_only, TABLE *table);
 
   /**
    * Table info
@@ -247,5 +276,10 @@ private:
   tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;
 
   uint64_t read_buffer_size = 0;
+
+  // Vector of pushdowns
+  std::vector<std::vector<std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>>>> pushdown_ranges;
+
+friend class mytile_select_handler;
 };
 } // namespace tile

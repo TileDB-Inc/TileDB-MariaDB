@@ -73,6 +73,10 @@ static void init_mytile_psi_keys() {
 
 #endif
 
+// system variables
+struct st_mysql_sys_var *mytile_system_variables[] = {
+        MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size), NULL};
+
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
@@ -157,6 +161,7 @@ static int mytile_init_func(void *p) {
   // Set table discovery functions
   mytile_hton->discover_table = tile::mytile_discover_table;
   mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
+  mytile_hton->create_select = tile::mytile_select_handler::create_mytile_select_handler;
 
   DBUG_RETURN(0);
 }
@@ -245,7 +250,10 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     //    if (mode == O_RDWR)
     //      openType = tiledb_query_type_t::TILEDB_WRITE;
 
-    array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
+    this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
+
+    this->ndim = this->array->schema().domain().ndim();
+
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
@@ -401,46 +409,151 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   DBUG_RETURN(rc);
 }
 
+int tile::mytile::init_scan(THD *thd, std::unique_ptr<void, decltype(&std::free)> subarray) {
+    DBUG_ENTER("tile::mytile::init_scan");
+    // Reset indicators
+    this->record_index = 0;
+    this->records = 0;
+    this->records_read = 0;
+    this->status = tiledb::Query::Status::UNINITIALIZED;
+
+    this->read_buffer_size = THDVAR(thd, read_buffer_size);
+
+    this->query = std::make_shared<tiledb::Query>(
+            ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
+
+    alloc_buffers(this->read_buffer_size);
+
+    auto domain = this->array->schema().domain();
+    auto dims = domain.dimensions();
+
+    std::cerr << "this->pushdown_ranges is empty" << std::endl;
+    uint64_t subarray_size =
+            tiledb_datatype_size(domain.type()) * dims.size() * 2;
+    if (subarray == nullptr) {
+        subarray = std::unique_ptr<void, decltype(&std::free)>(std::malloc(subarray_size), &std::free);
+    }
+    int empty;
+
+    ctx.handle_error(tiledb_array_get_non_empty_domain(
+            ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
+
+    this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
+    if (this->pushdown_ranges.empty()) { // No pushdown
+        if (empty)
+            DBUG_RETURN(HA_ERR_END_OF_FILE);
+
+        // Set subarray using capi
+        ctx.handle_error(tiledb_query_set_subarray(
+                ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
+
+    } else  {
+        std::cerr << "this->pushdown_ranges is not empty" << std::endl;
+        for(uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+            const auto &ranges = this->pushdown_ranges[dim_idx];
+            if (!ranges.empty()) {
+                std::cerr << "Adding range for dim_idx=" << dim_idx << std::endl;
+                for (const auto &range : ranges) {
+                    ctx.handle_error(tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(), dim_idx, range.first.get(), range.second.get(), nullptr));
+                }
+            } else { // If the range is empty we need to use the non-empty-domain
+                std::cerr << "Adding non_empty_domain for dim_idx=" << dim_idx << std::endl;
+                void* lower = static_cast<char*>(subarray.get())+(dim_idx*2*tiledb_datatype_size(domain.type()));
+                void* upper = static_cast<char*>(lower)+tiledb_datatype_size(domain.type());
+                ctx.handle_error(tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower, upper, nullptr));
+            }
+        }
+    }
+    DBUG_RETURN(0);
+}
+
 /* Table Scanning */
 int tile::mytile::rnd_init(bool scan) {
   DBUG_ENTER("tile::mytile::rnd_init");
-  // Reset indicators
-  this->record_index = 0;
-  this->records = 0;
-  this->records_read = 0;
-  this->status = tiledb::Query::Status::UNINITIALIZED;
-
-  this->read_buffer_size = THDVAR(this->ha_thd(), read_buffer_size);
-
-  this->query = std::make_shared<tiledb::Query>(
-      ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
-
-  alloc_buffers(this->read_buffer_size);
-
-  auto domain = this->array->schema().domain();
-  auto dims = domain.dimensions();
-  this->ndim = dims.size();
-  uint64_t subarray_size =
-      tiledb_datatype_size(domain.type()) * dims.size() * 2;
-  std::unique_ptr<void, decltype(&std::free)> subarray(malloc(subarray_size),
-                                                       &std::free);
-  int empty;
-
-  ctx.handle_error(tiledb_array_get_non_empty_domain(
-      ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
-
-  if (empty)
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
-
-  // this->query->set_subarray(subarray, dims.size());
-  // Set subarray using capi
-  ctx.handle_error(tiledb_query_set_subarray(
-      ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
-
-  this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(init_scan(this->ha_thd(), std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
 };
+
+
+int tile::mytile::rnd_row(TABLE *table) {
+    DBUG_ENTER("tile::mytile::rnd_row");
+    int rc = 0;
+    const char *query_status;
+    tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
+                               &query_status);
+
+    // If we have run out of records report EOF
+    // note the upper bound of records might be *more* than actual results, thus
+    // this check is not guaranteed see the next check were we look for complete
+    // query and row position
+    if (this->records_read >= this->total_num_records_UB) {
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+
+    // If we are complete and there is no more records we report EOF
+    if (this->status == tiledb::Query::Status::COMPLETE &&
+        static_cast<int64_t>(this->record_index) >= this->records) {
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+
+    try {
+        // If the cursor has passed the number of records from the previous query
+        // (or if this is the first time), (re)submit the query->
+        if (static_cast<int64_t>(this->record_index) >= this->records) {
+            do {
+                this->status = query->submit();
+
+                // Compute the number of cells (records) that were returned by the
+                // query->
+                const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>
+                        &queryResultBufferElements = query->result_buffer_elements();
+                auto coords = queryResultBufferElements.find(TILEDB_COORDS);
+                this->records = coords->second.second / this->ndim;
+
+                for (auto &buff : this->buffers) {
+
+                    if (buff->dimension) {
+                        buff->result_offset_buffer_size = coords->second.first;
+                        buff->result_buffer_size = coords->second.second;
+                    } else {
+                        auto result_size =
+                                queryResultBufferElements.find(buff->name)->second;
+                        buff->result_offset_buffer_size = result_size.first;
+                        buff->result_buffer_size = result_size.second;
+                    }
+                }
+
+                // Increase the buffer allocation and resubmit if necessary.
+                if (this->status == tiledb::Query::Status::INCOMPLETE &&
+                    this->records == 0) { // VERY IMPORTANT!!
+                    this->read_buffer_size = this->read_buffer_size * 2;
+                    dealloc_buffers();
+                    alloc_buffers(read_buffer_size);
+                } else if (records > 0) {
+                    this->record_index = 0;
+                    // Break out of resubmit loop as we have some results.
+                    break;
+                }
+            } while (status == tiledb::Query::Status::INCOMPLETE);
+        }
+
+        tileToFields(record_index, false, table);
+
+        this->record_index++;
+        this->records_read++;
+
+    } catch (const tiledb::TileDBError &e) {
+        // Log errors
+        sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                        e.what());
+        rc = -101;
+    } catch (const std::exception &e) {
+        // Log errors
+        sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
+                        e.what());
+        rc = -102;
+    }
+    DBUG_RETURN(rc);
+}
 
 /**
  * Read next row
@@ -449,84 +562,7 @@ int tile::mytile::rnd_init(bool scan) {
  */
 int tile::mytile::rnd_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::rnd_next");
-  int rc = 0;
-  const char *query_status;
-  tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
-                             &query_status);
-
-  // If we have run out of records report EOF
-  // note the upper bound of records might be *more* than actual results, thus
-  // this check is not guaranteed see the next check were we look for complete
-  // query and row position
-  if (this->records_read >= this->total_num_records_UB) {
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
-  }
-
-  // If we are complete and there is no more records we report EOF
-  if (this->status == tiledb::Query::Status::COMPLETE &&
-      static_cast<int64_t>(this->record_index) >= this->records) {
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
-  }
-
-  try {
-    // If the cursor has passed the number of records from the previous query
-    // (or if this is the first time), (re)submit the query->
-    if (static_cast<int64_t>(this->record_index) >= this->records) {
-      do {
-        this->status = query->submit();
-
-        // Compute the number of cells (records) that were returned by the
-        // query->
-        const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>
-            &queryResultBufferElements = query->result_buffer_elements();
-        auto coords = queryResultBufferElements.find(TILEDB_COORDS);
-        this->records = coords->second.second / this->ndim;
-
-        for (auto &buff : this->buffers) {
-
-          if (buff->dimension) {
-            buff->result_offset_buffer_size = coords->second.first;
-            buff->result_buffer_size = coords->second.second;
-          } else {
-            auto result_size =
-                queryResultBufferElements.find(buff->name)->second;
-            buff->result_offset_buffer_size = result_size.first;
-            buff->result_buffer_size = result_size.second;
-          }
-        }
-
-        // Increase the buffer allocation and resubmit if necessary.
-        if (this->status == tiledb::Query::Status::INCOMPLETE &&
-            this->records == 0) { // VERY IMPORTANT!!
-          this->read_buffer_size = read_buffer_size * 2;
-          dealloc_buffers();
-          alloc_buffers(read_buffer_size);
-        } else if (records > 0) {
-          this->record_index = 0;
-          // Break out of resubmit loop as we have some results.
-          break;
-        }
-      } while (status == tiledb::Query::Status::INCOMPLETE);
-    }
-
-    tileToFields(record_index, false);
-
-    this->record_index++;
-    this->records_read++;
-
-  } catch (const tiledb::TileDBError &e) {
-    // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
-    rc = -101;
-  } catch (const std::exception &e) {
-    // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
-    rc = -102;
-  }
-
-  DBUG_RETURN(rc);
+  DBUG_RETURN(rnd_row(table));
 }
 
 /**
@@ -536,6 +572,7 @@ int tile::mytile::rnd_next(uchar *buf) {
 int tile::mytile::rnd_end() {
   DBUG_ENTER("tile::mytile::rnd_end");
   dealloc_buffers();
+  this->pushdown_ranges.clear();
   DBUG_RETURN(0);
 };
 
@@ -604,6 +641,210 @@ void tile::mytile::dealloc_buffers() {
   this->buffers.clear();
   DBUG_VOID_RETURN;
 }
+
+/**
+  Push condition down to the table handler.
+
+  @param  cond   Condition to be pushed. The condition tree must not be
+                 modified by the by the caller.
+
+  @return
+    The 'remainder' condition that caller must use to filter out records.
+    NULL means the handler will not return rows that do not match the
+    passed condition.
+
+  @note
+  The pushed conditions form a stack (from which one can remove the
+  last pushed condition using cond_pop).
+  The table handler filters out rows using (pushed_cond1 AND pushed_cond2
+  AND ... AND pushed_condN)
+  or less restrictive condition, depending on handler's capabilities.
+
+  handler->ha_reset() call empties the condition stack.
+  Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
+  condition stack.
+*/
+const COND *tile::mytile::cond_push(const COND *cond) {
+    DBUG_ENTER("tile::mytile::cond_push");
+    // NOTE: This is called one or more times by handle interface (I think).
+    // It *should* be called before rnd_init, but not positive, need validation
+    switch (cond->type()) {
+        case Item::COND_ITEM: {
+            Item_cond *cond_item = (Item_cond *) cond;
+            switch (cond_item->functype()) {
+                case Item_func::COND_AND_FUNC:
+                    //vop = OP_AND;
+                    break;
+                case Item_func::COND_OR_FUNC:
+                    //vop = OP_OR;
+                    break;
+                default:
+                    return NULL;
+            } // endswitch functype
+
+            List<Item> *arglist = cond_item->argument_list();
+            List_iterator<Item> li(*arglist);
+            const Item *subitem;
+
+            for (uint32_t i = 0; i < arglist->elements; i++) {
+                std::cerr << "i=" << i << std::endl;
+                if ((subitem = li++)) {
+                    // COND_ITEMs
+                    cond_push((COND*)subitem);
+                }
+            }
+            break;
+        }
+        case Item::FUNC_ITEM: {
+            Item_func *func_item = (Item_func *) cond;
+            Item **args = func_item->arguments();
+            bool neg = FALSE;
+
+            switch (func_item->functype()) {
+                case Item_func::EQUAL_FUNC:
+//                case Item_func::EQ_FUNC: vop= OP_EQ;  break;
+                case Item_func::NE_FUNC: DBUG_RETURN(cond); /* Not equal is not supported */
+//                case Item_func::LT_FUNC: vop= OP_LT;  break;
+//                case Item_func::LE_FUNC: vop= OP_LE;  break;
+//                case Item_func::GE_FUNC: vop= OP_GE;  break;
+//                case Item_func::GT_FUNC: vop= OP_GT;  break;
+                case Item_func::IN_FUNC: DBUG_RETURN(cond);	/* IN is not supported */
+                case Item_func::BETWEEN:
+                    neg= (dynamic_cast<Item_func_opt_neg*>(func_item))->negated;
+                    if (neg) // don't support negations!
+                        DBUG_RETURN(cond);
+                    break;
+                default: break;//DBUG_RETURN(NULL);
+            } // endswitch functype
+
+            std::cerr << "func_item->argument_count()=" << func_item->argument_count() << std::endl;
+            Item_field *column_field = dynamic_cast<Item_field*>(args[0]);
+            // If the condition is not a dimension we can't handle it
+            if (!this->array->schema().domain().has_dimension(column_field->field_name.str)) {
+                DBUG_RETURN(cond);
+            }
+
+
+            uint64_t dim_idx = 0;
+            auto dims = this->array->schema().domain().dimensions();
+            for(uint64_t j = 0; j < this->ndim; j++) {
+                if (dims[j].name() == column_field->field_name.str)
+                    dim_idx = j;
+            }
+
+            std::cerr << "setting dim_idx=" << dim_idx;
+
+            Item_basic_constant *lower_const = dynamic_cast<Item_basic_constant*>(args[1]);
+            // Init upper to be lower
+            Item_basic_constant *upper_const = dynamic_cast<Item_basic_constant*>(args[1]);
+
+            // Create unique ptrs
+            std::unique_ptr<void, decltype(&std::free)> lower_value(std::malloc(sizeof(longlong)), &std::free);
+            std::unique_ptr<void, decltype(&std::free)> upper_value(std::malloc(sizeof(longlong)), &std::free);
+            *static_cast<longlong*>(lower_value.get()) = lower_const->val_int();
+
+            std::cerr << ", lower_value=" << lower_const->val_int();;
+
+            if (func_item->argument_count() == 3) {
+                upper_const = dynamic_cast<Item_basic_constant*>(args[2]);
+            }
+            *static_cast<longlong*>(upper_value.get()) = upper_const->val_int();
+            std::cerr  << ", upper_value=" << upper_const->val_int() << std::endl;
+
+            if (this->pushdown_ranges.empty())
+                for (uint64_t i = 0; i < this->ndim; i++)
+                  this->pushdown_ranges.emplace_back();
+            std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>> range_pair(std::move(lower_value), std::move(upper_value));
+            std::vector<std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>>> &range = this->pushdown_ranges[dim_idx];
+            range.push_back(std::move(range_pair));
+            //this->pushdown_ranges[dim_idx] = std::move(range);
+            //this->pushdown_ranges[dim_idx].emplace_back(std::move(lower_value), std::move(upper_value));
+            //auto pair = std::make_pair(std::move(lower_value), std::move(upper_value));
+            //this->pushdown_ranges[dim_idx].push_back(pair);
+            //this->query->add_range(dim_idx, static_cast<int32_t>(*lower_value), static_cast<int32_t>(*upper_value));
+
+            /*
+
+            for (uint32_t i = 0; i < func_item->argument_count(); i++) {
+                std::cerr << "i=" << i << std::endl;
+                std::cerr << "args[i]->type() = " << args[i]->type() << std::endl;
+                if ((isColumn= args[i]->type() == COND::FIELD_ITEM)) {
+                    Item_field *pField = (Item_field *) args[i];
+                    LEX_CSTRING field_name = pField->field->field_name;
+
+                    std::cerr << "FUNC_ITEM Field index=" << pField->field->field_index << std::endl;
+                    std::cerr << "FUNC_ITEM Field name=" << pField->field->field_name.str << std::endl;
+                    std::cerr << "FUNC_ITEM Field type=" << pField->field->type() << std::endl;
+                    // Check if field is a dimension, if not we can't push it down, so let mariadb filter it
+                    if (!this->array->schema().domain().has_dimension(field_name.str)) {
+                        continue;
+                    }
+                    //TODO: Switch on field type
+
+                    if (pField->field->type() == MYSQL_TYPE_LONGLONG) {
+                        if (pField->unsigned_flag) {
+                            std::cerr << "FUNC_ITEM MYSQL_TYPE_LONGLONG val (unsigned) =" << pField->field->val_uint() << std::endl;
+                        } else {
+                            std::cerr << "FUNC_ITEM MYSQL_TYPE_LONGLONG val =" << pField->field->val_int() << std::endl;
+                        }
+                    } else if (pField->field->type() == MYSQL_TYPE_INT24) {
+                        if (pField->unsigned_flag) {
+                            std::cerr << "FUNC_ITEM MYSQL_TYPE_INT24 val (unsigned) =" << pField->field->val_uint() << std::endl;
+                        } else {
+                            std::cerr << "FUNC_ITEM MYSQL_TYPE_INT24 val =" << pField->field->val_int() << std::endl;
+                        }
+                    }
+
+                    //TODO: Set condition to subarray list
+                } else if ((isColumn= args[i]->type() == COND::CONST_ITEM)) {
+                    Item_basic_constant *pConst = (Item_basic_constant *) args[i];
+                    longlong vall = pConst->val_int();
+                    std::cerr << "vall=" << vall << std::endl;
+                }
+            }*/
+            break;
+        }
+        case Item::FIELD_ITEM: {
+            Item_field *field_item = (Item_field *) cond;
+
+            LEX_CSTRING field_name = field_item->field->field_name;
+
+            std::cerr << "FIELD_ITEM Field index=" << field_item->field->field_index << std::endl;
+            std::cerr << "FIELD_ITEM Field name=" << field_item->field->field_name.str << std::endl;
+            std::cerr << "FIELD_ITEM Field type=" << field_item->field->type() << std::endl;
+            std::cerr << "FIELD_ITEM Field_type=" << field_item->field_type() << std::endl;
+            // Check if field is a dimension, if not we can't push it down, so let mariadb filter it
+            if (!this->array->schema().domain().has_dimension(field_name.str)) {
+                DBUG_RETURN(cond);
+            }
+            //TODO: Switch on field type
+
+            if (field_item->field->type() == MYSQL_TYPE_LONGLONG || field_item->field->type() == MYSQL_TYPE_INT24) {
+                if (field_item->unsigned_flag) {
+                    std::cerr << "FIELD_ITEM MYSQL_TYPE_LONGLONG val (unsigned) =" << field_item->val_uint() << std::endl;
+                } else {
+                    std::cerr << "FIELD_ITEM MYSQL_TYPE_LONGLONG val =" << field_item->val_int() << std::endl;
+                }
+            }
+        }
+        default: {
+        }
+    }
+    DBUG_RETURN(cond);
+};
+
+/**
+  Pop the top condition from the condition stack of the storage engine
+  for each partition.
+*/
+
+void tile::mytile::cond_pop()
+{
+    DBUG_ENTER("tile::mytile::cond_pop");
+
+    DBUG_VOID_RETURN;
+}
+
 /**
  * This should return relevant stats of the underlying tiledb map,
  * currently just sets row count to 2, to avoid 0/1 row optimizations
@@ -699,7 +940,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
  * @param index
  * @return
  */
-int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only) {
+int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only, TABLE *table) {
   DBUG_ENTER("tile::mytile::tileToFields");
   int rc = 0;
   // We must set the bitmap for debug purpose, it is "write_set" because we use

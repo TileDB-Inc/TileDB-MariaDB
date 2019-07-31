@@ -32,22 +32,24 @@
 
 #pragma once
 
+#include <handler.h>
+
 namespace tile {
-    /** @brief
-  mytile_share is a class that will be shared among all open handlers.
-  This mytile implements the minimum of what you will probably need.
+/** @brief
+mytile_share is a class that will be shared among all open handlers.
+This mytile implements the minimum of what you will probably need.
 */
 
-    class mytile_share : public Handler_share {
-    public:
-        mysql_mutex_t mutex;
-        THR_LOCK lock;
+class mytile_share : public Handler_share {
+public:
+  mysql_mutex_t mutex;
+  THR_LOCK lock;
 
-        mytile_share();
+  mytile_share();
 
-        ~mytile_share() override {
-            thr_lock_delete(&lock);
-            mysql_mutex_destroy(&mutex);
-        }
-    };
-}
+  ~mytile_share() override {
+    thr_lock_delete(&lock);
+    mysql_mutex_destroy(&mutex);
+  }
+};
+} // namespace tile

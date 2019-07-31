@@ -34,13 +34,13 @@
 
 #define MYSQL_SERVER 1 // required for THD class
 
-#include "my_global.h" /* ulonglong */
+#include <my_global.h> /* ulonglong */
 #include <handler.h>
 #include <select_handler.h>
 #include <sql_class.h>
 #include <sql_lex.h>
-#include "ha_mytile_share.h"
 #include "ha_mytile.h"
+#include "ha_mytile_share.h"
 
 class mytile_share;
 class mytile;
@@ -50,57 +50,57 @@ namespace tile {
   class declaration
 */
 
-    class mytile_select_handler : public select_handler {
-    private:
-        mytile_share *share;
-        mytile *mytile_handler;
+class mytile_select_handler : public select_handler {
+private:
+  mytile_share *share;
+  mytile *mytile_handler;
 
-    public:
-        mytile_select_handler(THD *thd_arg, SELECT_LEX *sel);
+public:
+  mytile_select_handler(THD *thd_arg, SELECT_LEX *sel);
 
-        ~mytile_select_handler() override;
+  ~mytile_select_handler() override;
 
-        int init_scan() override;
+  int init_scan() override;
 
-        int next_row() override;
+  int next_row() override;
 
-        int end_scan() override;
+  int end_scan() override;
 
-        void print_error(int, unsigned long) override;
+  void print_error(int, unsigned long) override;
 
-        static select_handler* create_mytile_select_handler(THD* thd, SELECT_LEX *sel)
-        {
+  static select_handler *create_mytile_select_handler(THD *thd,
+                                                      SELECT_LEX *sel) {
 
-            return 0;
+    return 0;
 
-            // Currentl global order pushdown is not supported
-            if (sel->gorder_list.elements > 0 )
-                return 0;
+    // Currentl global order pushdown is not supported
+    if (sel->gorder_list.elements > 0)
+      return 0;
 
-            // Currentl order by pushdown is not supported
-            if (sel->order_list.elements > 0 )
-                return 0;
+    // Currentl order by pushdown is not supported
+    if (sel->order_list.elements > 0)
+      return 0;
 
-            // Currentl group by pushdown is not supported
-            if (sel->group_list.elements > 0 )
-                return 0;
+    // Currentl group by pushdown is not supported
+    if (sel->group_list.elements > 0)
+      return 0;
 
-            mytile_select_handler* handler = NULL;
-            handlerton *ht= 0;
+    mytile_select_handler *handler = NULL;
+    handlerton *ht = 0;
 
-            for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
-            {
-                if (!tbl->table)
-                    return 0;
-                if (!ht)
-                    ht= tbl->table->file->partition_ht();
-                else if (ht != tbl->table->file->partition_ht())
-                    return 0;
-            }
+    for (TABLE_LIST *tbl = thd->lex->query_tables; tbl;
+         tbl = tbl->next_global) {
+      if (!tbl->table)
+        return 0;
+      if (!ht)
+        ht = tbl->table->file->partition_ht();
+      else if (ht != tbl->table->file->partition_ht())
+        return 0;
+    }
 
-            handler= new mytile_select_handler(thd, sel);
+    handler = new mytile_select_handler(thd, sel);
 
-            return handler;
-        }
-    };
-}
+    return handler;
+  }
+};
+} // namespace tile

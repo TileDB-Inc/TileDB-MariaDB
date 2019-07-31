@@ -49,6 +49,4 @@ static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
 static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
                               NULL, 10485760, 0, ~0UL, 0);
 
-
-
 #endif // MYTILE_SYSVARS_H

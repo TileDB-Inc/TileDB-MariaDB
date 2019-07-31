@@ -29,7 +29,3 @@
  *
  * This defines the system variables for the storage engine
  */
-
-#include <my_global.h>
-#include "mytile-sysvars.h"
-

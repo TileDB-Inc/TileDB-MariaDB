@@ -32,9 +32,9 @@
 
 #include "ha_mytile-pushdown.h"
 #include "ha_mytile.h"
+#include "mytile-sysvars.h"
 #include <handler.h>
 #include <table.h>
-#include "mytile-sysvars.h"
 
 /*
   Implementation class of the select_handler interface for mytile:
@@ -42,69 +42,63 @@
 */
 
 tile::mytile_select_handler::mytile_select_handler(THD *thd, SELECT_LEX *sel)
-        : select_handler(thd, mytile_hton),
-          share(NULL)
-{
-    this->select= sel;
+    : select_handler(thd, mytile_hton), share(NULL) {
+  this->select = sel;
 }
 
 tile::mytile_select_handler::~mytile_select_handler() {}
 
-int tile::mytile_select_handler::init_scan()
-{
-    DBUG_ENTER("mytile_select_handler::init_scan");
-    int rc= 0;
+int tile::mytile_select_handler::init_scan() {
+  DBUG_ENTER("mytile_select_handler::init_scan");
+  int rc = 0;
 
-    // Find table to get handler
-    TABLE *table= 0;
-    for (TABLE_LIST *tbl= this->thd->lex->query_tables; tbl; tbl= tbl->next_global)
-    {
-        if (!tbl->table)
-            continue;
-        table= tbl->table;
-        break;
+  // Find table to get handler
+  TABLE *table = 0;
+  for (TABLE_LIST *tbl = this->thd->lex->query_tables; tbl;
+       tbl = tbl->next_global) {
+    if (!tbl->table)
+      continue;
+    table = tbl->table;
+    break;
+  }
+
+  std::cerr << "this->select->select_n_where_fields="
+            << this->select->select_n_where_fields << std::endl;
+  if (this->select->select_n_where_fields > 0) {
+    for (uint i = 0; i < this->select->select_n_where_fields; i++) {
+      Item *item = this->select->where;
+      if (item != nullptr) {
+        std::cerr << "where_clause[" << i << "]->"
+                  << "name=" << item->name.str << std::endl;
+      }
     }
+  }
 
-    std::cerr << "this->select->select_n_where_fields=" << this->select->select_n_where_fields << std::endl;
-    if (this->select->select_n_where_fields > 0) {
-        for (uint i = 0; i < this->select->select_n_where_fields; i++) {
-            Item *item = this->select->where;
-            if (item != nullptr) {
-                std::cerr << "where_clause["<< i << "]->" << "name=" << item->name.str << std::endl;
-            }
-        }
-    }
-
-    this->mytile_handler = (mytile *) table->file;
-    rc = this->mytile_handler->init_scan(this->thd, std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
-    DBUG_RETURN(rc);
+  this->mytile_handler = (mytile *)table->file;
+  rc = this->mytile_handler->init_scan(
+      this->thd,
+      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  DBUG_RETURN(rc);
 }
 
-int tile::mytile_select_handler::next_row()
-{
-    DBUG_ENTER("mytile_select_handler::next_row");
-    int rc= 0;
-    /**
-     * The `table` field here is a tmp table mysql creates with the proper schema and it is used only
-     * for setting the buffer. Its not materialized.
-     * We pass it as a function so the results will be stored (via FIELDs) into this tmp table and not the TABLE
-     * object of the handler (the real table)
-     */
-    rc = this->mytile_handler->rnd_row(table);
-    DBUG_RETURN(rc);
-
+int tile::mytile_select_handler::next_row() {
+  DBUG_ENTER("mytile_select_handler::next_row");
+  int rc = 0;
+  /**
+   * The `table` field here is a tmp table mysql creates with the proper schema
+   * and it is used only for setting the buffer. Its not materialized. We pass
+   * it as a function so the results will be stored (via FIELDs) into this tmp
+   * table and not the TABLE object of the handler (the real table)
+   */
+  rc = this->mytile_handler->rnd_row(table);
+  DBUG_RETURN(rc);
 }
 
-int tile::mytile_select_handler::end_scan()
-{
-    DBUG_ENTER("mytile_select_handler::end_scan");
-    int rc= 0;
-    this->mytile_handler->dealloc_buffers();
-    DBUG_RETURN(rc);
+int tile::mytile_select_handler::end_scan() {
+  DBUG_ENTER("mytile_select_handler::end_scan");
+  int rc = 0;
+  this->mytile_handler->dealloc_buffers();
+  DBUG_RETURN(rc);
 }
 
-void tile::mytile_select_handler::print_error(int, unsigned long)
-{
-}
-
-
+void tile::mytile_select_handler::print_error(int, unsigned long) {}

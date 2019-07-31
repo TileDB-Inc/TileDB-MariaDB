@@ -36,13 +36,14 @@
 #pragma interface /* gcc class implementation */
 #endif
 
-#include "mytile-buffer.h"
-#include "mytile-sysvars.h"
 #include "ha_mytile-pushdown.h"
+#include "ha_mytile_share.h"
+#include "mytile-buffer.h"
+#include "mytile-range.h"
+#include "mytile-sysvars.h"
 #include <handler.h>
 #include <memory>
 #include <tiledb/tiledb>
-#include "mytile-range.h"
 
 #include "handler.h"   /* handler */
 #include "my_base.h"   /* ha_rows */
@@ -166,29 +167,29 @@ public:
    */
   int write_row(const uchar *buf) override { return 0; };
 
-    /**
-    Push condition down to the table handler.
+  /**
+  Push condition down to the table handler.
 
-    @param  cond   Condition to be pushed. The condition tree must not be
-                   modified by the by the caller.
+  @param  cond   Condition to be pushed. The condition tree must not be
+                 modified by the by the caller.
 
-    @return
-      The 'remainder' condition that caller must use to filter out records.
-      NULL means the handler will not return rows that do not match the
-      passed condition.
+  @return
+    The 'remainder' condition that caller must use to filter out records.
+    NULL means the handler will not return rows that do not match the
+    passed condition.
 
-    @note
-    The pushed conditions form a stack (from which one can remove the
-    last pushed condition using cond_pop).
-    The table handler filters out rows using (pushed_cond1 AND pushed_cond2
-    AND ... AND pushed_condN)
-    or less restrictive condition, depending on handler's capabilities.
+  @note
+  The pushed conditions form a stack (from which one can remove the
+  last pushed condition using cond_pop).
+  The table handler filters out rows using (pushed_cond1 AND pushed_cond2
+  AND ... AND pushed_condN)
+  or less restrictive condition, depending on handler's capabilities.
 
-    handler->ha_reset() call empties the condition stack.
-    Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
-    condition stack.
-  */
-    const COND *cond_push(const COND *cond) override;
+  handler->ha_reset() call empties the condition stack.
+  Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
+  condition stack.
+*/
+  const COND *cond_push(const COND *cond) override;
 
   /**
     Pop the top condition from the condition stack of the storage engine
@@ -231,7 +232,8 @@ public:
    * @param dimensions_only
    * @return
    */
-  int tileToFields(uint64_t record_position, bool dimensions_only, TABLE *table);
+  int tileToFields(uint64_t record_position, bool dimensions_only,
+                   TABLE *table);
 
   /**
    * Table info
@@ -279,8 +281,8 @@ private:
   uint64_t read_buffer_size = 0;
 
   // Vector of pushdowns
-  std::vector<std::vector<tile::range>> pushdown_ranges;
+  std::vector<std::vector<std::shared_ptr<tile::range>>> pushdown_ranges;
 
-friend class mytile_select_handler;
+  friend class mytile_select_handler;
 };
 } // namespace tile

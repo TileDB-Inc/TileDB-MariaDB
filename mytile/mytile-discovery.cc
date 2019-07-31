@@ -93,24 +93,27 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       trim(lower_domain);
       trim(upper_domain);
 
-      sql_string << std::endl << "`" << dim.name() << "` "
+      sql_string << std::endl
+                 << "`" << dim.name() << "` "
                  << MysqlTypeString(TileDBTypeToMysqlType(dim.type()))
                  << " dimension=1"
                  << " lower_bound='" << lower_domain << "' upper_bound='"
                  << upper_domain << "' tile_extent='"
                  << dim.tile_extent_to_str() << "'"
-                 << ", " ;
+                 << ", ";
     }
 
     for (const auto &attributeMap : schema.attributes()) {
       auto attribute = attributeMap.second;
-      sql_string << std::endl << "`" << attribute.name() << "` "
+      sql_string << std::endl
+                 << "`" << attribute.name() << "` "
                  << MysqlTypeString(TileDBTypeToMysqlType(attribute.type()))
                  << ",";
     }
 
     /*
-     * TODO: primary key support caused rnd index to be required.. need to add in eventually
+     * TODO: primary key support caused rnd index to be required.. need to add
+    in eventually
      * sql_string << "primary key(";
 
     for (const auto &dim : schema.domain().dimensions()) {

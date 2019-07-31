@@ -93,31 +93,35 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       trim(lower_domain);
       trim(upper_domain);
 
-      sql_string << "`" << dim.name() << "` "
+      sql_string << std::endl << "`" << dim.name() << "` "
                  << MysqlTypeString(TileDBTypeToMysqlType(dim.type()))
                  << " dimension=1"
                  << " lower_bound='" << lower_domain << "' upper_bound='"
                  << upper_domain << "' tile_extent='"
                  << dim.tile_extent_to_str() << "'"
-                 << ", " << std::endl;
+                 << ", " ;
     }
 
     for (const auto &attributeMap : schema.attributes()) {
       auto attribute = attributeMap.second;
-      sql_string << "`" << attribute.name() << "` "
+      sql_string << std::endl << "`" << attribute.name() << "` "
                  << MysqlTypeString(TileDBTypeToMysqlType(attribute.type()))
-                 << ", " << std::endl;
+                 << ",";
     }
 
-    sql_string << "primary key(";
+    /*
+     * TODO: primary key support caused rnd index to be required.. need to add in eventually
+     * sql_string << "primary key(";
 
     for (const auto &dim : schema.domain().dimensions()) {
       sql_string << "`" << dim.name() << "`,";
     }
     // move head back one so we can override it
+
+    sql_string << ")";*/
     sql_string.seekp(-1, std::ios_base::end);
 
-    sql_string << ")" << std::endl << ") ENGINE=MyTile ";
+    sql_string << std::endl << ") ENGINE=MyTile ";
 
     sql_string << table_options.str();
   } catch (tiledb::TileDBError &e) {

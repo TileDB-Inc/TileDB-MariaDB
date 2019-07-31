@@ -454,7 +454,7 @@ int tile::mytile::init_scan(THD *thd, std::unique_ptr<void, decltype(&std::free)
             if (!ranges.empty()) {
                 std::cerr << "Adding range for dim_idx=" << dim_idx << std::endl;
                 for (const auto &range : ranges) {
-                    ctx.handle_error(tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(), dim_idx, range.first.get(), range.second.get(), nullptr));
+                    ctx.handle_error(tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(), dim_idx, range.lower_value.get(), range.upper_value.get(), nullptr));
                 }
             } else { // If the range is empty we need to use the non-empty-domain
                 std::cerr << "Adding non_empty_domain for dim_idx=" << dim_idx << std::endl;
@@ -675,9 +675,8 @@ const COND *tile::mytile::cond_push(const COND *cond) {
                 case Item_func::COND_AND_FUNC:
                     //vop = OP_AND;
                     break;
-                case Item_func::COND_OR_FUNC:
-                    //vop = OP_OR;
-                    break;
+                case Item_func::COND_OR_FUNC: // Currently don't support OR pushdown
+                    DBUG_RETURN(cond);
                 default:
                     return NULL;
             } // endswitch functype
@@ -739,24 +738,24 @@ const COND *tile::mytile::cond_push(const COND *cond) {
             Item_basic_constant *upper_const = dynamic_cast<Item_basic_constant*>(args[1]);
 
             // Create unique ptrs
-            std::unique_ptr<void, decltype(&std::free)> lower_value(std::malloc(sizeof(longlong)), &std::free);
-            std::unique_ptr<void, decltype(&std::free)> upper_value(std::malloc(sizeof(longlong)), &std::free);
-            *static_cast<longlong*>(lower_value.get()) = lower_const->val_int();
+            range range = {std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free), std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free), func_item->functype()};
+            range.lower_value = std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(longlong)), &std::free);
+            range.upper_value = std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(longlong)), &std::free);
+            *static_cast<longlong*>(range.lower_value.get()) = lower_const->val_int();
 
             std::cerr << ", lower_value=" << lower_const->val_int();;
 
             if (func_item->argument_count() == 3) {
                 upper_const = dynamic_cast<Item_basic_constant*>(args[2]);
             }
-            *static_cast<longlong*>(upper_value.get()) = upper_const->val_int();
+            *static_cast<longlong*>(range.upper_value.get()) = upper_const->val_int();
             std::cerr  << ", upper_value=" << upper_const->val_int() << std::endl;
 
             if (this->pushdown_ranges.empty())
                 for (uint64_t i = 0; i < this->ndim; i++)
                   this->pushdown_ranges.emplace_back();
-            std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>> range_pair(std::move(lower_value), std::move(upper_value));
-            std::vector<std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>>> &range = this->pushdown_ranges[dim_idx];
-            range.push_back(std::move(range_pair));
+            auto &range_vec = this->pushdown_ranges[dim_idx];
+            range_vec.push_back(std::move(range));
             //this->pushdown_ranges[dim_idx] = std::move(range);
             //this->pushdown_ranges[dim_idx].emplace_back(std::move(lower_value), std::move(upper_value));
             //auto pair = std::make_pair(std::move(lower_value), std::move(upper_value));
@@ -865,8 +864,7 @@ int tile::mytile::info(uint) {
 ulonglong tile::mytile::table_flags(void) const {
   DBUG_ENTER("tile::mytile::table_flags");
   DBUG_RETURN(HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
-              HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
-              HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
+              //HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
               HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT |
               HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
               HA_CAN_BIT_FIELD | HA_FILE_BASED | HA_BINLOG_ROW_CAPABLE |

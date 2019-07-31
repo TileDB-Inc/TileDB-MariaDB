@@ -42,6 +42,7 @@
 #include <handler.h>
 #include <memory>
 #include <tiledb/tiledb>
+#include "mytile-range.h"
 
 #include "handler.h"   /* handler */
 #include "my_base.h"   /* ha_rows */
@@ -278,7 +279,7 @@ private:
   uint64_t read_buffer_size = 0;
 
   // Vector of pushdowns
-  std::vector<std::vector<std::pair<std::unique_ptr<void, decltype(&std::free)>, std::unique_ptr<void, decltype(&std::free)>>>> pushdown_ranges;
+  std::vector<std::vector<tile::range>> pushdown_ranges;
 
 friend class mytile_select_handler;
 };

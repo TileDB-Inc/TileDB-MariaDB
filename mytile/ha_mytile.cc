@@ -777,11 +777,13 @@ const COND *tile::mytile::cond_push(const COND *cond) {
       }
 
       break;
-    default: // Handle all cases where there is 1 or 2 arguments we must set on
-             // the range
+    case Item_func::BETWEEN:
       neg = (dynamic_cast<Item_func_opt_neg *>(func_item))->negated;
       if (neg) // don't support negations!
         DBUG_RETURN(cond);
+      // fall through
+    default: // Handle all cases where there is 1 or 2 arguments we must set on
+             // the range
 
       Item_basic_constant *lower_const =
           dynamic_cast<Item_basic_constant *>(args[1]);

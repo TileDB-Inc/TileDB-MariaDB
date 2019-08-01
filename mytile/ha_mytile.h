@@ -36,6 +36,7 @@
 #pragma interface /* gcc class implementation */
 #endif
 
+#include "mytile-buffer.h"
 #include "mytile-sysvars.h"
 #include <handler.h>
 #include <memory>
@@ -77,7 +78,7 @@ public:
    * @param hton
    * @param table_arg
    */
-  mytile(handlerton *hton, TABLE_SHARE *table_arg) : handler(hton, table_arg){};
+  mytile(handlerton *hton, TABLE_SHARE *table_arg);
 
   ~mytile() noexcept(true){};
 
@@ -118,51 +119,49 @@ public:
   // int rename_table(const char *from, const char *to) override;
 
   /**
-   * Open array, not implemented
+   * Open array
    * @param name
    * @param mode
    * @param test_if_locked
    * @return
    */
-  int open(const char *name, int mode, uint test_if_locked) override {
-    return 0;
-  };
+  int open(const char *name, int mode, uint test_if_locked) override;
 
   /**
-   * Close array, not implemented
+   * Close array
    * @return
    */
-  int close(void) override { return 0; };
+  int close(void) override;
 
   /* Table Scanning */
-  int rnd_init(bool scan) override { return 0; };
+  int rnd_init(bool scan) override;
 
   /**
-   * Read next row, not implemented
+   * Read next row
    * @param buf
    * @return
    */
-  int rnd_next(uchar *buf) override { return 0; };
+  int rnd_next(uchar *buf) override;
 
   /**
-   * Read position, not implemented
+   * End read
+   * @return
+   */
+  int rnd_end() override;
+
+  /**
+   * Read position
    * @param buf
    * @param pos
    * @return
    */
-  int rnd_pos(uchar *buf, uchar *pos) override { return 0; };
-
-  /**
-   * End read, not implemented
-   * @return
-   */
-  int rnd_end() override { return 0; };
+  int rnd_pos(uchar *buf, uchar *pos) override;
 
   /**
    * Get current record coordinates and save to allow for later lookup
    * @param record
    */
-  void position(const uchar *record) override{};
+  void position(const uchar *record) override;
 
   /**
    * Write row, not implemented
@@ -191,6 +190,20 @@ public:
   int external_lock(THD *thd, int lock_type) override;
 
   /**
+   * Helper function to allocate all buffers
+   */
+  void alloc_buffers(uint64_t size);
+  void dealloc_buffers();
+
+  /**
+   *
+   * @param item
+   * @param dimensions_only
+   * @return
+   */
+  int tileToFields(uint64_t record_position, bool dimensions_only);
+
+  /**
    * Table info
    * @return
    */
@@ -206,5 +219,33 @@ private:
 
   // TileDB context
   tiledb::Context ctx;
+
+  // TileDB Config
+  tiledb::Config config;
+
+  // TileDB Array
+  std::shared_ptr<tiledb::Array> array;
+
+  // TileDB Query
+  std::shared_ptr<tiledb::Query> query;
+
+  // Current record row
+  uint64_t record_index = 0;
+
+  // Vector of buffers in field index order
+  std::vector<std::shared_ptr<buffer>> buffers;
+  std::shared_ptr<buffer> coord_buffer;
+
+  // Number of dimensions, this is used frequently so let's cache it
+  uint64_t ndim = 0;
+
+  // Upper bound for number of records so we know stopping condition
+  uint64_t total_num_records_UB = 0;
+
+  int64_t records = -2;
+  uint64_t records_read = 0;
+  tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;
+
+  uint64_t read_buffer_size = 0;
 };
 } // namespace tile

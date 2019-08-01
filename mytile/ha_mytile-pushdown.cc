@@ -32,7 +32,6 @@
 
 #include "ha_mytile-pushdown.h"
 #include "ha_mytile.h"
-#include "mytile-sysvars.h"
 #include <handler.h>
 #include <table.h>
 

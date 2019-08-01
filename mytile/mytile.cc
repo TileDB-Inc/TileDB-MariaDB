@@ -100,7 +100,7 @@ std::string tile::MysqlTypeString(int type) {
   case MYSQL_TYPE_FLOAT:
     return "FLOAT";
   case MYSQL_TYPE_TINY:
-    return "TINY";
+    return "TINYINT";
   case MYSQL_TYPE_SHORT:
     return "SHORT";
   case MYSQL_TYPE_YEAR:
@@ -215,6 +215,26 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
   }
     return tiledb_datatype_t::TILEDB_ANY;
   }
+}
+
+/**
+ * Returns if a tiledb datatype is unsigned or not
+ * @param type
+ * @return
+ */
+bool tile::TileDBTypeIsUnsigned(tiledb_datatype_t type) {
+  switch (type) {
+  case tiledb_datatype_t::TILEDB_UINT8:
+  case tiledb_datatype_t::TILEDB_UINT16:
+  case tiledb_datatype_t::TILEDB_UINT32:
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return true;
+
+  default: {
+    return false;
+  }
+  }
+  return false;
 }
 
 tiledb::Attribute

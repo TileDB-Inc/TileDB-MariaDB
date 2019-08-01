@@ -321,11 +321,13 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   // Only a single key is support, and that is the primary key. We can use the
   // primary key as an alternative to get which fields are suppose to be the
   // dimensions
-  KEY key_info = table_arg->key_info[0];
   std::map<std::string, bool> primaryKeyParts;
-  for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
-    Field *field = key_info.key_part[i].field;
-    primaryKeyParts[field->field_name.str] = true;
+  if (table_arg->key_info != nullptr) {
+    KEY key_info = table_arg->key_info[0];
+    for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
+      Field *field = key_info.key_part[i].field;
+      primaryKeyParts[field->field_name.str] = true;
+    }
   }
 
   // Create attributes or dimensions

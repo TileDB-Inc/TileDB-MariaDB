@@ -51,6 +51,13 @@ int TileDBTypeToMysqlType(tiledb_datatype_t type);
  */
 std::string MysqlTypeString(int type);
 
+/**
+ * Returns if a tiledb datatype is unsigned or not
+ * @param type
+ * @return
+ */
+bool TileDBTypeIsUnsigned(tiledb_datatype_t type);
+
 tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
                                          const tiledb::FilterList &filterList);
 

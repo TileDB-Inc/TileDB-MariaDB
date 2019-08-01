@@ -50,12 +50,18 @@ typedef struct range_struct {
   tiledb_datatype_t datatype;
 } range;
 
+int set_range_from_item_consts(Item_basic_constant *lower_const,
+                               Item_basic_constant *upper_const,
+                               std::shared_ptr<range> &range);
+
 void setup_range(const std::shared_ptr<range> &range, void *non_empty_domain,
                  tiledb::Dimension dimension);
 
 template <typename T>
 void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
   switch (range->operation_type) {
+  case Item_func::IN_FUNC: /* IN is treated like equal */
+  case Item_func::BETWEEN: /* BETWEEN Is treaded like equal */
   case Item_func::EQUAL_FUNC:
   case Item_func::EQ_FUNC:
     break;
@@ -165,8 +171,6 @@ void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
 
     break;
   } break;
-  case Item_func::IN_FUNC: /* IN is not supported */
-  case Item_func::BETWEEN:
   case Item_func::NE_FUNC: /* Not equal is not supported */
   default:
     break; // DBUG_RETURN(NULL);

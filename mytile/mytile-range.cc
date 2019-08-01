@@ -103,3 +103,52 @@ void tile::setup_range(const std::shared_ptr<range> &range,
   }
   }
 }
+
+int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
+                                     Item_basic_constant *upper_const,
+                                     std::shared_ptr<range> &range) {
+  DBUG_ENTER("tile::set_range_from_item_costs");
+  switch (lower_const->cmp_type()) {
+  // TILED does not support string dimensions
+  //                        case STRING_RESULT:
+  //                            res= pval->val_str(&tmp);
+  //                            pp->Value= PlugSubAllocStr(g, NULL,
+  //                            res->ptr(), res->length()); pp->Type=
+  //                            (pp->Value) ? TYPE_STRING : TYPE_ERROR;
+  //                            break;
+  case INT_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_INT64;
+    range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(longlong)), &std::free);
+    range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(longlong)), &std::free);
+    *static_cast<longlong *>(range->lower_value.get()) = lower_const->val_int();
+    *static_cast<longlong *>(range->upper_value.get()) = upper_const->val_int();
+    break;
+  }
+    // TODO: support time
+    //                        case TIME_RESULT:
+    //                            pp->Type= TYPE_DATE;
+    //                            pp->Value= PlugSubAlloc(g, NULL,
+    //                            sizeof(int));
+    //                            *((int*)pp->Value)= (int)
+    //                            Temporal_hybrid(pval).to_longlong(); break;
+  case REAL_RESULT:
+  case DECIMAL_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_FLOAT64;
+    range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(double)), &std::free);
+    range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(double)), &std::free);
+    *static_cast<double *>(range->lower_value.get()) = lower_const->val_real();
+    *static_cast<double *>(range->upper_value.get()) = upper_const->val_real();
+    break;
+  }
+    //                        case ROW_RESULT:
+    //                            DBUG_ASSERT(0);
+    //                            return NULL;
+  default:
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}

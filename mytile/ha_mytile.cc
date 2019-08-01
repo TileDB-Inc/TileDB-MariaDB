@@ -413,6 +413,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 int tile::mytile::init_scan(
     THD *thd, std::unique_ptr<void, decltype(&std::free)> subarray) {
   DBUG_ENTER("tile::mytile::init_scan");
+  int rc = 0;
   // Reset indicators
   this->record_index = 0;
   this->records = 0;
@@ -421,59 +422,72 @@ int tile::mytile::init_scan(
 
   this->read_buffer_size = THDVAR(thd, read_buffer_size);
 
-  this->query = std::make_shared<tiledb::Query>(
-      ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
+  try {
 
-  alloc_buffers(this->read_buffer_size);
+    this->query = std::make_shared<tiledb::Query>(
+        ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
 
-  auto domain = this->array->schema().domain();
-  auto dims = domain.dimensions();
+    alloc_buffers(this->read_buffer_size);
 
-  uint64_t subarray_size =
-      tiledb_datatype_size(domain.type()) * dims.size() * 2;
-  if (subarray == nullptr) {
-    subarray = std::unique_ptr<void, decltype(&std::free)>(
-        std::malloc(subarray_size), &std::free);
-  }
-  int empty;
+    auto domain = this->array->schema().domain();
+    auto dims = domain.dimensions();
 
-  ctx.handle_error(tiledb_array_get_non_empty_domain(
-      ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
+    uint64_t subarray_size =
+        tiledb_datatype_size(domain.type()) * dims.size() * 2;
+    if (subarray == nullptr) {
+      subarray = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(subarray_size), &std::free);
+    }
+    int empty;
 
-  this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
-  if (this->pushdown_ranges.empty()) { // No pushdown
-    if (empty)
-      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    ctx.handle_error(tiledb_array_get_non_empty_domain(
+        ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
 
-    // Set subarray using capi
-    ctx.handle_error(tiledb_query_set_subarray(
-        ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
+    this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
+    if (this->pushdown_ranges.empty()) { // No pushdown
+      if (empty)
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
 
-  } else {
-    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-      const auto &ranges = this->pushdown_ranges[dim_idx];
-      void *lower = static_cast<char *>(subarray.get()) +
-                    (dim_idx * 2 * tiledb_datatype_size(domain.type()));
+      // Set subarray using capi
+      ctx.handle_error(tiledb_query_set_subarray(
+          ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
 
-      if (!ranges.empty()) {
-        for (const std::shared_ptr<range> &range : ranges) {
-          setup_range(range, lower, dims[dim_idx]);
+    } else {
+      for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+        const auto &ranges = this->pushdown_ranges[dim_idx];
+        void *lower = static_cast<char *>(subarray.get()) +
+                      (dim_idx * 2 * tiledb_datatype_size(domain.type()));
 
-          ctx.handle_error(tiledb_query_add_range(
-              ctx.ptr().get(), this->query->ptr().get(), dim_idx,
-              range->lower_value.get(), range->upper_value.get(), nullptr));
+        if (!ranges.empty()) {
+          for (const std::shared_ptr<range> &range : ranges) {
+            setup_range(range, lower, dims[dim_idx]);
+
+            ctx.handle_error(tiledb_query_add_range(
+                ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                range->lower_value.get(), range->upper_value.get(), nullptr));
+          }
+        } else { // If the range is empty we need to use the non-empty-domain
+
+          void *upper =
+              static_cast<char *>(lower) + tiledb_datatype_size(domain.type());
+          ctx.handle_error(
+              tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(),
+                                     dim_idx, lower, upper, nullptr));
         }
-      } else { // If the range is empty we need to use the non-empty-domain
-
-        void *upper =
-            static_cast<char *>(lower) + tiledb_datatype_size(domain.type());
-        ctx.handle_error(
-            tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(),
-                                   dim_idx, lower, upper, nullptr));
       }
     }
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -101;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -102;
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(rc);
 }
 
 /* Table Scanning */
@@ -553,13 +567,15 @@ int tile::mytile::rnd_row(TABLE *table) {
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -101;
   } catch (const std::exception &e) {
     // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -102;
   }
   DBUG_RETURN(rc);
@@ -676,8 +692,14 @@ void tile::mytile::dealloc_buffers() {
 */
 const COND *tile::mytile::cond_push(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push");
-  // NOTE: This is called one or more times by handle interface (I think).
-  // It *should* be called before rnd_init, but not positive, need validation
+  // NOTE: This is called one or more times by handle interface. Once for each
+  // condition It *should* be called before rnd_init, but not positive, need
+  // validation
+
+  // Make sure pushdown ranges is not empty
+  if (this->pushdown_ranges.empty())
+    for (uint64_t i = 0; i < this->ndim; i++)
+      this->pushdown_ranges.emplace_back();
   switch (cond->type()) {
   case Item::COND_ITEM: {
     Item_cond *cond_item = (Item_cond *)cond;
@@ -708,22 +730,6 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     Item **args = func_item->arguments();
     bool neg = FALSE;
 
-    switch (func_item->functype()) {
-    case Item_func::EQUAL_FUNC:
-      //                case Item_func::EQ_FUNC: vop= OP_EQ;  break;
-    case Item_func::NE_FUNC:
-      DBUG_RETURN(cond); /* Not equal is not supported */
-    case Item_func::IN_FUNC:
-      DBUG_RETURN(cond); /* IN is not supported */
-    case Item_func::BETWEEN:
-      neg = (dynamic_cast<Item_func_opt_neg *>(func_item))->negated;
-      if (neg) // don't support negations!
-        DBUG_RETURN(cond);
-      break;
-    default:
-      break;
-    } // endswitch functype
-
     Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
     // If the condition is not a dimension we can't handle it
     if (!this->array->schema().domain().has_dimension(
@@ -738,74 +744,70 @@ const COND *tile::mytile::cond_push(const COND *cond) {
         dim_idx = j;
     }
 
-    Item_basic_constant *lower_const =
-        dynamic_cast<Item_basic_constant *>(args[1]);
-    // Init upper to be lower
-    Item_basic_constant *upper_const =
-        dynamic_cast<Item_basic_constant *>(args[1]);
+    switch (func_item->functype()) {
+    case Item_func::NE_FUNC:
+      DBUG_RETURN(cond); /* Not equal is not supported */
+    case Item_func::IN_FUNC:
+      // In is special because we need to do a tiledb range per argument
+      // Start at 1 because 0 is the field
+      for (uint i = 1; i < func_item->argument_count(); i++) {
+        Item_basic_constant *lower_const =
+            dynamic_cast<Item_basic_constant *>(args[i]);
+        // Init upper to be same becase for in clauses this is required
+        Item_basic_constant *upper_const =
+            dynamic_cast<Item_basic_constant *>(args[i]);
 
-    if (func_item->argument_count() == 3) {
-      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
-    }
+        // Create unique ptrs
+        std::shared_ptr<range> range = std::make_shared<tile::range>(
+            tile::range{std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                                    &std::free),
+                        std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                                    &std::free),
+                        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+        int ret = set_range_from_item_consts(lower_const, upper_const, range);
 
-    // Create unique ptrs
-    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+        if (ret)
+          DBUG_RETURN(cond);
 
-    switch (lower_const->cmp_type()) {
-      // TILED does not support string dimensions
-      //                        case STRING_RESULT:
-      //                            res= pval->val_str(&tmp);
-      //                            pp->Value= PlugSubAllocStr(g, NULL,
-      //                            res->ptr(), res->length()); pp->Type=
-      //                            (pp->Value) ? TYPE_STRING : TYPE_ERROR;
-      //                            break;
-    case INT_RESULT: {
-      range->datatype = tiledb_datatype_t::TILEDB_INT64;
-      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(sizeof(longlong)), &std::free);
-      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(sizeof(longlong)), &std::free);
-      *static_cast<longlong *>(range->lower_value.get()) =
-          lower_const->val_int();
-      *static_cast<longlong *>(range->upper_value.get()) =
-          upper_const->val_int();
+        // Add the range to the pushdown ranges
+        auto &range_vec = this->pushdown_ranges[dim_idx];
+        range_vec.push_back(std::move(range));
+      }
+
       break;
-    }
-    // TODO: support time
-    //                        case TIME_RESULT:
-    //                            pp->Type= TYPE_DATE;
-    //                            pp->Value= PlugSubAlloc(g, NULL,
-    //                            sizeof(int));
-    //                            *((int*)pp->Value)= (int)
-    //                            Temporal_hybrid(pval).to_longlong(); break;
-    case REAL_RESULT:
-    case DECIMAL_RESULT: {
-      range->datatype = tiledb_datatype_t::TILEDB_FLOAT64;
-      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(sizeof(double)), &std::free);
-      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(sizeof(double)), &std::free);
-      *static_cast<double *>(range->lower_value.get()) =
-          lower_const->val_real();
-      *static_cast<double *>(range->upper_value.get()) =
-          upper_const->val_real();
-      break;
-    }
-      //                        case ROW_RESULT:
-      //                            DBUG_ASSERT(0);
-      //                            return NULL;
-    default:
-      DBUG_RETURN(cond);
-    }
+    default: // Handle all cases where there is 1 or 2 arguments we must set on
+             // the range
+      neg = (dynamic_cast<Item_func_opt_neg *>(func_item))->negated;
+      if (neg) // don't support negations!
+        DBUG_RETURN(cond);
 
-    if (this->pushdown_ranges.empty())
-      for (uint64_t i = 0; i < this->ndim; i++)
-        this->pushdown_ranges.emplace_back();
-    auto &range_vec = this->pushdown_ranges[dim_idx];
-    range_vec.push_back(std::move(range));
+      Item_basic_constant *lower_const =
+          dynamic_cast<Item_basic_constant *>(args[1]);
+      // Init upper to be lower
+      Item_basic_constant *upper_const =
+          dynamic_cast<Item_basic_constant *>(args[1]);
+
+      if (func_item->argument_count() == 3) {
+        upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
+      }
+
+      // Create unique ptrs
+      std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+
+      int ret = set_range_from_item_consts(lower_const, upper_const, range);
+
+      if (ret)
+        DBUG_RETURN(cond);
+
+      // Add the range to the pushdown ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+
+      break;
+    } // endswitch functype
 
     break;
   }

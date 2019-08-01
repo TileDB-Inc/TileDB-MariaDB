@@ -450,6 +450,8 @@ int tile::mytile::init_scan(
       if (empty)
         DBUG_RETURN(HA_ERR_END_OF_FILE);
 
+      sql_print_information("no pushdowns possible for query");
+
       // Set subarray using capi
       ctx.handle_error(tiledb_query_set_subarray(
           ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
@@ -461,6 +463,8 @@ int tile::mytile::init_scan(
                       (dim_idx * 2 * tiledb_datatype_size(domain.type()));
 
         if (!ranges.empty()) {
+          sql_print_information("Pushdown for %s",
+                                dims[dim_idx].name().c_str());
           for (const std::shared_ptr<range> &range : ranges) {
             setup_range(range, lower, dims[dim_idx]);
 
@@ -536,6 +540,9 @@ int tile::mytile::rnd_row(TABLE *table) {
         this->records = coords->second.second / this->ndim;
 
         for (auto &buff : this->buffers) {
+          // Ignore empty buffers
+          if (buff == nullptr)
+            continue;
 
           if (buff->dimension) {
             buff->result_offset_buffer_size = coords->second.first;
@@ -647,6 +654,10 @@ void tile::mytile::dealloc_buffers() {
   DBUG_ENTER("tile::mytile::dealloc_buffers");
   // Free allocated buffers
   for (auto &buff : this->buffers) {
+    // Ignore empty buffers
+    if (buff == nullptr)
+      continue;
+
     if (!buff->dimension) {
       if (buff->offset_buffer != nullptr) {
         free(buff->offset_buffer);
@@ -886,8 +897,17 @@ void tile::mytile::alloc_buffers(uint64_t size) {
   this->query->set_buffer(TILEDB_COORDS, coords_buffer,
                           size / tiledb_datatype_size(domain.type()));
 
+  if (this->buffers.empty()) {
+    for (size_t i = 0; i < table->s->fields; i++)
+      this->buffers.emplace_back();
+  }
+
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
+    // Only set buffers for fields that are asked for
+    if (!bitmap_is_set(this->table->read_set, fieldIndex)) {
+      continue;
+    }
     std::string field_name = field->field_name.str;
     // Create buffer
     std::shared_ptr<buffer> buff = std::make_shared<buffer>();
@@ -929,7 +949,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       buff->buffer = data_buffer;
       buff->type = attr.type();
     }
-    this->buffers.push_back(buff);
+    this->buffers[fieldIndex] = buff;
   }
   DBUG_VOID_RETURN;
 }
@@ -948,8 +968,12 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
   my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->write_set);
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
-      uint64_t index = orignal_index;
       Field *field = table->field[fieldIndex];
+      // Only read fields that are asked for
+      if (!bitmap_is_set(this->table->read_set, fieldIndex)) {
+        continue;
+      }
+      uint64_t index = orignal_index;
       field->set_notnull();
 
       std::shared_ptr<buffer> buff = this->buffers[fieldIndex];

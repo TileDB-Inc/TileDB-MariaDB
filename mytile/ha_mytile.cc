@@ -480,12 +480,12 @@ int tile::mytile::init_scan(
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR, "error for table %s : %s",
+    my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -101;
   } catch (const std::exception &e) {
     // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR, "error for table %s : %s",
+    my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -102;
   }
@@ -876,7 +876,6 @@ ulonglong tile::mytile::table_flags(void) const {
 void tile::mytile::alloc_buffers(uint64_t size) {
   DBUG_ENTER("tile::mytile::alloc_buffers");
   // Set Attribute Buffers
-
   auto schema = this->array->schema();
   auto domain = schema.domain();
   auto dims = domain.dimensions();

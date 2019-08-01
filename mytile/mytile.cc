@@ -423,28 +423,28 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
                                 void *subarray) {
   switch (array->schema().domain().type()) {
   case tiledb_datatype_t::TILEDB_INT8: {
-    return computeRecordsUB<int8>(array, subarray);
+    return computeRecordsUB<int8_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_UINT8: {
-    return computeRecordsUB<uint8>(array, subarray);
+    return computeRecordsUB<uint8_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_INT16: {
-    return computeRecordsUB<int16>(array, subarray);
+    return computeRecordsUB<int16_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_UINT16: {
-    return computeRecordsUB<uint16>(array, subarray);
+    return computeRecordsUB<uint16_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_INT32: {
-    return computeRecordsUB<int32>(array, subarray);
+    return computeRecordsUB<int32_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_UINT32: {
-    return computeRecordsUB<uint32>(array, subarray);
+    return computeRecordsUB<uint32_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_INT64: {
-    return computeRecordsUB<int64>(array, subarray);
+    return computeRecordsUB<int64_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_UINT64: {
-    return computeRecordsUB<uint64>(array, subarray);
+    return computeRecordsUB<uint64_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_FLOAT32: {
     return computeRecordsUB<float>(array, subarray);
@@ -465,7 +465,7 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-    return computeRecordsUB<int64>(array, subarray);
+    return computeRecordsUB<int64_t>(array, subarray);
   }
   case tiledb_datatype_t::TILEDB_CHAR:
   case tiledb_datatype_t::TILEDB_STRING_ASCII:

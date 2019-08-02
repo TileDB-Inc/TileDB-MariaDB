@@ -824,22 +824,11 @@ const COND *tile::mytile::cond_push(const COND *cond) {
 
     break;
   }
-  case Item::FIELD_ITEM: {
-    Item_field *field_item = (Item_field *)cond;
-
-    LEX_CSTRING field_name = field_item->field->field_name;
-    // TODO: Support field_item
-    DBUG_RETURN(cond);
-
-    // Check if field is a dimension, if not we can't push it down, so let
-    // mariadb filter it
-    if (!this->array->schema().domain().has_dimension(field_name.str)) {
-      DBUG_RETURN(cond);
-    }
-    // TODO: Switch on field type
-  }
-
+  case Item::FIELD_ITEM: // not supported currently
+                         // Field items are when two have two fields of a table,
+                         // i.e. a join. fall through
   default: {
+    DBUG_RETURN(cond);
   }
   }
   DBUG_RETURN(cond);

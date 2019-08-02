@@ -4,6 +4,7 @@
 #pragma once
 
 #include "my_global.h" /* ulonglong */
+#include "mytile-buffer.h"
 #include <field.h>
 #include <mysqld_error.h> /* ER_UNKNOWN_ERROR */
 #include <tiledb/tiledb>
@@ -50,6 +51,13 @@ int TileDBTypeToMysqlType(tiledb_datatype_t type);
  */
 std::string MysqlTypeString(int type);
 
+/**
+ * Returns if a tiledb datatype is unsigned or not
+ * @param type
+ * @return
+ */
+bool TileDBTypeIsUnsigned(tiledb_datatype_t type);
+
 tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
                                          const tiledb::FilterList &filterList);
 
@@ -89,6 +97,112 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field) {
   T tile_extent = parse_value<T>(field->option_struct->tile_extent);
   return tiledb::Dimension::create<T>(ctx, field->field_name.str, domain,
                                       tile_extent);
+}
+
+void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
+
+template <typename T> T *alloc_buffer(uint64_t size) {
+  return static_cast<T *>(malloc(size));
+}
+
+uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
+                          void *subarray);
+
+template <typename T>
+uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
+                          void *subarray) {
+  T *s = static_cast<T *>(subarray);
+  size_t elements = array->schema().domain().ndim() * 2;
+  // Get max buffer sizes to build
+  const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>> &
+      maxSizes = array->max_buffer_elements<T>(std::vector<T>(s, s + elements));
+
+  // Compute an upper bound on the number of results in the subarray.
+  return maxSizes.find(TILEDB_COORDS)->second.second /
+         array->schema().domain().ndim();
+}
+
+/**
+ * Set datetime field
+ * @param thd
+ * @param field
+ * @param interval
+ */
+int set_datetime_field(THD *thd, Field *field, INTERVAL interval);
+
+int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
+              uint64_t i);
+
+/**
+ * Handle variable length varchars
+ * @tparam T
+ * @param field
+ * @param offset_buffer
+ * @param offset_buffer_size
+ * @param buffer
+ * @param i
+ * @param charset_info
+ */
+template <typename T>
+int set_string_field(Field *field, const uint64_t *offset_buffer,
+                     uint64_t offset_buffer_size, T *buffer, uint64_t i,
+                     charset_info_st *charset_info) {
+  uint64_t end_position = i + 1;
+  uint64_t start_position = 0;
+  // If its not the first value, we need to see where the previous position
+  // ended to know where to start.
+  if (i > 0) {
+    start_position = offset_buffer[i - 1];
+  }
+  // If the current position is equal to the number of results - 1 then we are
+  // at the last varchar value
+  if (i >= offset_buffer_size - 1) {
+    end_position = offset_buffer_size;
+  } else { // Else read the end from the next offset.
+    end_position = offset_buffer[i];
+  }
+  size_t size = end_position - start_position;
+  return field->store(static_cast<char *>(&buffer[start_position]), size,
+                      charset_info);
+}
+
+/**
+ * Handle fixed size (1) varchar
+ * @tparam T
+ * @param field
+ * @param buffer
+ * @param i
+ * @param charset_info
+ */
+template <typename T>
+int set_string_field(Field *field, T *buffer, uint64_t fixed_size_elements,
+                     uint64_t i, charset_info_st *charset_info) {
+  return field->store(static_cast<char *>(&buffer[i]), fixed_size_elements,
+                      charset_info);
+}
+
+template <typename T>
+int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
+                     charset_info_st *charset_info) {
+  if (buff->offset_buffer == nullptr) {
+    return set_string_field(field, static_cast<T *>(buff->buffer),
+                            buff->fixed_size_elements, i, charset_info);
+  }
+  return set_string_field<T>(field, buff->offset_buffer,
+                             buff->result_offset_buffer_size,
+                             static_cast<T *>(buff->buffer), i, charset_info);
+}
+
+template <typename T> int set_field(Field *field, uint64_t i, void *buffer) {
+  T val = static_cast<T *>(buffer)[i];
+  if (std::is_floating_point<T>())
+    return field->store(val);
+  return field->store(val, std::is_signed<T>());
+}
+
+template <typename T>
+int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
+  return set_field<T>(field, i, buff->buffer);
 }
 
 // -- end helpers --

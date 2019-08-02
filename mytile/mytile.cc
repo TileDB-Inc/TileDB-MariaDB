@@ -262,7 +262,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   }
 
   case MYSQL_TYPE_TINY: {
-    if (((Field_num *)field)->unsigned_flag) {
+    if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint8_t>(ctx, field);
     }
     // signed
@@ -270,7 +270,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   }
 
   case MYSQL_TYPE_SHORT: {
-    if (((Field_num *)field)->unsigned_flag) {
+    if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint16_t>(ctx, field);
     }
     // signed
@@ -281,7 +281,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   }
 
   case MYSQL_TYPE_INT24: {
-    if (((Field_num *)field)->unsigned_flag) {
+    if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint32_t>(ctx, field);
     }
     // signed
@@ -290,7 +290,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
 
   case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_LONGLONG: {
-    if (((Field_num *)field)->unsigned_flag) {
+    if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint64_t>(ctx, field);
     }
     // signed

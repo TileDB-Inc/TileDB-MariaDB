@@ -152,7 +152,7 @@ static int mytile_init_func(void *p) {
   init_mytile_psi_keys();
 #endif
 
-  mytile_hton = (handlerton *)p;
+  mytile_hton = static_cast<handlerton *>(p);
   mytile_hton->state = SHOW_OPTION_YES;
   mytile_hton->create = mytile_create_handler;
   mytile_hton->tablefile_extensions = mytile_exts;
@@ -574,12 +574,10 @@ int tile::mytile::rnd_row(TABLE *table) {
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -101;
   } catch (const std::exception &e) {
-    // Log errors
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
@@ -698,7 +696,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   for (uint32_t i = 0; i < arglist->elements; i++) {
     if ((subitem = li++)) {
       // COND_ITEMs
-      cond_push((COND *)subitem);
+      cond_push(dynamic_cast<const COND*>(subitem));
     }
   }
   DBUG_RETURN(nullptr);
@@ -996,13 +994,13 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
+      my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
+                      ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -101;
   } catch (const std::exception &e) {
     // Log errors
-    sql_print_error("[rnd_next] error for table %s : %s", this->uri.c_str(),
-                    e.what());
+      my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
+                      ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -102;
   }
   // Reset bitmap to original

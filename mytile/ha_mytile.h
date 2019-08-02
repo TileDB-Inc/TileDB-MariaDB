@@ -36,7 +36,6 @@
 #pragma interface /* gcc class implementation */
 #endif
 
-#include "ha_mytile-pushdown.h"
 #include "ha_mytile_share.h"
 #include "mytile-buffer.h"
 #include "mytile-range.h"

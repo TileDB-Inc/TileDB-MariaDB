@@ -161,8 +161,6 @@ static int mytile_init_func(void *p) {
   // Set table discovery functions
   mytile_hton->discover_table = tile::mytile_discover_table;
   mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
-  mytile_hton->create_select =
-      tile::mytile_select_handler::create_mytile_select_handler;
 
   DBUG_RETURN(0);
 }
@@ -706,13 +704,13 @@ void tile::mytile::dealloc_buffers() {
 const COND *tile::mytile::cond_push(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push");
   // NOTE: This is called one or more times by handle interface. Once for each
-  // condition It *should* be called before rnd_init, but not positive, need
-  // validation
+  // condition
 
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty())
     for (uint64_t i = 0; i < this->ndim; i++)
       this->pushdown_ranges.emplace_back();
+
   switch (cond->type()) {
   case Item::COND_ITEM: {
     Item_cond *cond_item = (Item_cond *)cond;
@@ -840,6 +838,7 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     }
     // TODO: Switch on field type
   }
+
   default: {
   }
   }

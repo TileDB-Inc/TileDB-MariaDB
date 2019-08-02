@@ -167,6 +167,20 @@ public:
   int write_row(const uchar *buf) override { return 0; };
 
   /**
+   *  Handle condition pushdown of sub conditions
+   * @param cond_item
+   * @return
+   */
+  const COND *cond_push_cond(Item_cond *cond_item);
+
+  /**
+   *  Handle func conditoin pushdowns
+   * @param func_item
+   * @return
+   */
+  const COND *cond_push_func(const Item_func *func_item);
+
+  /**
   Push condition down to the table handler.
 
   @param  cond   Condition to be pushed. The condition tree must not be

@@ -679,6 +679,121 @@ void tile::mytile::dealloc_buffers() {
   DBUG_VOID_RETURN;
 }
 
+const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
+  DBUG_ENTER("tile::mytile::cond_push_cond");
+  switch (cond_item->functype()) {
+  case Item_func::COND_AND_FUNC:
+    // vop = OP_AND;
+    break;
+  case Item_func::COND_OR_FUNC: // Currently don't support OR pushdown
+    DBUG_RETURN(cond_item);
+  default:
+    DBUG_RETURN(nullptr);
+  } // endswitch functype
+
+  List<Item> *arglist = cond_item->argument_list();
+  List_iterator<Item> li(*arglist);
+  const Item *subitem;
+
+  for (uint32_t i = 0; i < arglist->elements; i++) {
+    if ((subitem = li++)) {
+      // COND_ITEMs
+      cond_push((COND *)subitem);
+    }
+  }
+  DBUG_RETURN(nullptr);
+}
+/**
+ *  Handle func condition pushdowns
+ * @param func_item
+ * @return
+ */
+const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
+  DBUG_ENTER("tile::mytile::cond_push_func");
+  Item **args = func_item->arguments();
+  bool neg = FALSE;
+
+  Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
+  // If the condition is not a dimension we can't handle it
+  if (!this->array->schema().domain().has_dimension(
+          column_field->field_name.str)) {
+    DBUG_RETURN(func_item);
+  }
+
+  uint64_t dim_idx = 0;
+  auto dims = this->array->schema().domain().dimensions();
+  for (uint64_t j = 0; j < this->ndim; j++) {
+    if (dims[j].name() == column_field->field_name.str)
+      dim_idx = j;
+  }
+
+  switch (func_item->functype()) {
+  case Item_func::NE_FUNC:
+    DBUG_RETURN(func_item); /* Not equal is not supported */
+  case Item_func::IN_FUNC:
+    // In is special because we need to do a tiledb range per argument
+    // Start at 1 because 0 is the field
+    for (uint i = 1; i < func_item->argument_count(); i++) {
+      Item_basic_constant *lower_const =
+          dynamic_cast<Item_basic_constant *>(args[i]);
+      // Init upper to be same becase for in clauses this is required
+      Item_basic_constant *upper_const =
+          dynamic_cast<Item_basic_constant *>(args[i]);
+
+      // Create unique ptrs
+      std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+      int ret = set_range_from_item_consts(lower_const, upper_const, range);
+
+      if (ret)
+        DBUG_RETURN(func_item);
+
+      // Add the range to the pushdown ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
+
+    break;
+  case Item_func::BETWEEN:
+    neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
+    if (neg) // don't support negations!
+      DBUG_RETURN(func_item);
+    // fall through
+  default: // Handle all cases where there is 1 or 2 arguments we must set on
+    // the range
+
+    Item_basic_constant *lower_const =
+        dynamic_cast<Item_basic_constant *>(args[1]);
+    // Init upper to be lower
+    Item_basic_constant *upper_const =
+        dynamic_cast<Item_basic_constant *>(args[1]);
+
+    if (func_item->argument_count() == 3) {
+      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
+    }
+
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+
+    int ret = set_range_from_item_consts(lower_const, upper_const, range);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // Add the range to the pushdown ranges
+    auto &range_vec = this->pushdown_ranges[dim_idx];
+    range_vec.push_back(std::move(range));
+
+    break;
+  } // endswitch functype
+  DBUG_RETURN(nullptr);
+}
+
 /**
   Push condition down to the table handler.
 
@@ -713,120 +828,25 @@ const COND *tile::mytile::cond_push(const COND *cond) {
 
   switch (cond->type()) {
   case Item::COND_ITEM: {
-    Item_cond *cond_item = (Item_cond *)cond;
-    switch (cond_item->functype()) {
-    case Item_func::COND_AND_FUNC:
-      // vop = OP_AND;
-      break;
-    case Item_func::COND_OR_FUNC: // Currently don't support OR pushdown
-      DBUG_RETURN(cond);
-    default:
-      return NULL;
-    } // endswitch functype
-
-    List<Item> *arglist = cond_item->argument_list();
-    List_iterator<Item> li(*arglist);
-    const Item *subitem;
-
-    for (uint32_t i = 0; i < arglist->elements; i++) {
-      if ((subitem = li++)) {
-        // COND_ITEMs
-        cond_push((COND *)subitem);
-      }
+    Item_cond *cond_item = dynamic_cast<Item_cond *>(const_cast<COND *>(cond));
+    const COND *ret = cond_push_cond(cond_item);
+    if (ret != nullptr) {
+      DBUG_RETURN(ret);
     }
     break;
   }
   case Item::FUNC_ITEM: {
-    Item_func *func_item = (Item_func *)cond;
-    Item **args = func_item->arguments();
-    bool neg = FALSE;
-
-    Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
-    // If the condition is not a dimension we can't handle it
-    if (!this->array->schema().domain().has_dimension(
-            column_field->field_name.str)) {
-      DBUG_RETURN(cond);
+    const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
+    const COND *ret = cond_push_func(func_item);
+    if (ret != nullptr) {
+      DBUG_RETURN(ret);
     }
-
-    uint64_t dim_idx = 0;
-    auto dims = this->array->schema().domain().dimensions();
-    for (uint64_t j = 0; j < this->ndim; j++) {
-      if (dims[j].name() == column_field->field_name.str)
-        dim_idx = j;
-    }
-
-    switch (func_item->functype()) {
-    case Item_func::NE_FUNC:
-      DBUG_RETURN(cond); /* Not equal is not supported */
-    case Item_func::IN_FUNC:
-      // In is special because we need to do a tiledb range per argument
-      // Start at 1 because 0 is the field
-      for (uint i = 1; i < func_item->argument_count(); i++) {
-        Item_basic_constant *lower_const =
-            dynamic_cast<Item_basic_constant *>(args[i]);
-        // Init upper to be same becase for in clauses this is required
-        Item_basic_constant *upper_const =
-            dynamic_cast<Item_basic_constant *>(args[i]);
-
-        // Create unique ptrs
-        std::shared_ptr<range> range = std::make_shared<tile::range>(
-            tile::range{std::unique_ptr<void, decltype(&std::free)>(nullptr,
-                                                                    &std::free),
-                        std::unique_ptr<void, decltype(&std::free)>(nullptr,
-                                                                    &std::free),
-                        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
-        int ret = set_range_from_item_consts(lower_const, upper_const, range);
-
-        if (ret)
-          DBUG_RETURN(cond);
-
-        // Add the range to the pushdown ranges
-        auto &range_vec = this->pushdown_ranges[dim_idx];
-        range_vec.push_back(std::move(range));
-      }
-
-      break;
-    case Item_func::BETWEEN:
-      neg = (dynamic_cast<Item_func_opt_neg *>(func_item))->negated;
-      if (neg) // don't support negations!
-        DBUG_RETURN(cond);
-      // fall through
-    default: // Handle all cases where there is 1 or 2 arguments we must set on
-             // the range
-
-      Item_basic_constant *lower_const =
-          dynamic_cast<Item_basic_constant *>(args[1]);
-      // Init upper to be lower
-      Item_basic_constant *upper_const =
-          dynamic_cast<Item_basic_constant *>(args[1]);
-
-      if (func_item->argument_count() == 3) {
-        upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
-      }
-
-      // Create unique ptrs
-      std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
-          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
-
-      int ret = set_range_from_item_consts(lower_const, upper_const, range);
-
-      if (ret)
-        DBUG_RETURN(cond);
-
-      // Add the range to the pushdown ranges
-      auto &range_vec = this->pushdown_ranges[dim_idx];
-      range_vec.push_back(std::move(range));
-
-      break;
-    } // endswitch functype
-
     break;
   }
-  case Item::FIELD_ITEM: // not supported currently
-                         // Field items are when two have two fields of a table,
-                         // i.e. a join. fall through
+  // not supported currently
+  // Field items are when two have two fields of a table, i.e. a join.
+  case Item::FIELD_ITEM:
+    // fall through
   default: {
     DBUG_RETURN(cond);
   }

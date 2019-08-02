@@ -40,7 +40,7 @@
 #include <tiledb/tiledb>
 
 int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
-
+  DBUG_ENTER("tile::mytile_discover_table");
   std::stringstream sql_string;
   sql_string << "create table `" << ts->table_name.str << "` (";
   try {
@@ -140,8 +140,9 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
 
     sql_string << table_options.str();
   } catch (tiledb::TileDBError &e) {
-    my_printf_error(ER_UNKNOWN_ERROR, e.what(), ME_ERROR_LOG | ME_FATAL);
-    return HA_ERR_NO_SUCH_TABLE;
+    my_printf_error(ER_UNKNOWN_ERROR, "Error in table discovery: %s",
+                    ME_ERROR_LOG, e.what());
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 
   std::string sql_statement = sql_string.str();
@@ -149,7 +150,7 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       thd, false, sql_statement.c_str(), sql_statement.length());
 
   // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
-  return res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res;
+  DBUG_RETURN(res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res);
 }
 
 int tile::mytile_discover_table_existence(handlerton *hton, const char *db,

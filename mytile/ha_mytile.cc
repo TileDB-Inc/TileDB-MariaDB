@@ -48,6 +48,7 @@
 #include <mysql/plugin.h>
 #include <mysqld_error.h>
 #include <vector>
+#include <unordered_map>
 
 // Handler for mytile engine
 handlerton *mytile_hton;
@@ -257,12 +258,12 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
-    DBUG_RETURN(-10);
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
-    DBUG_RETURN(-11);
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
   DBUG_RETURN(0);
 }
@@ -319,7 +320,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   // Only a single key is support, and that is the primary key. We can use the
   // primary key as an alternative to get which fields are suppose to be the
   // dimensions
-  std::map<std::string, bool> primaryKeyParts;
+  std::unordered_map<std::string, bool> primaryKeyParts;
   if (table_arg->key_info != nullptr) {
     KEY key_info = table_arg->key_info[0];
     for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
@@ -696,7 +697,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   for (uint32_t i = 0; i < arglist->elements; i++) {
     if ((subitem = li++)) {
       // COND_ITEMs
-      cond_push(dynamic_cast<const COND*>(subitem));
+      cond_push(dynamic_cast<const COND *>(subitem));
     }
   }
   DBUG_RETURN(nullptr);
@@ -994,13 +995,13 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-      my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
-                      ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -101;
   } catch (const std::exception &e) {
     // Log errors
-      my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
-                      ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -102;
   }
   // Reset bitmap to original

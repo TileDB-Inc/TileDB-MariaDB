@@ -81,7 +81,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
-    HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", TILEDB_SPARSE),
+    HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", 1),
     HA_TOPTION_NUMBER("capacity", capacity, 10000, 0, UINT64_MAX, 1),
     HA_TOPTION_ENUM("cell_order", cell_order, "ROW_MAJOR,COLUMN_MAJOR",
                     TILEDB_ROW_MAJOR),
@@ -96,7 +96,7 @@ ha_create_table_option mytile_field_option_list[] = {
       or boolean - for example a list - it needs to specify the option
       as a string and parse it internally.
     */
-    HA_FOPTION_BOOL("dimension", dimension, 0),
+    HA_FOPTION_BOOL("dimension", dimension, false),
     HA_FOPTION_STRING("lower_bound", lower_bound),
     HA_FOPTION_STRING("upper_bound", upper_bound),
     HA_FOPTION_STRING("tile_extent", tile_extent), HA_FOPTION_END};
@@ -305,7 +305,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   int rc = 0;
 
   tiledb_array_type_t arrayType = TILEDB_SPARSE;
-  if (create_info->option_struct->array_type == 0) {
+  if (create_info->option_struct->array_type == 1) {
     arrayType = TILEDB_SPARSE;
   } else {
     arrayType = TILEDB_DENSE;
@@ -335,7 +335,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // If the field has the dimension flag set or it is part of the primary key
     // we treat it is a dimension
     if (field->option_struct->dimension ||
-        primaryKeyParts.find(field->field_name.str) == primaryKeyParts.end()) {
+        primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
       if (field->option_struct->lower_bound == nullptr ||
           strcmp(field->option_struct->lower_bound, "") == 0) {
         my_printf_error(
@@ -424,9 +424,16 @@ int tile::mytile::init_scan(
   this->read_buffer_size = THDVAR(thd, read_buffer_size);
 
   try {
+    if ((this->array->is_open() && this->array->query_type() != TILEDB_READ) || !this->array->is_open()) {
+      if (this->array->is_open())
+        this->array->close();
 
-    this->query = std::make_shared<tiledb::Query>(
-        ctx, *this->array, tiledb_query_type_t::TILEDB_READ);
+      this->array->open(TILEDB_READ);
+    }
+    if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
+      this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
+      this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+    }
 
     alloc_buffers(this->read_buffer_size);
 
@@ -485,12 +492,12 @@ int tile::mytile::init_scan(
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -101;
+    rc = -111;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -102;
+    rc = -112;
   }
   DBUG_RETURN(rc);
 }
@@ -577,12 +584,12 @@ int tile::mytile::rnd_row(TABLE *table) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -101;
+    rc = -121;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -102;
+    rc = -122;
   }
   DBUG_RETURN(rc);
 }
@@ -898,11 +905,14 @@ void tile::mytile::alloc_buffers(uint64_t size) {
   auto domain = schema.domain();
   auto dims = domain.dimensions();
 
+  const char* array_type;
+  tiledb_array_type_to_str(schema.array_type(), &array_type);
+
   // Set Coordinate Buffer
   // We don't use set_coords to avoid needing to switch on datatype
   auto coords_buffer = alloc_buffer(domain.type(), size);
-  this->query->set_buffer(TILEDB_COORDS, coords_buffer,
-                          size / tiledb_datatype_size(domain.type()));
+  this->query->set_buffer(TILEDB_COORDS, coords_buffer, size / tiledb_datatype_size(domain.type()));
+
 
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
@@ -922,6 +932,8 @@ void tile::mytile::alloc_buffers(uint64_t size) {
     buff->dimension = false;
     buff->buffer_offset = 0;
     buff->fixed_size_elements = 1;
+    buff->buffer_size = size;
+
 
     if (schema.domain().has_dimension(field_name)) {
       buff->buffer = coords_buffer;
@@ -933,6 +945,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
           break;
         }
       }
+      buff->fixed_size_elements = domain.ndim();
       this->coord_buffer = buff;
     } else { // attribute
       tiledb::Attribute attr = schema.attribute(field_name);
@@ -942,13 +955,12 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       if (attr.variable_sized()) {
         offset_buffer = static_cast<uint64_t *>(
             alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
-        this->query->set_buffer(
-            field_name, offset_buffer,
-            size / tiledb_datatype_size(tiledb_datatype_t::TILEDB_UINT64),
-            data_buffer, nelements);
+        this->query->set_buffer( field_name, offset_buffer, size / tiledb_datatype_size(tiledb_datatype_t::TILEDB_UINT64), data_buffer, nelements);
         buff->fixed_size_elements = 0;
+        buff->offset_buffer_size = size;
       } else {
         this->query->set_buffer(field_name, data_buffer, nelements);
+
         buff->fixed_size_elements = attr.cell_val_num();
       }
 
@@ -997,17 +1009,180 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -101;
+    rc = -131;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -102;
+    rc = -132;
   }
   // Reset bitmap to original
   dbug_tmp_restore_column_map(table->write_set, orig);
   DBUG_RETURN(rc);
 };
+
+int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
+  DBUG_ENTER("tile::mytile::mysql_row_to_tiledb_buffers");
+  int error = 0;
+
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->read_set);
+
+  try {
+    // for (Field **field = table->field; *field; field++) {
+    for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
+      Field *field = table->field[fieldIndex];
+      // Error if there is a field missing from writting
+      if (!bitmap_is_set(this->table->write_set, fieldIndex)) {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "[mysql_row_to_tiledb_buffers] field %s is not set, tiledb reqiures "
+                        "all fields set for writting",
+                        ME_ERROR_LOG | ME_FATAL, field->field_name.str);
+      }
+
+      if (field->is_null()) {
+        error = HA_ERR_UNSUPPORTED;
+      } else {
+        std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
+        set_buffer_from_field(field, buffer, this->record_index, nullptr);
+      }
+    }
+    this->record_index++;
+
+
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    sql_print_error("[mysql_row_to_tiledb_buffers] write error for table %s : %s",
+                    this->uri.c_str(), e.what());
+    error = -101;
+  } catch (const std::exception &e) {
+    // Log errors
+    sql_print_error("[mysql_row_to_tiledb_buffers] write error for table %s : %s",
+                    this->uri.c_str(), e.what());
+    error = -102;
+  }
+
+  // Reset bitmap to original
+
+  dbug_tmp_restore_column_map(table->read_set, old_map);
+  DBUG_RETURN(error);
+}
+
+/**
+ * Write row
+ * @param buf
+ * @return
+ */
+int tile::mytile::write_row(const uchar *buf) {
+  DBUG_ENTER("tile::mytile::write_row");
+  int rc = 0;
+  // We must set the bitmap for debug purpose, it is "read_set" because we use
+  // Field->val_*
+  my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->read_set);
+
+  if (this->array->is_open() && this->array->query_type() != TILEDB_WRITE) {
+    this->array->close();
+    this->array->open(TILEDB_WRITE);
+  }
+  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
+    this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  }
+
+  if (!this->bulk_write) {
+    this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
+    alloc_buffers(this->write_buffer_size);
+    this->record_index = 0;
+
+
+    for (auto &buff : this->buffers) {
+      /*if (domain.has_dimension(buff->name)) {
+        this->ctx.handle_error(tiledb_query_set_buffer(
+            this->ctx.ptr().get(),
+            this->query->ptr().get(),
+            tiledb_coords(),
+            buff->buffer,
+            &buff->buffer_size));
+      } else {
+        if (buff->offset_buffer != nullptr) {
+          this->ctx.handle_error(tiledb_query_set_buffer_var(
+              this->ctx.ptr().get(),
+              this->query->ptr().get(),
+              buff->name.c_str(),
+              buff->offset_buffer,
+              &buff->offset_buffer_size,
+              buff->buffer,
+              &buff->buffer_size));
+        } else {
+          this->ctx.handle_error(tiledb_query_set_buffer(
+              this->ctx.ptr().get(),
+              this->query->ptr().get(),
+              buff->name.c_str(),
+              buff->buffer,
+              &buff->buffer_size));
+        }
+      }*/
+
+      buff->buffer_size = 0;
+      buff->offset_buffer_size  = 0;
+    }
+  }
+
+  try {
+    rc = mysql_row_to_tiledb_buffers(buf);
+    auto domain = this->array->schema().domain();
+
+    if (!this->bulk_write) {
+      for (auto &buff : this->buffers) {
+        std::cerr << "buffer for " << buff->name << " has size of " << buff->buffer_size << " and offset size of " << buff->offset_buffer_size << std::endl;
+        if (domain.has_dimension(buff->name)) {
+          this->ctx.handle_error(tiledb_query_set_buffer(
+              this->ctx.ptr().get(),
+              this->query->ptr().get(),
+              tiledb_coords(),
+              buff->buffer,
+              &buff->buffer_size));
+        } else {
+          if (buff->offset_buffer != nullptr) {
+            this->ctx.handle_error(tiledb_query_set_buffer_var(
+                this->ctx.ptr().get(),
+                this->query->ptr().get(),
+                buff->name.c_str(),
+                buff->offset_buffer,
+                &buff->offset_buffer_size,
+                buff->buffer,
+                &buff->buffer_size));
+          } else {
+
+          }
+        }
+
+//        buff->buffer_size = 0;
+//        buff->offset_buffer_size  = 0;
+      }
+
+
+        query->submit();
+        query->finalize();
+        this->query = nullptr;
+        this->array->close();
+    }
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[write_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -201;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[write_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -202;
+  }
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->read_set, orig);
+  DBUG_RETURN(rc);
+}
 
 /**
  *

@@ -1,0 +1,328 @@
+#
+# The purpose of this test is to build a table of each supported data type
+#
+# INTEGER
+CREATE TABLE t1 (
+column1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+attr1 integer
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1,0);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# DOUBLE
+CREATE TABLE t1 (
+column1 double,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+column1
+1.1
+DROP TABLE t1;
+# DECIMAL
+CREATE TABLE t1 (
+column1 decimal(10,3),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+column1
+1.100
+DROP TABLE t1;
+# FLOAT
+CREATE TABLE t1 (
+column1 float,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+column1
+1.1
+DROP TABLE t1;
+# TINYINT
+CREATE TABLE t1 (
+column1 tinyint,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# BOOL
+CREATE TABLE t1 (
+column1 bool,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# SMALLINT
+CREATE TABLE t1 (
+column1 smallint,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# MEDIUMINT
+CREATE TABLE t1 (
+column1 mediumint,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# BIGINT
+CREATE TABLE t1 (
+column1 bigint,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+column1
+1
+DROP TABLE t1;
+# YEAR
+CREATE TABLE t1 (
+column1 year,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (2017);
+select * FROM t1;
+column1
+2017
+DROP TABLE t1;
+# BIT
+CREATE TABLE t1 (
+column1 bit,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select column1+0 FROM t1;
+column1+0
+1
+DROP TABLE t1;
+# CHAR
+CREATE TABLE t1 (
+column1 char,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("t");
+select * FROM t1;
+column1
+t
+DROP TABLE t1;
+# VARCHAR
+CREATE TABLE t1 (
+column1 varchar(255),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("test");
+select * FROM t1;
+column1
+test
+DROP TABLE t1;
+# BINARY
+CREATE TABLE t1 (
+column1 binary,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("t");
+select * FROM t1;
+column1
+t
+DROP TABLE t1;
+# ENUM
+CREATE TABLE t1 (
+column1 enum('test'),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("test");
+select * FROM t1;
+column1
+test
+DROP TABLE t1;
+# DATETIME
+CREATE TABLE t1 (
+column1 DATETIME,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
+select * FROM t1;
+column1
+2017-08-13 00:00:00
+DROP TABLE t1;
+# DATETIME(6)
+CREATE TABLE t1 (
+column1 DATETIME(6),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
+select * FROM t1;
+column1
+2017-08-13 00:00:00.000000
+DROP TABLE t1;
+# TIME
+CREATE TABLE t1 (
+column1 TIME,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("00:00:00");
+select * FROM t1;
+column1
+00:00:00
+DROP TABLE t1;
+# TIME(6)
+CREATE TABLE t1 (
+column1 TIME(6),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("00:00:00.000000");
+select * FROM t1;
+column1
+00:00:00.000000
+DROP TABLE t1;
+# TIMESTAMP
+CREATE TABLE t1 (
+column1 TIMESTAMP,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
+select * FROM t1;
+column1
+2017-08-13 00:00:00
+DROP TABLE t1;
+# TIMESTAMP(6)
+CREATE TABLE t1 (
+column1 TIMESTAMP(6),
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
+select * FROM t1;
+column1
+2017-08-13 00:00:00.000000
+DROP TABLE t1;
+# TINYTEXT
+CREATE TABLE t1 (
+column1 int,
+column2 TINYTEXT,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+column1	column2
+1	test
+DROP TABLE t1;
+# TEXT
+CREATE TABLE t1 (
+column1 int,
+column2 TEXT,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+column1	column2
+1	test
+DROP TABLE t1;
+# MEDIUMTEXT
+CREATE TABLE t1 (
+column1 int,
+column2 MEDIUMTEXT,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+column1	column2
+1	test
+DROP TABLE t1;
+# LONGTEXT
+CREATE TABLE t1 (
+column1 int,
+column2 LONGTEXT,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+column1	column2
+1	test
+DROP TABLE t1;
+# TINYBLOB
+CREATE TABLE t1 (
+column1 int,
+column2 TINYBLOB,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+column1	column2
+1	aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=
+DROP TABLE t1;
+# BLOB
+CREATE TABLE t1 (
+column1 int,
+column2 BLOB,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+column1	column2
+1	aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=
+DROP TABLE t1;
+# MEDIUMBLOB
+CREATE TABLE t1 (
+column1 int,
+column2 MEDIUMBLOB,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+column1	column2
+1	aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=
+DROP TABLE t1;
+# LONGBLOB
+CREATE TABLE t1 (
+column1 int,
+column2 LONGBLOB,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+column1	column2
+1	aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=
+DROP TABLE t1;
+# UNSIGNED INTEGER
+CREATE TABLE t1 (
+column1 smallint unsigned,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (-1);
+Warnings:
+Warning	1264	Out of range value for column 'column1' at row 1
+INSERT INTO t1 VALUES (65535);
+select * FROM t1 ORDER BY column1 ASC;
+column1
+0
+1
+65535
+DROP TABLE t1;
+# INT and VARCHAR
+CREATE TABLE t1 (
+column1 varchar(255),
+column2 int,
+primary key(column1)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("test", 1);
+select * FROM t1;
+column1	column2
+test	1
+DROP TABLE t1;

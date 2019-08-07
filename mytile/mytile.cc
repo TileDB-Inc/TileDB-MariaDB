@@ -6,6 +6,8 @@
 #include <my_global.h>
 #include <mysqld_error.h>
 
+MYSQL_TIME epoch{1970, 1, 1, 0, 0, 0, 0, false, MYSQL_TIMESTAMP_DATETIME};
+
 tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   switch (type) {
 
@@ -241,7 +243,6 @@ tiledb::Attribute
 tile::create_field_attribute(tiledb::Context &ctx, Field *field,
                              const tiledb::FilterList &filterList) {
 
-  std::cout << field->field_name.str << " - " << field->type() << std::endl;
   tiledb_datatype_t datatype =
       tile::mysqlTypeToTileDBType(field->type(), false);
   return tiledb::Attribute(ctx, field->field_name.str, datatype);
@@ -483,17 +484,16 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
 }
 
 int tile::set_datetime_field(THD *thd, Field *field, INTERVAL interval) {
-  MYSQL_TIME ltime;
-  ltime.year = 1970;
-  ltime.month = 1;
-  ltime.day = 1;
-  ltime.hour = 0;
-  ltime.minute = 0;
-  ltime.second = 0;
-  ltime.second_part = 0;
+  /*  ltime.year = 1970;
+    ltime.month = 1;
+    ltime.day = 1;
+    ltime.hour = 0;
+    ltime.minute = 0;
+    ltime.second = 0;
+    ltime.second_part = 0;*/
 
-  date_add_interval(thd, &ltime, INTERVAL_YEAR, interval);
-  return field->store_time(&ltime);
+  date_add_interval(thd, &epoch, INTERVAL_YEAR, interval);
+  return field->store_time(&epoch);
 }
 
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
@@ -608,7 +608,11 @@ case TILEDB_STRING_UCS4:
     interval.second_part = static_cast<uint64_t *>(buff->buffer)[i];
     return set_datetime_field(thd, field, interval);
   }
-  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_US: {
+    INTERVAL interval;
+    interval.second_part = static_cast<uint64_t *>(buff->buffer)[i];
+    return set_datetime_field(thd, field, interval);
+  }
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
@@ -616,6 +620,204 @@ case TILEDB_STRING_UCS4:
     my_printf_error(
         ER_UNKNOWN_ERROR,
         "Unsupported datetime for MariaDB. US/NS/PS/FS/AS not supported",
+        ME_ERROR_LOG | ME_FATAL);
+    break;
+  }
+  default: {
+    const char *type_str = nullptr;
+    tiledb_datatype_to_str(buff->type, &type_str);
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unknown or unsupported datatype for converting to MariaDB fields: %s",
+        ME_ERROR_LOG | ME_FATAL, type_str);
+    if (type_str != nullptr) {
+      delete type_str;
+    }
+    break;
+  }
+  }
+  return 0;
+}
+int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+                                uint64_t i, THD *thd) {
+  switch (buff->type) {
+
+  /** 8-bit signed integer */
+  case TILEDB_INT8:
+    return set_buffer_from_field<int8_t>(field->val_int(), buff, i);
+
+    /** 8-bit unsigned integer */
+  case TILEDB_UINT8:
+    return set_buffer_from_field<uint8_t>(field->val_uint(), buff, i);
+
+    /** 16-bit signed integer */
+  case TILEDB_INT16:
+    return set_buffer_from_field<int16_t>(field->val_int(), buff, i);
+
+    /** 16-bit unsigned integer */
+  case TILEDB_UINT16:
+    return set_buffer_from_field<uint16_t>(field->val_uint(), buff, i);
+
+    /** 32-bit signed integer */
+  case TILEDB_INT32:
+    return set_buffer_from_field<int32_t>(field->val_int(), buff, i);
+
+    /** 32-bit unsigned integer */
+  case TILEDB_UINT32:
+    return set_buffer_from_field<uint32_t>(field->val_uint(), buff, i);
+
+    /** 64-bit signed integer */
+  case TILEDB_INT64:
+    return set_buffer_from_field<int64_t>(field->val_int(), buff, i);
+
+    /** 64-bit unsigned integer */
+  case TILEDB_UINT64:
+    return set_buffer_from_field<uint64_t>(field->val_uint(), buff, i);
+
+    /** 32-bit floating point value */
+  case TILEDB_FLOAT32:
+    return set_buffer_from_field<float>(field->val_real(), buff, i);
+
+    /** 64-bit floating point value */
+  case TILEDB_FLOAT64:
+    return set_buffer_from_field<double>(field->val_real(), buff, i);
+
+    /** Character */
+  case TILEDB_CHAR:
+    return set_string_buffer_from_field<char>(field, buff, i);
+
+    // Only char is supported for now
+    /*    */ /** ASCII string */
+    /*
+case TILEDB_STRING_ASCII:
+return set_string_field<uint8_t>(field, buff, i, &my_charset_latin1);
+
+*/ /** UTF-8 string */ /*
+case TILEDB_STRING_UTF8:
+return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+
+*/                     /** UTF-16 string */
+    /*
+case TILEDB_STRING_UTF16:
+return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);
+
+*/ /** UTF-32 string */ /*
+case TILEDB_STRING_UTF32:
+return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
+
+*/ /** UCS2 string */   /*
+case TILEDB_STRING_UCS2:
+    return set_string_field<uint16_t>(field, buff, i, &my_charset_ucs2_bin);
+  
+    */
+    /** UCS4 string */  /*
+case TILEDB_STRING_UCS4:
+  return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);*/
+
+    /** This can be any datatype. Must store (type tag, value) pairs. */
+    // case TILEDB_ANY:
+    //    return set_string_field<uint8_t>(field, buff, i,
+    //    &my_charset_utf8_bin);
+
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+    MYSQL_TIME mysql_time, diff_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+
+    return set_buffer_from_field<int64_t>(diff_time.year, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
+    MYSQL_TIME mysql_time, diff_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+
+    return set_buffer_from_field<int64_t>(diff_time.year * 12 + diff_time.month,
+                                          buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
+    MYSQL_TIME mysql_time, diff_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+
+    uint64_t daynr = calc_daynr(diff_time.year, diff_time.month, diff_time.day);
+    return set_buffer_from_field<int64_t>(diff_time.year * 52 + daynr / 7, buff,
+                                          i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second / (60 * 60 * 24), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_HR: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second / (3600), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second / 60, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MS: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second * 1000 + (microsecond / 1000),
+                                          buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_US: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    ulonglong second = 0;
+    ulong microsecond = 0;
+    calc_time_diff(&epoch, &mysql_time, 1, &second, &microsecond);
+
+    return set_buffer_from_field<int64_t>(second * 1000000 + microsecond, buff,
+                                          i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unsupported datetime for MariaDB. NS/PS/FS/AS not supported",
         ME_ERROR_LOG | ME_FATAL);
     break;
   }

@@ -160,11 +160,13 @@ public:
   void position(const uchar *record) override;
 
   /**
-   * Write row, not implemented
+   * Write row
    * @param buf
    * @return
    */
-  int write_row(const uchar *buf) override { return 0; };
+  int write_row(const uchar *buf) override;
+
+  int mysql_row_to_tiledb_buffers(const uchar *buf);
 
   /**
    *  Handle condition pushdown of sub conditions
@@ -291,11 +293,16 @@ private:
   uint64_t records_read = 0;
   tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;
 
-  uint64_t read_buffer_size = 0;
-
   // Vector of pushdowns
   std::vector<std::vector<std::shared_ptr<tile::range>>> pushdown_ranges;
 
-  friend class mytile_select_handler;
+  // read buffer size
+  uint64_t read_buffer_size = 0;
+
+  // write buffer size
+  uint64_t write_buffer_size = 0;
+
+  // in bulk write mode
+  bool bulk_write = false;
 };
 } // namespace tile

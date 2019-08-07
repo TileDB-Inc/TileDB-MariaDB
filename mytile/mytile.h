@@ -130,6 +130,14 @@ uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
  */
 int set_datetime_field(THD *thd, Field *field, INTERVAL interval);
 
+/**
+ * Set field, stores the value from a tiledb read in the mariadb field
+ * @param thd
+ * @param field
+ * @param buff
+ * @param i
+ * @return
+ */
 int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
               uint64_t i);
 
@@ -204,6 +212,41 @@ template <typename T>
 int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
   return set_field<T>(field, i, buff->buffer);
 }
+
+template <typename T>
+int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+                                 uint64_t i) {
+  char strbuff[MAX_FIELD_WIDTH];
+  String str(strbuff, sizeof(strbuff), field->charset()), *res;
+
+  res = field->val_str(&str);
+
+  // Find start position to copy buffer to
+  uint64_t start = 0;
+  if (i > 0) {
+    start = buff->offset_buffer[i-1];
+  }
+
+  // Copy string
+  memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), res->length());
+
+  buff->buffer_size += res->length()* sizeof(char);
+  buff->offset_buffer[i] = start + res->length();
+  buff->offset_buffer_size += sizeof(uint64_t);
+
+  return 0;
+}
+
+template <typename T>
+int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
+  static_cast<T *>(buff->buffer)[(i*buff->fixed_size_elements)+buff->buffer_offset] = val;
+  buff->buffer_size += sizeof(T);
+  std::cerr << "setting " << val << " for " << buff->name << std::endl;
+  return 0;
+}
+
+int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+                          uint64_t i, THD *thd);
 
 // -- end helpers --
 

@@ -35,16 +35,15 @@
 #include <tiledb/tiledb>
 
 typedef struct mytile_buffer {
-  uint64_t *offset_buffer;            /* offset buffer for varlen data */
-  uint64_t offset_buffer_size;        /* offset buffer size for varlen data*/
-  void *buffer;                       /* data buffer */
-  uint64_t buffer_size;               /* data buffer size */
-  uint64_t result_offset_buffer_size; /* size of effective results */
-  uint64_t result_buffer_size;        /* size of effective results */
-  tiledb_datatype_t type;             /* type buffer */
-  std::string name;                   /* field name */
-  bool dimension;                     /* is this buffer for a dimension */
-  int64_t buffer_offset; /* offset of buffer, used for dimensions only to split coordinates */
+  uint64_t *offset_buffer;     /* offset buffer for varlen data */
+  uint64_t offset_buffer_size; /* offset buffer size for varlen data*/
+  void *buffer;                /* data buffer */
+  uint64_t buffer_size;        /* data buffer size */
+  tiledb_datatype_t type;      /* type buffer */
+  std::string name;            /* field name */
+  bool dimension;              /* is this buffer for a dimension */
+  int64_t buffer_offset; /* offset of buffer, used for dimensions only to split
+                            coordinates */
   uint64_t fixed_size_elements; /* If the attribute is fixed size, this will
                                    indicate the element count */
 } buffer;

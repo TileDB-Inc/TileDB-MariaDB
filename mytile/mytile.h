@@ -93,7 +93,8 @@ template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
 }
 
 template <typename T>
-tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field, tiledb_datatype_t datatype) {
+tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
+                             tiledb_datatype_t datatype) {
   if (field->option_struct->tile_extent == nullptr) {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Invalid dimension, must specify tile extent",
@@ -103,9 +104,12 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field, tiledb_datatype
 
   std::array<T, 2> domain = get_dim_domain<T>(field);
   T tile_extent = parse_value<T>(field->option_struct->tile_extent);
-  std::cerr << "setting " << field->field_name.str << " tile_extent = " << tile_extent << std::endl;
-  std::cerr << "setting " << field->field_name.str << " domain = [" << domain[0] << "," << domain[1] << "]" << std::endl;
-  return tiledb::Dimension::create(ctx, field->field_name.str, datatype, domain.data(), &tile_extent);
+  std::cerr << "setting " << field->field_name.str
+            << " tile_extent = " << tile_extent << std::endl;
+  std::cerr << "setting " << field->field_name.str << " domain = [" << domain[0]
+            << "," << domain[1] << "]" << std::endl;
+  return tiledb::Dimension::create(ctx, field->field_name.str, datatype,
+                                   domain.data(), &tile_extent);
 }
 
 void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
@@ -162,7 +166,8 @@ int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
  */
 template <typename T>
 int set_string_field(Field *field, const uint64_t *offset_buffer,
-                     uint64_t offset_buffer_size, T *buffer, uint64_t buffer_size, uint64_t i,
+                     uint64_t offset_buffer_size, T *buffer,
+                     uint64_t buffer_size, uint64_t i,
                      charset_info_st *charset_info) {
   uint64_t end_position = i + 1;
   uint64_t start_position = 0;
@@ -173,12 +178,20 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
   }
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
-  if (i >= offset_buffer_size - 1) {
+  if (i >= (offset_buffer_size / sizeof(uint64_t)) - 1) {
+    std::cerr << "setting end_position to buffer_size / sizeof(T)" << std::endl;
     end_position = buffer_size / sizeof(T);
   } else { // Else read the end from the next offset.
-    end_position = offset_buffer[i];
+    end_position = offset_buffer[i + 1];
   }
   size_t size = end_position - start_position;
+  std::cerr << "size = " << size << " end_position=" << end_position
+            << " start_position=" << start_position
+            << " buffer_size= " << buffer_size << " sizeof(T)=" << sizeof(T)
+            << std::endl;
+  std::cerr << "set_string_field field " << field->field_name.str << " to "
+            << std::string(static_cast<char *>(&buffer[start_position]), size)
+            << std::endl;
   return field->store(static_cast<char *>(&buffer[start_position]), size,
                       charset_info);
 }
@@ -194,6 +207,9 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
 template <typename T>
 int set_string_field(Field *field, T *buffer, uint64_t fixed_size_elements,
                      uint64_t i, charset_info_st *charset_info) {
+  std::cout << "set_string_field field " << field->field_name.str << " to "
+            << std::string(static_cast<char *>(&buffer[i]), fixed_size_elements)
+            << std::endl;
   return field->store(static_cast<char *>(&buffer[i]), fixed_size_elements,
                       charset_info);
 }
@@ -202,12 +218,12 @@ template <typename T>
 int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
                      charset_info_st *charset_info) {
   if (buff->offset_buffer == nullptr) {
-    return set_string_field(field, static_cast<T *>(buff->buffer),
-                            buff->fixed_size_elements, i, charset_info);
+    return set_string_field<char>(field, static_cast<T *>(buff->buffer),
+                                  buff->fixed_size_elements, i, charset_info);
   }
-  return set_string_field<T>(field, buff->offset_buffer,
-                             buff->result_offset_buffer_size,
-                             static_cast<T *>(buff->buffer), buff->buffer_size, i, charset_info);
+  return set_string_field<T>(
+      field, buff->offset_buffer, buff->offset_buffer_size,
+      static_cast<T *>(buff->buffer), buff->buffer_size, i, charset_info);
 }
 
 template <typename T> int set_field(Field *field, uint64_t i, void *buffer) {
@@ -229,49 +245,64 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
   res = field->val_str(&str);
+  std::cout << "set_string_buffer_from_field field " << field->field_name.str
+            << " to " << std::string(res->ptr(), res->length()) << std::endl;
 
   // Find start position to copy buffer to
   uint64_t start = 0;
   if (i > 0) {
-    start = buff->offset_buffer[i-1];
+    start = buff->buffer_size / sizeof(T);
   }
 
   // Copy string
   memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), res->length());
 
-  buff->buffer_size += res->length()* sizeof(char);
-  buff->offset_buffer[i] = start + res->length();
+  std::cerr << "before buff->buffer_size=" << buff->buffer_size << std::endl;
+  std::cerr << "adding res->length()=" << res->length()
+            << " * sizeof(T)=" << sizeof(T) << " to buff_size" << std::endl;
+  buff->buffer_size += res->length() * sizeof(T);
   buff->offset_buffer_size += sizeof(uint64_t);
+  // if (i < buff->offset_buffer_size / sizeof(uint64_t))
+  buff->offset_buffer[i] = start;
+  std::cerr << "after buff->buffer_size=" << buff->buffer_size << std::endl;
 
   return 0;
 }
 
-  template <typename T>
-  int set_fixed_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
-                                   uint64_t i) {
-    char strbuff[MAX_FIELD_WIDTH];
-    String str(strbuff, sizeof(strbuff), field->charset()), *res;
+template <typename T>
+int set_fixed_string_buffer_from_field(Field *field,
+                                       std::shared_ptr<buffer> &buff,
+                                       uint64_t i) {
+  char strbuff[MAX_FIELD_WIDTH];
+  String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
-    res = field->val_str(&str);
+  std::cerr << "inside set_fixed_string_buffer_from_field" << std::endl;
 
-    // Find start position to copy buffer to
-    uint64_t start = i;
-    if (buff->fixed_size_elements > 1) {
-      start *= buff->fixed_size_elements;
-    }
+  res = field->val_str(&str);
+  std::cout << "set_fixed_string_buffer_from_field field "
+            << field->field_name.str << " to "
+            << std::string(res->ptr(), res->length()) << std::endl;
 
-    // Copy string
-    memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), buff->fixed_size_elements);
-
-    buff->buffer_size += buff->fixed_size_elements * sizeof(char);
-
-    return 0;
+  // Find start position to copy buffer to
+  uint64_t start = i;
+  if (buff->fixed_size_elements > 1) {
+    start *= buff->fixed_size_elements;
   }
 
+  // Copy string
+  memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(),
+         buff->fixed_size_elements);
+
+  buff->buffer_size += buff->fixed_size_elements * sizeof(char);
+
+  return 0;
+}
 
 template <typename T>
 int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
-  static_cast<T *>(buff->buffer)[(i*buff->fixed_size_elements)+buff->buffer_offset] = val;
+  static_cast<T *>(
+      buff->buffer)[(i * buff->fixed_size_elements) + buff->buffer_offset] =
+      val;
   buff->buffer_size += sizeof(T);
   std::cerr << "setting " << val << " for " << buff->name << std::endl;
   return 0;

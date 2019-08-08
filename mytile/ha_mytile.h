@@ -237,6 +237,12 @@ public:
   void alloc_buffers(uint64_t size);
 
   /**
+   * Helper function to alloc and set read buffers
+   * @param size
+   */
+  void alloc_read_buffers(uint64_t size);
+
+  /**
    * Helper to free buffers
    */
   void dealloc_buffers();

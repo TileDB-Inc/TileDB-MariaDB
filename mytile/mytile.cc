@@ -209,11 +209,21 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
     return MYSQL_TYPE_YEAR;
 
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    return MYSQL_TYPE_TIMESTAMP2;
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    return MYSQL_TYPE_TIMESTAMP;
 
   default: {
-    sql_print_error("Unknown tiledb data type in determining mysql type");
+    const char *datatype_str;
+    tiledb_datatype_to_str(type, &datatype_str);
+    sql_print_error("Unknown tiledb data type in determining mysql type: %s",
+                    datatype_str);
   }
     return tiledb_datatype_t::TILEDB_ANY;
   }
@@ -245,7 +255,33 @@ tile::create_field_attribute(tiledb::Context &ctx, Field *field,
 
   tiledb_datatype_t datatype =
       tile::mysqlTypeToTileDBType(field->type(), false);
-  return tiledb::Attribute(ctx, field->field_name.str, datatype);
+  tiledb::Attribute attr(ctx, field->field_name.str, datatype);
+
+  // Only support variable length strings and blobs for now
+  if ((datatype == tiledb_datatype_t::TILEDB_CHAR ||
+       datatype == tiledb_datatype_t::TILEDB_STRING_ASCII) &&
+      field->char_length() > 1) {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    std::cerr << "Setting " << field->field_name.str
+              << " as variable length because datatype is " << datatype_str
+              << " and field->char_length()= " << field->char_length()
+              << std::endl;
+    attr.set_cell_val_num(TILEDB_VAR_NUM);
+  } else if (field->type() == MYSQL_TYPE_TINY_BLOB ||
+             field->type() == MYSQL_TYPE_BLOB ||
+             field->type() == MYSQL_TYPE_MEDIUM_BLOB ||
+             field->type() == MYSQL_TYPE_LONG_BLOB) {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    std::cerr << "Setting " << field->field_name.str
+              << " as variable length because datatype is " << datatype_str
+              << " and field->char_length()= " << field->char_length()
+              << std::endl;
+    attr.set_cell_val_num(TILEDB_VAR_NUM);
+  }
+
+  return attr;
 }
 
 tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
@@ -279,7 +315,8 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
     return create_dim<int16_t>(ctx, field, tiledb_datatype_t::TILEDB_INT16);
   }
   case MYSQL_TYPE_YEAR: {
-    return create_dim<int64_t>(ctx, field, tiledb_datatype_t::TILEDB_DATETIME_YEAR);
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_YEAR);
   }
 
   case MYSQL_TYPE_INT24: {
@@ -322,14 +359,14 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
         "Blob or enum fields not supported for tiledb dimension fields");
     break;
   }
-  case MYSQL_TYPE_DATE:
-  {
-    return create_dim<int64_t>(ctx, field, tiledb_datatype_t::TILEDB_DATETIME_DAY);
+  case MYSQL_TYPE_DATE: {
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_DAY);
   }
   case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
-  {
-    return create_dim<int64_t>(ctx, field, tiledb_datatype_t::TILEDB_DATETIME_US);
+  case MYSQL_TYPE_TIME2: {
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_US);
   }
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_DATETIME2:
@@ -337,7 +374,8 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_TIMESTAMP2:
   case MYSQL_TYPE_NEWDATE: {
     // TODO: Need to figure out how to get decimal types
-    return create_dim<int64_t>(ctx, field, tiledb_datatype_t::TILEDB_DATETIME_US);
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_US);
   }
   default: {
     sql_print_error(
@@ -387,7 +425,7 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
     return alloc_buffer<char>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    return alloc_buffer<uint8_t>(rounded_size);
+    return alloc_buffer<char>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_STRING_UTF8:
     return alloc_buffer<uint8_t>(rounded_size);
@@ -537,16 +575,17 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case TILEDB_CHAR:
     return set_string_field<char>(field, buff, i, &my_charset_latin1);
 
+  /** ASCII string */
+  case TILEDB_STRING_ASCII:
+    return set_string_field<char>(field, buff, i, &my_charset_latin1);
     // Only char is supported for now
-    /*    */            /** ASCII string */
-                        /*
-case TILEDB_STRING_ASCII:
- return set_string_field<uint8_t>(field, buff, i, &my_charset_latin1);
-                    
- */ /** UTF-8 string */  /*
+    /*
+
+
+ */ /** UTF-8 string */ /*
 case TILEDB_STRING_UTF8:
 return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
- 
+
 */                      /** UTF-16 string */
                         /*
 case TILEDB_STRING_UTF16:

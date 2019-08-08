@@ -42,47 +42,60 @@
 int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
   DBUG_ENTER("tile::mytile_discover_table");
   std::stringstream sql_string;
-  sql_string << "create table `" << ts->table_name.str << "` (";
+  std::string array_uri = ts->table_name.str;
+  tiledb::Context ctx;
+  std::unique_ptr<tiledb::ArraySchema> schema;
   try {
-    tiledb::Context ctx;
-    tiledb::ArraySchema schema(ctx, ts->table_name.str);
+    schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+  } catch (tiledb::TileDBError &e) {
+    try {
+      array_uri = std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
+      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+    } catch (tiledb::TileDBError &e) {
+      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    }
+  }
+
+  try {
     std::stringstream table_options;
 
-    table_options << "uri='" << ts->table_name.str << "'";
+    sql_string << "create table `" << array_uri << "` (";
 
-    if (schema.array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
+    table_options << "uri='" << array_uri << "'";
+
+    if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
       table_options << " array_type='SPARSE'";
     } else {
       table_options << " array_type='DENSE'";
     }
     // table_options << "uri='" <<
-    if (schema.array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
-      table_options << " capacity=" << schema.capacity();
+    if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
+      table_options << " capacity=" << schema->capacity();
     }
 
-    if (schema.cell_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+    if (schema->cell_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " cell_order=ROW_MAJOR";
-    } else if (schema.cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+    } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
       table_options << " cell_order=COL_MAJOR";
     } else {
       const char *layout;
-      tiledb_layout_to_str(schema.cell_order(), &layout);
+      tiledb_layout_to_str(schema->cell_order(), &layout);
       throw std::runtime_error(
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
-    if (schema.tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+    if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " tile_order=ROW_MAJOR";
-    } else if (schema.tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+    } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
       table_options << " tile_order=COL_MAJOR";
     } else {
       const char *layout;
-      tiledb_layout_to_str(schema.tile_order(), &layout);
+      tiledb_layout_to_str(schema->tile_order(), &layout);
       throw std::runtime_error(
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
-    for (const auto &dim : schema.domain().dimensions()) {
+    for (const auto &dim : schema->domain().dimensions()) {
       std::string domain_str = dim.domain_to_str();
       domain_str = domain_str.substr(1, domain_str.size() - 2);
       auto domainSplitPosition = domain_str.find(',');
@@ -104,10 +117,10 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
                  << " lower_bound='" << lower_domain << "' upper_bound='"
                  << upper_domain << "' tile_extent='"
                  << dim.tile_extent_to_str() << "'"
-                 << ", ";
+                 << ",";
     }
 
-    for (const auto &attributeMap : schema.attributes()) {
+    for (const auto &attributeMap : schema->attributes()) {
       auto attribute = attributeMap.second;
       sql_string << std::endl << "`" << attribute.name() << "` ";
 
@@ -128,7 +141,7 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
     in eventually
      * sql_string << "primary key(";
 
-    for (const auto &dim : schema.domain().dimensions()) {
+    for (const auto &dim : schema->domain().dimensions()) {
       sql_string << "`" << dim.name() << "`,";
     }
     // move head back one so we can override it
@@ -156,12 +169,13 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
 int tile::mytile_discover_table_existence(handlerton *hton, const char *db,
                                           const char *name) {
 
+  DBUG_ENTER("tile::mytile_discover_table_existence");
   try {
     tiledb::Context ctx;
     tiledb::ArraySchema schema(ctx, name);
   } catch (tiledb::TileDBError &e) {
-    return false;
+    DBUG_RETURN(false);
   }
 
-  return true;
+  DBUG_RETURN(true);
 }

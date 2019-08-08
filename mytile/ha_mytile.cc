@@ -219,7 +219,7 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
   DBUG_ENTER("tile::mytile::create");
   DBUG_RETURN(
-      create_array(table_arg->s->table_name.str, table_arg, create_info, ctx));
+      create_array(name, table_arg, create_info, ctx));
 }
 
 /**
@@ -273,7 +273,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
  * @return
  */
 int tile::mytile::close(void) {
-  DBUG_ENTER("tile::mytile::create");
+  DBUG_ENTER("tile::mytile::close");
   try {
     this->array->close();
   } catch (const tiledb::TileDBError &e) {
@@ -336,7 +336,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // we treat it is a dimension
     if (field->option_struct->dimension ||
         primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
-      if (field->option_struct->lower_bound == nullptr ||
+      /*if (field->option_struct->lower_bound == nullptr ||
           strcmp(field->option_struct->lower_bound, "") == 0) {
         my_printf_error(
             ER_UNKNOWN_ERROR,
@@ -345,15 +345,15 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         DBUG_RETURN(-11);
       }
       if (field->option_struct->upper_bound == nullptr ||
-          strcmp(field->option_struct->lower_bound, "") == 0) {
+          strcmp(field->option_struct->upper_bound, "") == 0) {
         my_printf_error(
             ER_UNKNOWN_ERROR,
             "Dimension field %s upper_bound was not set, can not create table",
             ME_ERROR_LOG | ME_FATAL, field->field_name);
         DBUG_RETURN(-12);
-      }
+      }*/
       if (field->option_struct->tile_extent == nullptr ||
-          strcmp(field->option_struct->lower_bound, "") == 0) {
+          strcmp(field->option_struct->tile_extent, "") == 0) {
         my_printf_error(
             ER_UNKNOWN_ERROR,
             "Dimension field %s tile_extent was not set, can not create table",
@@ -872,6 +872,30 @@ void tile::mytile::cond_pop() {
 }
 
 /**
+ * Delete a table by rm'ing the tiledb directory
+ * @param name
+ * @return
+ */
+int tile::mytile::delete_table(const char *name) {
+  DBUG_ENTER("tile::mytile::delete_table");
+  //Delete dir
+  try {
+    tiledb::VFS vfs(ctx);
+    vfs.remove_dir(name);
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    sql_print_error("delete_table error for table %s : %s", name, e.what());
+    DBUG_RETURN(-20);
+  } catch (const std::exception &e) {
+    // Log errors
+    sql_print_error("delete_table error for table %s : %s", name, e.what());
+    DBUG_RETURN(-21);
+  }
+  DBUG_RETURN(0);
+
+}
+
+/**
  * This should return relevant stats of the underlying tiledb map,
  * currently just sets row count to 2, to avoid 0/1 row optimizations
  * @return
@@ -952,16 +976,15 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       uint64_t *offset_buffer = nullptr;
       auto data_buffer = alloc_buffer(attr.type(), size);
       uint64_t nelements = size / tiledb_datatype_size(attr.type());
+      buff->fixed_size_elements = attr.cell_val_num();
       if (attr.variable_sized()) {
         offset_buffer = static_cast<uint64_t *>(
             alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
         this->query->set_buffer( field_name, offset_buffer, size / tiledb_datatype_size(tiledb_datatype_t::TILEDB_UINT64), data_buffer, nelements);
-        buff->fixed_size_elements = 0;
         buff->offset_buffer_size = size;
       } else {
         this->query->set_buffer(field_name, data_buffer, nelements);
 
-        buff->fixed_size_elements = attr.cell_val_num();
       }
 
       buff->offset_buffer = offset_buffer;
@@ -1081,8 +1104,10 @@ int tile::mytile::write_row(const uchar *buf) {
   // Field->val_*
   my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->read_set);
 
-  if (this->array->is_open() && this->array->query_type() != TILEDB_WRITE) {
-    this->array->close();
+  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) || !this->array->is_open()) {
+    if (this->array->is_open())
+      this->array->close();
+
     this->array->open(TILEDB_WRITE);
   }
   if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
@@ -1135,7 +1160,6 @@ int tile::mytile::write_row(const uchar *buf) {
 
     if (!this->bulk_write) {
       for (auto &buff : this->buffers) {
-        std::cerr << "buffer for " << buff->name << " has size of " << buff->buffer_size << " and offset size of " << buff->offset_buffer_size << std::endl;
         if (domain.has_dimension(buff->name)) {
           this->ctx.handle_error(tiledb_query_set_buffer(
               this->ctx.ptr().get(),

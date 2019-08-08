@@ -3,18 +3,17 @@
 #
 # INTEGER
 CREATE TABLE t1 (
-column1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
 attr1 integer
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1,0);
 select * FROM t1;
-column1
-1
+dim1	attr1
+1	0
 DROP TABLE t1;
 # DOUBLE
 CREATE TABLE t1 (
-column1 double,
-primary key(column1)
+column1 double dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1.1);
 select * FROM t1;
@@ -23,18 +22,16 @@ column1
 DROP TABLE t1;
 # DECIMAL
 CREATE TABLE t1 (
-column1 decimal(10,3),
-primary key(column1)
+column1 decimal(10,3) dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1.1);
 select * FROM t1;
 column1
-1.100
+1.1
 DROP TABLE t1;
 # FLOAT
 CREATE TABLE t1 (
-column1 float,
-primary key(column1)
+column1 float dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1.1);
 select * FROM t1;
@@ -43,8 +40,7 @@ column1
 DROP TABLE t1;
 # TINYINT
 CREATE TABLE t1 (
-column1 tinyint,
-primary key(column1)
+column1 tinyint dimension=1 lower_bound="0" upper_bound="100" tile_extent="1"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select * FROM t1;
@@ -53,8 +49,7 @@ column1
 DROP TABLE t1;
 # BOOL
 CREATE TABLE t1 (
-column1 bool,
-primary key(column1)
+column1 bool dimension=1 lower_bound="0" upper_bound="2" tile_extent="1"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select * FROM t1;
@@ -63,8 +58,7 @@ column1
 DROP TABLE t1;
 # SMALLINT
 CREATE TABLE t1 (
-column1 smallint,
-primary key(column1)
+column1 smallint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select * FROM t1;
@@ -73,8 +67,7 @@ column1
 DROP TABLE t1;
 # MEDIUMINT
 CREATE TABLE t1 (
-column1 mediumint,
-primary key(column1)
+column1 mediumint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select * FROM t1;
@@ -83,8 +76,7 @@ column1
 DROP TABLE t1;
 # BIGINT
 CREATE TABLE t1 (
-column1 bigint,
-primary key(column1)
+column1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select * FROM t1;
@@ -93,8 +85,7 @@ column1
 DROP TABLE t1;
 # YEAR
 CREATE TABLE t1 (
-column1 year,
-primary key(column1)
+column1 year dimension=1 lower_bound="0" upper_bound="3000" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (2017);
 select * FROM t1;
@@ -103,8 +94,7 @@ column1
 DROP TABLE t1;
 # BIT
 CREATE TABLE t1 (
-column1 bit,
-primary key(column1)
+column1 bit dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 select column1+0 FROM t1;
@@ -113,48 +103,47 @@ column1+0
 DROP TABLE t1;
 # CHAR
 CREATE TABLE t1 (
-column1 char,
-primary key(column1)
+dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column1 char
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("t");
+INSERT INTO t1 VALUES (1, "t");
 select * FROM t1;
-column1
-t
+dim1	column1
+1	t
 DROP TABLE t1;
 # VARCHAR
 CREATE TABLE t1 (
-column1 varchar(255),
-primary key(column1)
+dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column1 varchar(255)
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("test");
+INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
-column1
-test
+dim1	column1
+1	test
 DROP TABLE t1;
 # BINARY
 CREATE TABLE t1 (
-column1 binary,
-primary key(column1)
+dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column1 binary
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("t");
+INSERT INTO t1 VALUES (1, "t");
 select * FROM t1;
-column1
-t
+dim1	column1
+1	t
 DROP TABLE t1;
 # ENUM
 CREATE TABLE t1 (
-column1 enum('test'),
-primary key(column1)
+dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column1 enum('test')
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("test");
+INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
-column1
-test
+dim1	column1
+1	test
 DROP TABLE t1;
 # DATETIME
 CREATE TABLE t1 (
-column1 DATETIME,
-primary key(column1)
+column1 DATETIME dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
 select * FROM t1;
@@ -163,8 +152,7 @@ column1
 DROP TABLE t1;
 # DATETIME(6)
 CREATE TABLE t1 (
-column1 DATETIME(6),
-primary key(column1)
+column1 DATETIME(6) dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
 select * FROM t1;
@@ -173,8 +161,7 @@ column1
 DROP TABLE t1;
 # TIME
 CREATE TABLE t1 (
-column1 TIME,
-primary key(column1)
+column1 TIME dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("00:00:00");
 select * FROM t1;
@@ -183,8 +170,7 @@ column1
 DROP TABLE t1;
 # TIME(6)
 CREATE TABLE t1 (
-column1 TIME(6),
-primary key(column1)
+column1 TIME(6) dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("00:00:00.000000");
 select * FROM t1;
@@ -193,8 +179,7 @@ column1
 DROP TABLE t1;
 # TIMESTAMP
 CREATE TABLE t1 (
-column1 TIMESTAMP,
-primary key(column1)
+column1 TIMESTAMP dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
 select * FROM t1;
@@ -203,8 +188,7 @@ column1
 DROP TABLE t1;
 # TIMESTAMP(6)
 CREATE TABLE t1 (
-column1 TIMESTAMP(6),
-primary key(column1)
+column1 TIMESTAMP(6) dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
 select * FROM t1;
@@ -213,9 +197,8 @@ column1
 DROP TABLE t1;
 # TINYTEXT
 CREATE TABLE t1 (
-column1 int,
-column2 TINYTEXT,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 TINYTEXT
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
@@ -224,9 +207,8 @@ column1	column2
 DROP TABLE t1;
 # TEXT
 CREATE TABLE t1 (
-column1 int,
-column2 TEXT,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 TEXT
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
@@ -235,9 +217,8 @@ column1	column2
 DROP TABLE t1;
 # MEDIUMTEXT
 CREATE TABLE t1 (
-column1 int,
-column2 MEDIUMTEXT,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 MEDIUMTEXT
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
@@ -246,9 +227,8 @@ column1	column2
 DROP TABLE t1;
 # LONGTEXT
 CREATE TABLE t1 (
-column1 int,
-column2 LONGTEXT,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 LONGTEXT
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, "test");
 select * FROM t1;
@@ -257,9 +237,8 @@ column1	column2
 DROP TABLE t1;
 # TINYBLOB
 CREATE TABLE t1 (
-column1 int,
-column2 TINYBLOB,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 TINYBLOB
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
 select * FROM t1;
@@ -268,9 +247,8 @@ column1	column2
 DROP TABLE t1;
 # BLOB
 CREATE TABLE t1 (
-column1 int,
-column2 BLOB,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 BLOB
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
 select * FROM t1;
@@ -279,9 +257,8 @@ column1	column2
 DROP TABLE t1;
 # MEDIUMBLOB
 CREATE TABLE t1 (
-column1 int,
-column2 MEDIUMBLOB,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 MEDIUMBLOB
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
 select * FROM t1;
@@ -290,9 +267,8 @@ column1	column2
 DROP TABLE t1;
 # LONGBLOB
 CREATE TABLE t1 (
-column1 int,
-column2 LONGBLOB,
-primary key(column1)
+column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+column2 LONGBLOB
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
 select * FROM t1;
@@ -301,8 +277,7 @@ column1	column2
 DROP TABLE t1;
 # UNSIGNED INTEGER
 CREATE TABLE t1 (
-column1 smallint unsigned,
-primary key(column1)
+column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (-1);
@@ -318,8 +293,7 @@ DROP TABLE t1;
 # INT and VARCHAR
 CREATE TABLE t1 (
 column1 varchar(255),
-column2 int,
-primary key(column1)
+column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("test", 1);
 select * FROM t1;

@@ -68,7 +68,14 @@ tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field);
 template <typename T> T parse_value(const std::string &s) {
   T result;
   std::istringstream ss(s);
-  ss >> result;
+  if (typeid(T) == typeid(int8_t) || typeid(T) == typeid(uint8_t)) {
+    int32_t tmp = 0;
+    ss >> tmp;
+    result = static_cast<T>(tmp);
+  } else {
+    ss >> result;
+  }
+  std::cerr << "parsed " << s << " to " << std::to_string(result) << std::endl;
   if (ss.fail())
     throw std::invalid_argument("Cannot parse value from '" + s + "'");
   return result;
@@ -77,6 +84,7 @@ template <typename T> T parse_value(const std::string &s) {
 template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
   std::array<T, 2> domain = {std::numeric_limits<T>::lowest(),
                              std::numeric_limits<T>::max()};
+  domain[1] -= parse_value<T>(field->option_struct->tile_extent);
   if (field->option_struct->lower_bound != nullptr)
     domain[0] = parse_value<T>(field->option_struct->lower_bound);
   if (field->option_struct->upper_bound != nullptr)
@@ -85,7 +93,7 @@ template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
 }
 
 template <typename T>
-tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field) {
+tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field, tiledb_datatype_t datatype) {
   if (field->option_struct->tile_extent == nullptr) {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Invalid dimension, must specify tile extent",
@@ -95,8 +103,9 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field) {
 
   std::array<T, 2> domain = get_dim_domain<T>(field);
   T tile_extent = parse_value<T>(field->option_struct->tile_extent);
-  return tiledb::Dimension::create<T>(ctx, field->field_name.str, domain,
-                                      tile_extent);
+  std::cerr << "setting " << field->field_name.str << " tile_extent = " << tile_extent << std::endl;
+  std::cerr << "setting " << field->field_name.str << " domain = [" << domain[0] << "," << domain[1] << "]" << std::endl;
+  return tiledb::Dimension::create(ctx, field->field_name.str, datatype, domain.data(), &tile_extent);
 }
 
 void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
@@ -153,7 +162,7 @@ int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
  */
 template <typename T>
 int set_string_field(Field *field, const uint64_t *offset_buffer,
-                     uint64_t offset_buffer_size, T *buffer, uint64_t i,
+                     uint64_t offset_buffer_size, T *buffer, uint64_t buffer_size, uint64_t i,
                      charset_info_st *charset_info) {
   uint64_t end_position = i + 1;
   uint64_t start_position = 0;
@@ -165,7 +174,7 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
   if (i >= offset_buffer_size - 1) {
-    end_position = offset_buffer_size;
+    end_position = buffer_size / sizeof(T);
   } else { // Else read the end from the next offset.
     end_position = offset_buffer[i];
   }
@@ -198,7 +207,7 @@ int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
   }
   return set_string_field<T>(field, buff->offset_buffer,
                              buff->result_offset_buffer_size,
-                             static_cast<T *>(buff->buffer), i, charset_info);
+                             static_cast<T *>(buff->buffer), buff->buffer_size, i, charset_info);
 }
 
 template <typename T> int set_field(Field *field, uint64_t i, void *buffer) {
@@ -236,6 +245,29 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 
   return 0;
 }
+
+  template <typename T>
+  int set_fixed_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+                                   uint64_t i) {
+    char strbuff[MAX_FIELD_WIDTH];
+    String str(strbuff, sizeof(strbuff), field->charset()), *res;
+
+    res = field->val_str(&str);
+
+    // Find start position to copy buffer to
+    uint64_t start = i;
+    if (buff->fixed_size_elements > 1) {
+      start *= buff->fixed_size_elements;
+    }
+
+    // Copy string
+    memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), buff->fixed_size_elements);
+
+    buff->buffer_size += buff->fixed_size_elements * sizeof(char);
+
+    return 0;
+  }
+
 
 template <typename T>
 int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {

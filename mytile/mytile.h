@@ -3,6 +3,8 @@
 */
 #pragma once
 
+#define MYSQL_SERVER 1
+
 #include "my_global.h" /* ulonglong */
 #include "mytile-buffer.h"
 #include <field.h>
@@ -58,6 +60,20 @@ std::string MysqlTypeString(int type);
  */
 bool TileDBTypeIsUnsigned(tiledb_datatype_t type);
 
+/**
+ * Returns if a mysql type is a blob type
+ * @param type
+ * @return
+ */
+bool MysqlBlobType(enum_field_types type);
+
+/**
+ * Returns if a mysql type is a datetime type
+ * @param type
+ * @return
+ */
+bool MysqlDatetimeType(enum_field_types type);
+
 tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
                                          const tiledb::FilterList &filterList);
 
@@ -104,10 +120,6 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
 
   std::array<T, 2> domain = get_dim_domain<T>(field);
   T tile_extent = parse_value<T>(field->option_struct->tile_extent);
-  std::cerr << "setting " << field->field_name.str
-            << " tile_extent = " << tile_extent << std::endl;
-  std::cerr << "setting " << field->field_name.str << " domain = [" << domain[0]
-            << "," << domain[1] << "]" << std::endl;
   return tiledb::Dimension::create(ctx, field->field_name.str, datatype,
                                    domain.data(), &tile_extent);
 }
@@ -141,7 +153,19 @@ uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
  * @param field
  * @param interval
  */
-int set_datetime_field(THD *thd, Field *field, INTERVAL interval);
+// int set_datetime_field(THD *thd, Field *field, INTERVAL interval,
+// interval_type interval_type);
+
+/**
+ *
+ * @param thd
+ * @param field
+ * @param seconds
+ * @param second_part
+ * @return
+ */
+int set_datetime_field(THD *thd, Field *field, uint64_t seconds,
+                       uint64_t second_part);
 
 /**
  * Set field, stores the value from a tiledb read in the mariadb field
@@ -179,19 +203,11 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
   if (i >= (offset_buffer_size / sizeof(uint64_t)) - 1) {
-    std::cerr << "setting end_position to buffer_size / sizeof(T)" << std::endl;
     end_position = buffer_size / sizeof(T);
   } else { // Else read the end from the next offset.
     end_position = offset_buffer[i + 1];
   }
   size_t size = end_position - start_position;
-  std::cerr << "size = " << size << " end_position=" << end_position
-            << " start_position=" << start_position
-            << " buffer_size= " << buffer_size << " sizeof(T)=" << sizeof(T)
-            << std::endl;
-  std::cerr << "set_string_field field " << field->field_name.str << " to "
-            << std::string(static_cast<char *>(&buffer[start_position]), size)
-            << std::endl;
   return field->store(static_cast<char *>(&buffer[start_position]), size,
                       charset_info);
 }
@@ -207,9 +223,6 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
 template <typename T>
 int set_string_field(Field *field, T *buffer, uint64_t fixed_size_elements,
                      uint64_t i, charset_info_st *charset_info) {
-  std::cout << "set_string_field field " << field->field_name.str << " to "
-            << std::string(static_cast<char *>(&buffer[i]), fixed_size_elements)
-            << std::endl;
   return field->store(static_cast<char *>(&buffer[i]), fixed_size_elements,
                       charset_info);
 }
@@ -257,14 +270,10 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   // Copy string
   memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), res->length());
 
-  std::cerr << "before buff->buffer_size=" << buff->buffer_size << std::endl;
-  std::cerr << "adding res->length()=" << res->length()
-            << " * sizeof(T)=" << sizeof(T) << " to buff_size" << std::endl;
   buff->buffer_size += res->length() * sizeof(T);
   buff->offset_buffer_size += sizeof(uint64_t);
   // if (i < buff->offset_buffer_size / sizeof(uint64_t))
   buff->offset_buffer[i] = start;
-  std::cerr << "after buff->buffer_size=" << buff->buffer_size << std::endl;
 
   return 0;
 }
@@ -276,12 +285,7 @@ int set_fixed_string_buffer_from_field(Field *field,
   char strbuff[MAX_FIELD_WIDTH];
   String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
-  std::cerr << "inside set_fixed_string_buffer_from_field" << std::endl;
-
   res = field->val_str(&str);
-  std::cout << "set_fixed_string_buffer_from_field field "
-            << field->field_name.str << " to "
-            << std::string(res->ptr(), res->length()) << std::endl;
 
   // Find start position to copy buffer to
   uint64_t start = i;

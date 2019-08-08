@@ -129,7 +129,7 @@ DROP TABLE t1;
 
 --echo # DATETIME
 CREATE TABLE t1 (
-  column1 DATETIME dimension=1 tile_extent="10"
+  datetime1 DATETIME dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
 select * FROM t1;
@@ -137,31 +137,15 @@ DROP TABLE t1;
 
 --echo # DATETIME(6)
 CREATE TABLE t1 (
-  column1 DATETIME(6) dimension=1 tile_extent="10"
+  datetime6 DATETIME(6) dimension=1 tile_extent="10"
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
-select * FROM t1;
-DROP TABLE t1;
-
---echo # TIME
-CREATE TABLE t1 (
-  column1 TIME dimension=1 tile_extent="10"
-) ENGINE=mytile;
-INSERT INTO t1 VALUES ("00:00:00");
-select * FROM t1;
-DROP TABLE t1;
-
---echo # TIME(6)
-CREATE TABLE t1 (
-  column1 TIME(6) dimension=1 tile_extent="10"
-) ENGINE=mytile;
-INSERT INTO t1 VALUES ("00:00:00.000000");
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.111111");
 select * FROM t1;
 DROP TABLE t1;
 
 --echo # TIMESTAMP
 CREATE TABLE t1 (
-  column1 TIMESTAMP dimension=1 tile_extent="10"
+  timestamp1 TIMESTAMP dimension=1 tile_extent="10"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
 select * FROM t1;
@@ -169,9 +153,9 @@ DROP TABLE t1;
 
 --echo # TIMESTAMP(6)
 CREATE TABLE t1 (
-  column1 TIMESTAMP(6) dimension=1 tile_extent="10"
+  timestamp6 TIMESTAMP(6) dimension=1 tile_extent="10"
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("2017-08-13 00:00:00.000000");
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.111111");
 select * FROM t1;
 DROP TABLE t1;
 

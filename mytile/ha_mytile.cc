@@ -1066,7 +1066,7 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
         error = HA_ERR_UNSUPPORTED;
       } else {
         std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
-        set_buffer_from_field(field, buffer, this->record_index, nullptr);
+        set_buffer_from_field(field, buffer, this->record_index, ha_thd());
       }
     }
     this->record_index++;

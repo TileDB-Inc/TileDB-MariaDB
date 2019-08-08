@@ -35,7 +35,6 @@
 #include "utils.h"
 #include <log.h>
 #include <my_global.h>
-#include <mysqld_error.h>
 #include <table.h>
 #include <tiledb/tiledb>
 
@@ -108,13 +107,10 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
 
       int mysql_type = TileDBTypeToMysqlType(dim.type(), false);
       sql_string << std::endl
-                 << "`" << dim.name() << "` "
-                 << MysqlTypeString(mysql_type);
+                 << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
 
-      if (!(mysql_type == MYSQL_TYPE_TINY_BLOB ||
-                mysql_type == MYSQL_TYPE_BLOB ||
-                mysql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-                mysql_type == MYSQL_TYPE_LONG_BLOB) && TileDBTypeIsUnsigned(dim.type()))
+      if (!MysqlBlobType(enum_field_types(mysql_type)) &&
+          TileDBTypeIsUnsigned(dim.type()))
         sql_string << " UNSIGNED";
 
       sql_string << " dimension=1"
@@ -128,17 +124,16 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       auto attribute = attributeMap.second;
       sql_string << std::endl << "`" << attribute.name() << "` ";
 
-      auto mysql_type = TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1);
+      auto mysql_type =
+          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1);
       if (mysql_type == MYSQL_TYPE_VARCHAR) {
         sql_string << "TEXT";
       } else {
         sql_string << MysqlTypeString(mysql_type);
       }
 
-      if (!(mysql_type == MYSQL_TYPE_TINY_BLOB ||
-            mysql_type == MYSQL_TYPE_BLOB ||
-            mysql_type == MYSQL_TYPE_MEDIUM_BLOB ||
-            mysql_type == MYSQL_TYPE_LONG_BLOB) && TileDBTypeIsUnsigned(attribute.type()))
+      if (!MysqlBlobType(enum_field_types(mysql_type)) &&
+          TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
       sql_string << ",";
     }

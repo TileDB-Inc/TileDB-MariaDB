@@ -67,7 +67,8 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_ENUM: {
-    return tiledb_datatype_t::TILEDB_UINT8;
+    // TODO: We really should differentiate between blobs and text fields
+    return tiledb_datatype_t::TILEDB_CHAR;
   }
 
   case MYSQL_TYPE_DATE:
@@ -161,7 +162,7 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   switch (type) {
 
   case tiledb_datatype_t::TILEDB_FLOAT64: {
@@ -174,6 +175,8 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
 
   case tiledb_datatype_t::TILEDB_INT8:
   case tiledb_datatype_t::TILEDB_UINT8: {
+    if (multi_value)
+      return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY;
   }
 
@@ -383,7 +386,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
     break;
   }
   }
-  return tiledb::Dimension::create<uint8>(ctx, field->field_name.str,
+  return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str,
                                           std::array<uint8, 2>{0, 0}, 10);
 }
 void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {

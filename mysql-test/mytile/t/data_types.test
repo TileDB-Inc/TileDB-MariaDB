@@ -249,11 +249,10 @@ DROP TABLE t1;
 
 --echo # UNSIGNED INTEGER
 CREATE TABLE t1 (
-  column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="255" tile_extent="10"
+  column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="65535" tile_extent="1"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (-1);
---error ER_UNKNOWN_ERROR
 INSERT INTO t1 VALUES (65535);
 select * FROM t1 ORDER BY column1 ASC;
 DROP TABLE t1;
@@ -263,6 +262,6 @@ CREATE TABLE t1 (
   column1 varchar(255),
   column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
 ) ENGINE=mytile;
-INSERT INTO t1 VALUES ("test", 1);
-select * FROM t1;
+INSERT INTO t1 (column1, column2) VALUES ("test", 1);
+select column1, column2 FROM t1;
 DROP TABLE t1;

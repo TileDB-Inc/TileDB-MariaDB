@@ -41,7 +41,7 @@ tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
  * @param type
  * @return
  */
-int TileDBTypeToMysqlType(tiledb_datatype_t type);
+int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value);
 
 /**
  * Create the text string for a mysql type

@@ -106,11 +106,15 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       trim(lower_domain);
       trim(upper_domain);
 
+      int mysql_type = TileDBTypeToMysqlType(dim.type(), false);
       sql_string << std::endl
                  << "`" << dim.name() << "` "
-                 << MysqlTypeString(TileDBTypeToMysqlType(dim.type()));
+                 << MysqlTypeString(mysql_type);
 
-      if (TileDBTypeIsUnsigned(dim.type()))
+      if (!(mysql_type == MYSQL_TYPE_TINY_BLOB ||
+                mysql_type == MYSQL_TYPE_BLOB ||
+                mysql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+                mysql_type == MYSQL_TYPE_LONG_BLOB) && TileDBTypeIsUnsigned(dim.type()))
         sql_string << " UNSIGNED";
 
       sql_string << " dimension=1"
@@ -124,14 +128,17 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
       auto attribute = attributeMap.second;
       sql_string << std::endl << "`" << attribute.name() << "` ";
 
-      auto type = TileDBTypeToMysqlType(attribute.type());
-      if (type == MYSQL_TYPE_VARCHAR) {
+      auto mysql_type = TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1);
+      if (mysql_type == MYSQL_TYPE_VARCHAR) {
         sql_string << "TEXT";
       } else {
-        sql_string << MysqlTypeString(type);
+        sql_string << MysqlTypeString(mysql_type);
       }
 
-      if (TileDBTypeIsUnsigned(attribute.type()))
+      if (!(mysql_type == MYSQL_TYPE_TINY_BLOB ||
+            mysql_type == MYSQL_TYPE_BLOB ||
+            mysql_type == MYSQL_TYPE_MEDIUM_BLOB ||
+            mysql_type == MYSQL_TYPE_LONG_BLOB) && TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
       sql_string << ",";
     }

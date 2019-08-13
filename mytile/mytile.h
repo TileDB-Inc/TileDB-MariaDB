@@ -30,6 +30,8 @@ namespace tile {
 typedef struct ::ha_table_option_struct ha_table_option_struct;
 typedef struct ::ha_field_option_struct ha_field_option_struct;
 
+enum errors { ERR_WRITE_FLUSH_NEEDED = 1000 };
+
 /**
  * Converts a mysql type to a tiledb_datatype_t
  * @param type
@@ -253,6 +255,12 @@ int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
 template <typename T>
 int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                                  uint64_t i) {
+
+  // Validate we are not over the offset size
+  if ((i * sizeof(uint64_t)) > buff->allocated_offset_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+
   char strbuff[MAX_FIELD_WIDTH];
   String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
@@ -262,6 +270,11 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   uint64_t start = 0;
   if (i > 0) {
     start = buff->buffer_size / sizeof(T);
+  }
+
+  // Validate there is enough space on the buffer to copy the field into
+  if ((start + res->length()) * sizeof(T) > buff->allocated_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
   }
 
   // Copy string
@@ -279,6 +292,13 @@ template <typename T>
 int set_fixed_string_buffer_from_field(Field *field,
                                        std::shared_ptr<buffer> &buff,
                                        uint64_t i) {
+
+  // Validate there is enough space on the buffer to copy the field into
+  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >
+      buff->allocated_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+
   char strbuff[MAX_FIELD_WIDTH];
   String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
@@ -301,6 +321,13 @@ int set_fixed_string_buffer_from_field(Field *field,
 
 template <typename T>
 int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
+
+  // Validate there is enough space on the buffer to copy the field into
+  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >
+      buff->allocated_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+
   static_cast<T *>(
       buff->buffer)[(i * buff->fixed_size_elements) + buff->buffer_offset] =
       val;

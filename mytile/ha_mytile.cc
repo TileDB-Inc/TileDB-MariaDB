@@ -942,6 +942,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
     buff->buffer_offset = 0;
     buff->fixed_size_elements = 1;
     buff->buffer_size = size;
+    buff->allocated_buffer_size = size;
 
     if (schema.domain().has_dimension(field_name)) {
       buff->buffer = coords_buffer;
@@ -964,6 +965,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
         offset_buffer = static_cast<uint64_t *>(
             alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
         buff->offset_buffer_size = size;
+        buff->allocated_offset_buffer_size = size;
       }
 
       buff->offset_buffer = offset_buffer;
@@ -1072,11 +1074,10 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
         error = HA_ERR_UNSUPPORTED;
       } else {
         std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
-        set_buffer_from_field(field, buffer, this->record_index, ha_thd());
+        error =
+            set_buffer_from_field(field, buffer, this->record_index, ha_thd());
       }
     }
-    this->record_index++;
-
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     sql_print_error(
@@ -1097,6 +1098,81 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   DBUG_RETURN(error);
 }
 
+void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
+  DBUG_ENTER("tile::mytile::start_bulk_insert");
+  this->bulk_write = true;
+  DBUG_VOID_RETURN;
+}
+
+int tile::mytile::end_bulk_insert() {
+  DBUG_ENTER("tile::mytile::end_bulk_insert");
+
+  int rc = 0;
+  // Set all buffers with proper size
+  try {
+    // Submit query
+    flush_write();
+    query->finalize();
+    this->query = nullptr;
+    this->array->close();
+
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[end_bulk_insert] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -301;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[end_bulk_insert] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -302;
+  }
+
+  DBUG_RETURN(rc);
+}
+
+int tile::mytile::flush_write() {
+  DBUG_ENTER("tile::mytile::flush_write");
+
+  int rc = 0;
+  // Set all buffers with proper size
+  try {
+    for (auto &buff : this->buffers) {
+      if (this->array->schema().domain().has_dimension(buff->name)) {
+        this->ctx.handle_error(tiledb_query_set_buffer(
+            this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
+            buff->buffer, &buff->buffer_size));
+      } else {
+        if (buff->offset_buffer != nullptr) {
+          this->ctx.handle_error(tiledb_query_set_buffer_var(
+              this->ctx.ptr().get(), this->query->ptr().get(),
+              buff->name.c_str(), buff->offset_buffer,
+              &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
+        } else {
+          this->ctx.handle_error(tiledb_query_set_buffer(
+              this->ctx.ptr().get(), this->query->ptr().get(),
+              buff->name.c_str(), buff->buffer, &buff->buffer_size));
+        }
+      }
+    }
+
+    query->submit();
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[flush_write] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -311;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[flush_write] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -312;
+  }
+
+  DBUG_RETURN(rc);
+}
 /**
  * Write row
  * @param buf
@@ -1137,32 +1213,15 @@ int tile::mytile::write_row(const uchar *buf) {
 
   try {
     rc = mysql_row_to_tiledb_buffers(buf);
+    if (rc == ERR_WRITE_FLUSH_NEEDED) {
+      flush_write();
+      DBUG_RETURN(write_row(buf));
+    }
+    this->record_index++;
     auto domain = this->array->schema().domain();
 
     if (!this->bulk_write) {
-      for (auto &buff : this->buffers) {
-        if (domain.has_dimension(buff->name)) {
-          this->ctx.handle_error(tiledb_query_set_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
-              buff->buffer, &buff->buffer_size));
-        } else {
-          if (buff->offset_buffer != nullptr) {
-            this->ctx.handle_error(tiledb_query_set_buffer_var(
-                this->ctx.ptr().get(), this->query->ptr().get(),
-                buff->name.c_str(), buff->offset_buffer,
-                &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
-          } else {
-            this->ctx.handle_error(tiledb_query_set_buffer(
-                this->ctx.ptr().get(), this->query->ptr().get(),
-                buff->name.c_str(), buff->buffer, &buff->buffer_size));
-          }
-        }
-
-        //        buff->buffer_size = 0;
-        //        buff->offset_buffer_size  = 0;
-      }
-
-      query->submit();
+      flush_write();
       query->finalize();
       this->query = nullptr;
       this->array->close();

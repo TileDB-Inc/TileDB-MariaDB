@@ -1,0 +1,251 @@
+--echo #
+--echo # The purpose of this test is to build a table of each supported data type
+--echo #
+
+--echo # INTEGER
+CREATE TABLE t1 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 integer
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1,0);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # DOUBLE
+CREATE TABLE t1 (
+  column1 double dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # DECIMAL
+CREATE TABLE t1 (
+  column1 decimal(10,3) dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # FLOAT
+CREATE TABLE t1 (
+  column1 float dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1.1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TINYINT
+CREATE TABLE t1 (
+  column1 tinyint dimension=1 lower_bound="0" upper_bound="100" tile_extent="1"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # BOOL
+CREATE TABLE t1 (
+  column1 bool dimension=1 lower_bound="0" upper_bound="2" tile_extent="1"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # SMALLINT
+CREATE TABLE t1 (
+  column1 smallint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # MEDIUMINT
+CREATE TABLE t1 (
+  column1 mediumint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # BIGINT
+CREATE TABLE t1 (
+  column1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # YEAR
+CREATE TABLE t1 (
+  column1 year dimension=1 lower_bound="0" upper_bound="3000" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (2017);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # BIT
+CREATE TABLE t1 (
+  column1 bit dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+select column1+0 FROM t1;
+DROP TABLE t1;
+
+--echo # CHAR
+CREATE TABLE t1 (
+  dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column1 char
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "t");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # VARCHAR
+CREATE TABLE t1 (
+  dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column1 varchar(255)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # BINARY
+CREATE TABLE t1 (
+  dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column1 binary
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "t");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # ENUM
+CREATE TABLE t1 (
+  dim1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column1 enum('test')
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # DATETIME
+CREATE TABLE t1 (
+  datetime1 DATETIME dimension=1 tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # DATETIME(6)
+CREATE TABLE t1 (
+  datetime6 DATETIME(6) dimension=1 tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.111111");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TIMESTAMP
+CREATE TABLE t1 (
+  timestamp1 TIMESTAMP dimension=1 tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TIMESTAMP(6)
+CREATE TABLE t1 (
+  timestamp6 TIMESTAMP(6) dimension=1 tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("2017-08-13 00:00:00.111111");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TINYTEXT
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 TINYTEXT
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TEXT
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 TEXT
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # MEDIUMTEXT
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 MEDIUMTEXT
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # LONGTEXT
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 LONGTEXT
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, "test");
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # TINYBLOB
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 TINYBLOB
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # BLOB
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 BLOB
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # MEDIUMBLOB
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 MEDIUMBLOB
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # LONGBLOB
+CREATE TABLE t1 (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 LONGBLOB
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 'aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # UNSIGNED INTEGER
+CREATE TABLE t1 (
+  column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="65535" tile_extent="1"
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (-1);
+INSERT INTO t1 VALUES (65535);
+select * FROM t1 ORDER BY column1 ASC;
+DROP TABLE t1;
+
+--echo # INT and VARCHAR
+CREATE TABLE t1 (
+  column1 varchar(255),
+  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+) ENGINE=mytile;
+INSERT INTO t1 (column1, column2) VALUES ("test", 1);
+select column1, column2 FROM t1;
+DROP TABLE t1;

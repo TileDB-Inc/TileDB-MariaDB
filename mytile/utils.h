@@ -31,6 +31,13 @@
  */
 
 #pragma once
+namespace tile {
+const char PATH_SEPARATOR =
+#ifdef _WIN32
+    '\\';
+#else
+    '/';
+#endif
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {
@@ -51,3 +58,4 @@ static inline void trim(std::string &s) {
   ltrim(s);
   rtrim(s);
 }
+} // namespace tile

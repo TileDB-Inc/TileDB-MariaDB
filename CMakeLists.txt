@@ -93,5 +93,11 @@ endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)
 
-# A the storage engine plugin
-MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
+# Add the storage engine plugin
+# If we are compiling embedded server make it statically linked
+if(WITH_EMBEDDED_SERVER)
+    MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE DEFAULT RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
+# Else build as a dynamic library
+else()
+    MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE DEFAULT MODULE_ONLY RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
+endif()

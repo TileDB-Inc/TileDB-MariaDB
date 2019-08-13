@@ -5,6 +5,10 @@
 #include <log.h>
 #include <my_global.h>
 #include <mysqld_error.h>
+#include <sql_class.h>
+#include <tztime.h>
+
+MYSQL_TIME epoch{1970, 1, 1, 0, 0, 0, 0, false, MYSQL_TIMESTAMP_DATETIME};
 
 tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   switch (type) {
@@ -31,7 +35,7 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
     return tiledb_datatype_t::TILEDB_UINT16;
   }
   case MYSQL_TYPE_YEAR: {
-    return tiledb_datatype_t::TILEDB_UINT16;
+    return tiledb_datatype_t::TILEDB_DATETIME_YEAR;
   }
 
   case MYSQL_TYPE_INT24: {
@@ -65,7 +69,8 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_TINY_BLOB:
   case MYSQL_TYPE_ENUM: {
-    return tiledb_datatype_t::TILEDB_UINT8;
+    // TODO: We really should differentiate between blobs and text fields
+    return tiledb_datatype_t::TILEDB_CHAR;
   }
 
   case MYSQL_TYPE_DATE:
@@ -102,7 +107,7 @@ std::string tile::MysqlTypeString(int type) {
   case MYSQL_TYPE_TINY:
     return "TINYINT";
   case MYSQL_TYPE_SHORT:
-    return "SHORT";
+    return "SMALLINT";
   case MYSQL_TYPE_YEAR:
     return "YEAR";
   case MYSQL_TYPE_INT24:
@@ -142,16 +147,16 @@ std::string tile::MysqlTypeString(int type) {
 
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_DATETIME2:
-    return "DATETIME";
+    return "DATETIME(6)";
 
   case MYSQL_TYPE_TIME:
   case MYSQL_TYPE_TIME2:
-    return "TIME";
+    return "TIME(6)";
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
-    return "TIMESTAMP";
+    return "TIMESTAMP(6)";
   case MYSQL_TYPE_NEWDATE:
-    return "DATETIME";
+    return "DATETIME(6)";
   default: {
     sql_print_error("Unknown mysql data type in determining string");
   }
@@ -159,7 +164,7 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   switch (type) {
 
   case tiledb_datatype_t::TILEDB_FLOAT64: {
@@ -172,6 +177,8 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
 
   case tiledb_datatype_t::TILEDB_INT8:
   case tiledb_datatype_t::TILEDB_UINT8: {
+    if (multi_value)
+      return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY;
   }
 
@@ -207,11 +214,21 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type) {
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
     return MYSQL_TYPE_YEAR;
 
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    return MYSQL_TYPE_TIMESTAMP2;
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    return MYSQL_TYPE_TIMESTAMP;
 
   default: {
-    sql_print_error("Unknown tiledb data type in determining mysql type");
+    const char *datatype_str;
+    tiledb_datatype_to_str(type, &datatype_str);
+    sql_print_error("Unknown tiledb data type in determining mysql type: %s",
+                    datatype_str);
   }
     return tiledb_datatype_t::TILEDB_ANY;
   }
@@ -237,14 +254,68 @@ bool tile::TileDBTypeIsUnsigned(tiledb_datatype_t type) {
   return false;
 }
 
+/**
+ * Returns if a mysql tpye is a blob
+ * @param type
+ * @return
+ */
+bool tile::MysqlBlobType(enum_field_types type) {
+  switch (type) {
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+    return true;
+
+  default: {
+    return false;
+  }
+  }
+  return false;
+}
+
+/**
+ * Returns if a mysql type is a datetime
+ * @param type
+ * @return
+ */
+bool tile::MysqlDatetimeType(enum_field_types type) {
+  switch (type) {
+  case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_DATETIME2:
+    return true;
+
+  default: {
+    return false;
+  }
+  }
+  return false;
+}
+
 tiledb::Attribute
 tile::create_field_attribute(tiledb::Context &ctx, Field *field,
                              const tiledb::FilterList &filterList) {
 
-  std::cout << field->field_name.str << " - " << field->type() << std::endl;
   tiledb_datatype_t datatype =
       tile::mysqlTypeToTileDBType(field->type(), false);
-  return tiledb::Attribute(ctx, field->field_name.str, datatype);
+  tiledb::Attribute attr(ctx, field->field_name.str, datatype);
+
+  // Only support variable length strings and blobs for now
+  if ((datatype == tiledb_datatype_t::TILEDB_CHAR ||
+       datatype == tiledb_datatype_t::TILEDB_STRING_ASCII) &&
+      field->char_length() > 1) {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    attr.set_cell_val_num(TILEDB_VAR_NUM);
+  } else if (MysqlBlobType(field->type())) {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    attr.set_cell_val_num(TILEDB_VAR_NUM);
+  }
+
+  return attr;
 }
 
 tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
@@ -254,52 +325,53 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_DOUBLE:
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL: {
-    return create_dim<double>(ctx, field);
+    return create_dim<double>(ctx, field, tiledb_datatype_t::TILEDB_FLOAT64);
   }
 
   case MYSQL_TYPE_FLOAT: {
-    return create_dim<float>(ctx, field);
+    return create_dim<float>(ctx, field, tiledb_datatype_t::TILEDB_FLOAT32);
   }
 
   case MYSQL_TYPE_TINY: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
-      return create_dim<uint8_t>(ctx, field);
+      return create_dim<uint8_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT8);
     }
     // signed
-    return create_dim<int8_t>(ctx, field);
+    return create_dim<int8_t>(ctx, field, tiledb_datatype_t::TILEDB_INT8);
   }
 
   case MYSQL_TYPE_SHORT: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
-      return create_dim<uint16_t>(ctx, field);
+      return create_dim<uint16_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT16);
     }
     // signed
-    return create_dim<int16_t>(ctx, field);
+    return create_dim<int16_t>(ctx, field, tiledb_datatype_t::TILEDB_INT16);
   }
   case MYSQL_TYPE_YEAR: {
-    return create_dim<uint16_t>(ctx, field);
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_YEAR);
   }
 
   case MYSQL_TYPE_INT24: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
-      return create_dim<uint32_t>(ctx, field);
+      return create_dim<uint32_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT32);
     }
     // signed
-    return create_dim<int32_t>(ctx, field);
+    return create_dim<int32_t>(ctx, field, tiledb_datatype_t::TILEDB_INT32);
   }
 
   case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_LONGLONG: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
-      return create_dim<uint64_t>(ctx, field);
+      return create_dim<uint64_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT64);
     }
     // signed
-    return create_dim<int64_t>(ctx, field);
+    return create_dim<int64_t>(ctx, field, tiledb_datatype_t::TILEDB_INT64);
   }
 
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_BIT: {
-    return create_dim<uint8_t>(ctx, field);
+    return create_dim<uint8_t>(ctx, field, tiledb_datatype_t::TILEDB_INT8);
   }
 
   case MYSQL_TYPE_VARCHAR:
@@ -320,15 +392,23 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
         "Blob or enum fields not supported for tiledb dimension fields");
     break;
   }
-  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATE: {
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_DAY);
+  }
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_TIME2: {
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_US);
+  }
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_DATETIME2:
-  case MYSQL_TYPE_TIME:
-  case MYSQL_TYPE_TIME2:
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
   case MYSQL_TYPE_NEWDATE: {
-    return create_dim<uint8_t>(ctx, field);
+    // TODO: Need to figure out how to get decimal types
+    return create_dim<int64_t>(ctx, field,
+                               tiledb_datatype_t::TILEDB_DATETIME_US);
   }
   default: {
     sql_print_error(
@@ -336,8 +416,8 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
     break;
   }
   }
-  return tiledb::Dimension::create<uint8>(ctx, field->field_name.str,
-                                          std::array<uint8, 2>{0, 0}, 10);
+  return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str,
+                                            std::array<uint8, 2>{0, 0}, 10);
 }
 void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   // Round the size to the nearest unit for the datatype using integer division
@@ -378,7 +458,7 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
     return alloc_buffer<char>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    return alloc_buffer<uint8_t>(rounded_size);
+    return alloc_buffer<char>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_STRING_UTF8:
     return alloc_buffer<uint8_t>(rounded_size);
@@ -482,18 +562,22 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
   return 0;
 }
 
-int tile::set_datetime_field(THD *thd, Field *field, INTERVAL interval) {
-  MYSQL_TIME ltime;
-  ltime.year = 1970;
-  ltime.month = 1;
-  ltime.day = 1;
-  ltime.hour = 0;
-  ltime.minute = 0;
-  ltime.second = 0;
-  ltime.second_part = 0;
+// int tile::set_datetime_field(THD *thd, Field *field, INTERVAL interval,
+// interval_type interval_type) {
+int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
+                             uint64_t second_part) {
+  //  MYSQL_TIME local_epoch = epoch;
+  //
+  //  date_add_interval(thd, &local_epoch, interval_type, interval);
+  //  adjust_time_range_with_warn(thd, &local_epoch, TIME_SECOND_PART_DIGITS);
 
-  date_add_interval(thd, &ltime, INTERVAL_YEAR, interval);
-  return field->store_time(&ltime);
+  MYSQL_TIME to;
+  thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
+  thd->time_zone_used = true;
+  to.second_part = second_part;
+  adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
+
+  return field->store_time(&to);
 }
 
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
@@ -535,16 +619,17 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case TILEDB_CHAR:
     return set_string_field<char>(field, buff, i, &my_charset_latin1);
 
+  /** ASCII string */
+  case TILEDB_STRING_ASCII:
+    return set_string_field<char>(field, buff, i, &my_charset_latin1);
     // Only char is supported for now
-    /*    */            /** ASCII string */
-                        /*
-case TILEDB_STRING_ASCII:
- return set_string_field<uint8_t>(field, buff, i, &my_charset_latin1);
-                    
- */ /** UTF-8 string */  /*
+    /*
+
+
+ */ /** UTF-8 string */ /*
 case TILEDB_STRING_UTF8:
 return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
- 
+
 */                      /** UTF-16 string */
                         /*
 case TILEDB_STRING_UTF16:
@@ -569,46 +654,49 @@ case TILEDB_STRING_UCS4:
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    INTERVAL interval;
+    /*INTERVAL interval;
     interval.year = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    return set_datetime_field(thd, field, interval);*/
+    return set_field<int64_t>(field, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
-    INTERVAL interval;
-    interval.month = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    // TODO: This isn't a good calculation we should fix it
+    uint64_t seconds =
+        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 365) / 12;
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
-    INTERVAL interval;
-    interval.day = static_cast<uint64_t *>(buff->buffer)[i] * 7;
-    return set_datetime_field(thd, field, interval);
+    uint64_t seconds =
+        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 7);
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
-    INTERVAL interval;
-    interval.day = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    uint64_t seconds =
+        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24);
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_HR: {
-    INTERVAL interval;
-    interval.hour = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60);
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
-    INTERVAL interval;
-    interval.minute = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * 60;
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
-    INTERVAL interval;
-    interval.second = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i];
+    return set_datetime_field(thd, field, seconds, 0);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MS: {
-    INTERVAL interval;
-    interval.second_part = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);
+    uint64_t ms = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = ms / 1000;
+    return set_datetime_field(thd, field, seconds, ms - (seconds * 1000));
   }
-  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_US: {
+    uint64_t us = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = us / 1000000;
+    return set_datetime_field(thd, field, seconds, us - (seconds * 1000000));
+  }
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
@@ -616,6 +704,207 @@ case TILEDB_STRING_UCS4:
     my_printf_error(
         ER_UNKNOWN_ERROR,
         "Unsupported datetime for MariaDB. US/NS/PS/FS/AS not supported",
+        ME_ERROR_LOG | ME_FATAL);
+    break;
+  }
+  default: {
+    const char *type_str = nullptr;
+    tiledb_datatype_to_str(buff->type, &type_str);
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unknown or unsupported datatype for converting to MariaDB fields: %s",
+        ME_ERROR_LOG | ME_FATAL, type_str);
+    if (type_str != nullptr) {
+      delete type_str;
+    }
+    break;
+  }
+  }
+  return 0;
+}
+int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+                                uint64_t i, THD *thd) {
+  switch (buff->type) {
+
+  /** 8-bit signed integer */
+  case TILEDB_INT8:
+    return set_buffer_from_field<int8_t>(field->val_int(), buff, i);
+
+    /** 8-bit unsigned integer */
+  case TILEDB_UINT8:
+    return set_buffer_from_field<uint8_t>(field->val_uint(), buff, i);
+
+    /** 16-bit signed integer */
+  case TILEDB_INT16:
+    return set_buffer_from_field<int16_t>(field->val_int(), buff, i);
+
+    /** 16-bit unsigned integer */
+  case TILEDB_UINT16:
+    return set_buffer_from_field<uint16_t>(field->val_uint(), buff, i);
+
+    /** 32-bit signed integer */
+  case TILEDB_INT32:
+    return set_buffer_from_field<int32_t>(field->val_int(), buff, i);
+
+    /** 32-bit unsigned integer */
+  case TILEDB_UINT32:
+    return set_buffer_from_field<uint32_t>(field->val_uint(), buff, i);
+
+    /** 64-bit signed integer */
+  case TILEDB_INT64:
+    return set_buffer_from_field<int64_t>(field->val_int(), buff, i);
+
+    /** 64-bit unsigned integer */
+  case TILEDB_UINT64:
+    return set_buffer_from_field<uint64_t>(field->val_uint(), buff, i);
+
+    /** 32-bit floating point value */
+  case TILEDB_FLOAT32:
+    return set_buffer_from_field<float>(field->val_real(), buff, i);
+
+    /** 64-bit floating point value */
+  case TILEDB_FLOAT64:
+    return set_buffer_from_field<double>(field->val_real(), buff, i);
+
+    /** Character */
+  case TILEDB_CHAR:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<char>(field, buff, i);
+
+    return set_fixed_string_buffer_from_field<char>(field, buff, i);
+
+    // Only char is supported for now
+    /*    */ /** ASCII string */
+    /*
+case TILEDB_STRING_ASCII:
+return set_string_field<uint8_t>(field, buff, i, &my_charset_latin1);
+
+*/ /** UTF-8 string */ /*
+case TILEDB_STRING_UTF8:
+return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+
+*/                     /** UTF-16 string */
+    /*
+case TILEDB_STRING_UTF16:
+return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);
+
+*/ /** UTF-32 string */ /*
+case TILEDB_STRING_UTF32:
+return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
+
+*/ /** UCS2 string */   /*
+case TILEDB_STRING_UCS2:
+    return set_string_field<uint16_t>(field, buff, i, &my_charset_ucs2_bin);
+  
+    */
+    /** UCS4 string */  /*
+case TILEDB_STRING_UCS4:
+  return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);*/
+
+    /** This can be any datatype. Must store (type tag, value) pairs. */
+    // case TILEDB_ANY:
+    //    return set_string_field<uint8_t>(field, buff, i,
+    //    &my_charset_utf8_bin);
+
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+
+    return set_buffer_from_field<int64_t>(field->val_int(), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
+    MYSQL_TIME mysql_time, diff_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+
+    return set_buffer_from_field<int64_t>(diff_time.year * 12 + diff_time.month,
+                                          buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
+    MYSQL_TIME mysql_time, diff_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+
+    uint64_t daynr = calc_daynr(diff_time.year, diff_time.month, diff_time.day);
+    return set_buffer_from_field<int64_t>(diff_time.year * 52 + daynr / 7, buff,
+                                          i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+
+    return set_buffer_from_field<int64_t>(seconds / (60 * 60 * 24), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_HR: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+
+    return set_buffer_from_field<int64_t>(seconds / (3600), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+
+    return set_buffer_from_field<int64_t>(seconds / 60, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+
+    return set_buffer_from_field<int64_t>(seconds, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MS: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(
+        seconds * 1000 + (microseconds / 1000), buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_US: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(seconds * 1000000 + microseconds,
+                                          buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unsupported datetime for MariaDB. NS/PS/FS/AS not supported",
         ME_ERROR_LOG | ME_FATAL);
     break;
   }

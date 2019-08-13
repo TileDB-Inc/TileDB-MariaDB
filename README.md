@@ -27,7 +27,7 @@ make -j4
 
 ## Known Issues
 
-- Writes are currently not supported
+- Bulk writes are currently not supported
 - Condition pushdown only works for constants not sub selects
 - Buffers will double in size for incomplete queries with zero results
 - Array URIs must be less than 64 characters

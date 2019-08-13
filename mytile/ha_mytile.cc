@@ -251,7 +251,11 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
     this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
 
-    this->ndim = this->array->schema().domain().ndim();
+    auto domain = this->array->schema().domain();
+    this->ndim = domain.ndim();
+
+    // Set ref length used for storing reference in position(), this is the size of a subarray for querying
+    this->ref_length = (this->ndim * tiledb_datatype_size(domain.type()) * 2);
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -607,6 +611,7 @@ int tile::mytile::rnd_end() {
  */
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
+  auto domain = this->array->schema().domain();
   ctx.handle_error(tiledb_query_set_subarray(ctx.ptr().get(),
                                              this->query->ptr().get(), pos));
   this->total_num_records_UB = computeRecordsUB(this->array, pos);
@@ -625,14 +630,21 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
  */
 void tile::mytile::position(const uchar *record) {
   DBUG_ENTER("tile::mytile::position");
-  // copy the subarray
-  uint64_t size = this->ndim * tiledb_datatype_size(this->coord_buffer->type);
-  uint64_t index_offset = this->record_index * this->ndim *
+  // copy the position
+  uint64_t datatype_size = tiledb_datatype_size(this->coord_buffer->type);
+  // The index offset for coordinates is computed based on the number of dimensions, the datatype size and the record index
+  // We must subtract one from the record index becuase position is called after the end of rnd_next
+  // which means we have already incremented the index position
+  uint64_t index_offset = (this->record_index-1) * this->ndim *
                           tiledb_datatype_size(this->coord_buffer->type);
+  // Helper variable to pointer of start for coordinates offsets
+  char* coord_start = static_cast<char *>(this->coord_buffer->buffer) + index_offset;
 
-  memcpy(this->ref,
-         static_cast<const char *>(this->coord_buffer->buffer) + index_offset,
-         size);
+  // Loop through each dimension and copy the current coordinates to setup a new subarray
+  for (uint64_t i = 0; i < this->ndim; i++) {
+    memcpy(this->ref+(i*datatype_size*2), coord_start+(i*datatype_size), datatype_size);
+    memcpy(this->ref+((i*datatype_size*2) + datatype_size), coord_start+(i*datatype_size), datatype_size);
+  }
   DBUG_VOID_RETURN;
 }
 

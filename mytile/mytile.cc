@@ -695,9 +695,6 @@ case TILEDB_STRING_UCS4:
   case tiledb_datatype_t::TILEDB_DATETIME_US: {
     uint64_t us = static_cast<uint64_t *>(buff->buffer)[i];
     uint64_t seconds = us / 1000000;
-    std::cerr << "datetime field " << field->field_name.str
-              << " seconds=" << seconds << " us=" << us
-              << " second_part=" << us - (seconds * 1000000) << std::endl;
     return set_datetime_field(thd, field, seconds, us - (seconds * 1000000));
   }
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
@@ -897,9 +894,6 @@ case TILEDB_STRING_UCS4:
     my_time_t seconds =
         thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
     uint64_t microseconds = mysql_time.second_part;
-
-    std::cerr << "field " << field->field_name.str << " seconds=" << seconds
-              << " microseconds=" << microseconds << std::endl;
 
     return set_buffer_from_field<int64_t>(seconds * 1000000 + microseconds,
                                           buff, i);

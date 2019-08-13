@@ -91,7 +91,6 @@ template <typename T> T parse_value(const std::string &s) {
   } else {
     ss >> result;
   }
-  std::cerr << "parsed " << s << " to " << std::to_string(result) << std::endl;
   if (ss.fail())
     throw std::invalid_argument("Cannot parse value from '" + s + "'");
   return result;
@@ -258,8 +257,6 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   String str(strbuff, sizeof(strbuff), field->charset()), *res;
 
   res = field->val_str(&str);
-  std::cout << "set_string_buffer_from_field field " << field->field_name.str
-            << " to " << std::string(res->ptr(), res->length()) << std::endl;
 
   // Find start position to copy buffer to
   uint64_t start = 0;
@@ -308,7 +305,6 @@ int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
       buff->buffer)[(i * buff->fixed_size_elements) + buff->buffer_offset] =
       val;
   buff->buffer_size += sizeof(T);
-  std::cerr << "setting " << val << " for " << buff->name << std::endl;
   return 0;
 }
 

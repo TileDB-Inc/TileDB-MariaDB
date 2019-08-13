@@ -254,7 +254,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     auto domain = this->array->schema().domain();
     this->ndim = domain.ndim();
 
-    // Set ref length used for storing reference in position(), this is the size of a subarray for querying
+    // Set ref length used for storing reference in position(), this is the size
+    // of a subarray for querying
     this->ref_length = (this->ndim * tiledb_datatype_size(domain.type()) * 2);
 
   } catch (const tiledb::TileDBError &e) {
@@ -339,22 +340,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // we treat it is a dimension
     if (field->option_struct->dimension ||
         primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
-      /*if (field->option_struct->lower_bound == nullptr ||
-          strcmp(field->option_struct->lower_bound, "") == 0) {
-        my_printf_error(
-            ER_UNKNOWN_ERROR,
-            "Dimension field %s lower_bound was not set, can not create table",
-            ME_ERROR_LOG | ME_FATAL, field->field_name);
-        DBUG_RETURN(-11);
-      }
-      if (field->option_struct->upper_bound == nullptr ||
-          strcmp(field->option_struct->upper_bound, "") == 0) {
-        my_printf_error(
-            ER_UNKNOWN_ERROR,
-            "Dimension field %s upper_bound was not set, can not create table",
-            ME_ERROR_LOG | ME_FATAL, field->field_name);
-        DBUG_RETURN(-12);
-      }*/
+
+      // Validate the user has set the tile extent
+      // Onyl tile extent is checked because for the dimension domain we use the
+      // datatypes min/max values
       if (field->option_struct->tile_extent == nullptr ||
           strcmp(field->option_struct->tile_extent, "") == 0) {
         my_printf_error(
@@ -632,18 +621,23 @@ void tile::mytile::position(const uchar *record) {
   DBUG_ENTER("tile::mytile::position");
   // copy the position
   uint64_t datatype_size = tiledb_datatype_size(this->coord_buffer->type);
-  // The index offset for coordinates is computed based on the number of dimensions, the datatype size and the record index
-  // We must subtract one from the record index becuase position is called after the end of rnd_next
+  // The index offset for coordinates is computed based on the number of
+  // dimensions, the datatype size and the record index We must subtract one
+  // from the record index becuase position is called after the end of rnd_next
   // which means we have already incremented the index position
-  uint64_t index_offset = (this->record_index-1) * this->ndim *
+  uint64_t index_offset = (this->record_index - 1) * this->ndim *
                           tiledb_datatype_size(this->coord_buffer->type);
   // Helper variable to pointer of start for coordinates offsets
-  char* coord_start = static_cast<char *>(this->coord_buffer->buffer) + index_offset;
+  char *coord_start =
+      static_cast<char *>(this->coord_buffer->buffer) + index_offset;
 
-  // Loop through each dimension and copy the current coordinates to setup a new subarray
+  // Loop through each dimension and copy the current coordinates to setup a new
+  // subarray
   for (uint64_t i = 0; i < this->ndim; i++) {
-    memcpy(this->ref+(i*datatype_size*2), coord_start+(i*datatype_size), datatype_size);
-    memcpy(this->ref+((i*datatype_size*2) + datatype_size), coord_start+(i*datatype_size), datatype_size);
+    memcpy(this->ref + (i * datatype_size * 2),
+           coord_start + (i * datatype_size), datatype_size);
+    memcpy(this->ref + ((i * datatype_size * 2) + datatype_size),
+           coord_start + (i * datatype_size), datatype_size);
   }
   DBUG_VOID_RETURN;
 }
@@ -1133,34 +1127,9 @@ int tile::mytile::write_row(const uchar *buf) {
     alloc_buffers(this->write_buffer_size);
     this->record_index = 0;
 
+    // Reset buffer sizes to 0 for writes
+    // We increase the size for every cell/row we are given to write
     for (auto &buff : this->buffers) {
-      /*if (domain.has_dimension(buff->name)) {
-        this->ctx.handle_error(tiledb_query_set_buffer(
-            this->ctx.ptr().get(),
-            this->query->ptr().get(),
-            tiledb_coords(),
-            buff->buffer,
-            &buff->buffer_size));
-      } else {
-        if (buff->offset_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_buffer_var(
-              this->ctx.ptr().get(),
-              this->query->ptr().get(),
-              buff->name.c_str(),
-              buff->offset_buffer,
-              &buff->offset_buffer_size,
-              buff->buffer,
-              &buff->buffer_size));
-        } else {
-          this->ctx.handle_error(tiledb_query_set_buffer(
-              this->ctx.ptr().get(),
-              this->query->ptr().get(),
-              buff->name.c_str(),
-              buff->buffer,
-              &buff->buffer_size));
-        }
-      }*/
-
       buff->buffer_size = 0;
       buff->offset_buffer_size = 0;
     }

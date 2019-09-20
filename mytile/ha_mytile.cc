@@ -982,6 +982,10 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
   auto domain = this->array->schema().domain();
 
   for (auto &buff : this->buffers) {
+    // Only set buffers which are non-null
+    if (buff == nullptr)
+      continue;
+
     if (domain.has_dimension(buff->name)) {
       this->ctx.handle_error(tiledb_query_set_buffer(
           this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),

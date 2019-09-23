@@ -41,13 +41,11 @@
 
 int tile::mytile_discover_table_structure(handlerton *hton, THD* thd, TABLE_SHARE *share, HA_CREATE_INFO *info){
   DBUG_ENTER("tile::mytile_discover_table_structure");
-  std::cerr << "mytile_discover_table_structure" << std::endl;
   DBUG_RETURN(discover_array(hton, thd, share, info));
 }
 
 int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
   DBUG_ENTER("tile::mytile_discover_table");
-  std::cerr << "mytile_discover_table" << std::endl;
   DBUG_RETURN(discover_array(hton, thd, ts, nullptr));
 }
 
@@ -93,7 +91,7 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts, HA_CREATE_
   try {
     std::stringstream table_options;
 
-    sql_string << "create table `" << array_uri << "` (";
+    sql_string << "create table `" << fix_uri(ts->table_name.str) << "` (";
 
     table_options << "uri='" << array_uri << "'";
 

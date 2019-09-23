@@ -253,7 +253,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     //    if (mode == O_RDWR)
     //      openType = tiledb_query_type_t::TILEDB_WRITE;
 
-    std::cerr << "open uri=" << uri << std::endl;
     this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
 
     auto domain = this->array->schema().domain();
@@ -951,11 +950,12 @@ void tile::mytile::alloc_buffers(uint64_t size) {
 
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
-    // Only set buffers for fields that are asked for
-    if (!bitmap_is_set(this->table->read_set, fieldIndex)) {
+    std::string field_name = field->field_name.str;
+    // Only set buffers for fields that are asked for except always set dimension
+    if (!bitmap_is_set(this->table->read_set, fieldIndex) && !schema.domain().has_dimension(field_name)) {
       continue;
     }
-    std::string field_name = field->field_name.str;
+
     // Create buffer
     std::shared_ptr<buffer> buff = std::make_shared<buffer>();
     buff->name = field_name;
@@ -1041,14 +1041,13 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
-      // Only read fields that are asked for
-      if (!bitmap_is_set(this->table->read_set, fieldIndex)) {
+      std::shared_ptr<buffer> buff = this->buffers[fieldIndex];
+      // Only read fields that are asked for and the buffer was originally set
+      if (!bitmap_is_set(this->table->read_set, fieldIndex) || buff == nullptr) {
         continue;
       }
       uint64_t index = orignal_index;
       field->set_notnull();
-
-      std::shared_ptr<buffer> buff = this->buffers[fieldIndex];
 
       if (buff->dimension) {
         index = (index * ndim) + buff->buffer_offset;

@@ -215,7 +215,6 @@ int tile::mytile_discover_table_existence(handlerton *hton, const char *db,
   try {
     tiledb::Context ctx;
     std::string uri = fix_uri(name);
-    std::cerr << "mytile_discover_table_existence uri=" << uri << std::endl;
     tiledb::ArraySchema schema(ctx, uri);
   } catch (tiledb::TileDBError &e) {
     DBUG_RETURN(false);

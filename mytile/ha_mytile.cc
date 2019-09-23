@@ -42,6 +42,7 @@
 #include "mytile-discovery.h"
 #include "mytile-sysvars.h"
 #include "mytile.h"
+#include "utils.h"
 #include <cstring>
 #include <log.h>
 #include <my_config.h>
@@ -160,6 +161,7 @@ static int mytile_init_func(void *p) {
   mytile_hton->table_options = mytile_table_option_list;
   mytile_hton->field_options = mytile_field_option_list;
   // Set table discovery functions
+  mytile_hton->discover_table_structure = tile::mytile_discover_table_structure;
   mytile_hton->discover_table = tile::mytile_discover_table;
   mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
 
@@ -238,9 +240,9 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
   // Open TileDB Array
   try {
-    uri = name;
+    uri = fix_uri(name);
     if (this->table->s->option_struct->array_uri != nullptr)
-      uri = this->table->s->option_struct->array_uri;
+      uri = fix_uri(this->table->s->option_struct->array_uri);
 
     // Always open in read only mode, we'll re-open for writes if we hit init
     // write
@@ -249,6 +251,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     //    if (mode == O_RDWR)
     //      openType = tiledb_query_type_t::TILEDB_WRITE;
 
+    std::cerr << "open uri=" << uri << std::endl;
     this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
 
     auto domain = this->array->schema().domain();
@@ -383,11 +386,14 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   }
 
   // Get array uri from name or table option
-  std::string create_uri = name;
+  std::string create_uri = fix_uri(name);
   if (create_info->option_struct->array_uri != nullptr)
-    create_uri = create_info->option_struct->array_uri;
-  else
-    create_info->option_struct->array_uri = const_cast<char *>(name);
+    create_uri = fix_uri(create_info->option_struct->array_uri);
+  else {
+    char* fixed_name = static_cast<char*>(std::malloc(sizeof(char)*create_uri.size()));
+    strcpy(fixed_name, create_uri.data());
+    create_info->option_struct->array_uri = const_cast<char *>(fixed_name);
+  }
 
   // Check array schema
   try {

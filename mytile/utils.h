@@ -31,6 +31,7 @@
  */
 
 #pragma once
+#include <algorithm>
 namespace tile {
 const char PATH_SEPARATOR =
 #ifdef _WIN32
@@ -38,6 +39,12 @@ const char PATH_SEPARATOR =
 #else
     '/';
 #endif
+
+static inline std::string fix_uri(std::string s){
+  std::string str = s;
+  str.erase(std::remove(str.begin(), str.end(), '`'), str.end());
+  return str;
+}
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {

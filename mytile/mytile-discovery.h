@@ -37,6 +37,27 @@
 
 namespace tile {
 /**
+ *
+ * @param hton
+ * @param thd
+ * @param ts
+ * @param info
+ * @return
+ */
+int discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info);
+
+  /**
+   *
+   * Disvoer an array structure through assisted discovery
+   * @param hton
+   * @param thd
+   * @param share
+   * @param info
+   * @return
+   */
+int mytile_discover_table_structure(handlerton *hton, THD* thd, TABLE_SHARE *share, HA_CREATE_INFO *info);
+
+/**
  * Discover an array structure dynamically, builds the "create table" sql
  * strings and init's the TABLE_SHARE
  * @param hton

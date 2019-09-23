@@ -923,3 +923,65 @@ case TILEDB_STRING_UCS4:
   }
   return 0;
 }
+
+std::unique_ptr<void, decltype(&std::free)> tile::get_spider_lower_upper(std::shared_ptr<tiledb::Array> &array, ha_table_option_struct *option_struct) {
+  switch (array->schema().domain().type()) {
+    case tiledb_datatype_t::TILEDB_INT8: {
+      return spider_lower_upper<int8_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_UINT8: {
+      return spider_lower_upper<uint8_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_INT16: {
+      return spider_lower_upper<int16_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_UINT16: {
+      return spider_lower_upper<uint16_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_INT32: {
+      return spider_lower_upper<int32_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_UINT32: {
+      return spider_lower_upper<uint32_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_INT64: {
+      return spider_lower_upper<int64_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_UINT64: {
+      return spider_lower_upper<uint64_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_FLOAT32: {
+      return spider_lower_upper<float>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_FLOAT64: {
+      return spider_lower_upper<double>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+    case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+    case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+    case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+    case tiledb_datatype_t::TILEDB_DATETIME_HR:
+    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+    case tiledb_datatype_t::TILEDB_DATETIME_MS:
+    case tiledb_datatype_t::TILEDB_DATETIME_US:
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    case tiledb_datatype_t::TILEDB_DATETIME_PS:
+    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+      return spider_lower_upper<int64_t>(option_struct);
+    }
+    case tiledb_datatype_t::TILEDB_CHAR:
+    case tiledb_datatype_t::TILEDB_STRING_ASCII:
+    case tiledb_datatype_t::TILEDB_STRING_UTF8:
+    case tiledb_datatype_t::TILEDB_STRING_UTF16:
+    case tiledb_datatype_t::TILEDB_STRING_UTF32:
+    case tiledb_datatype_t::TILEDB_STRING_UCS2:
+    case tiledb_datatype_t::TILEDB_STRING_UCS4:
+    case tiledb_datatype_t::TILEDB_ANY:
+      my_printf_error(ER_UNKNOWN_ERROR, "Unknown dimension type",
+                      ME_ERROR_LOG | ME_FATAL);
+      break;
+  }
+  return std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free);
+}

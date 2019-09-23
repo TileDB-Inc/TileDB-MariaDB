@@ -17,6 +17,8 @@ struct ha_table_option_struct {
   uint array_type;
   ulonglong cell_order;
   ulonglong tile_order;
+  const char *spider_lower_bound;
+  const char *spider_upper_bound;
 };
 
 struct ha_field_option_struct {
@@ -338,6 +340,21 @@ int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
 int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                           uint64_t i, THD *thd);
 
+
+template <typename T> std::unique_ptr<void, decltype(&std::free)> spider_lower_upper(ha_table_option_struct *option_struct) {
+  std::array<T, 2> domain = {std::numeric_limits<T>::lowest(),
+                             std::numeric_limits<T>::max()};
+  if (option_struct->spider_lower_bound != nullptr)
+    domain[0] = parse_value<T>(option_struct->spider_lower_bound);
+  if (option_struct->spider_upper_bound != nullptr)
+    domain[1] = parse_value<T>(option_struct->spider_upper_bound);
+
+  std::unique_ptr<void, decltype(&std::free)> ret =  std::unique_ptr<void, decltype(&std::free)>(std::malloc(2*sizeof(T)), &std::free);
+  memcpy(ret.get(), domain.data(), 2*sizeof(T));
+  return ret;
+}
+
+std::unique_ptr<void, decltype(&std::free)> get_spider_lower_upper(std::shared_ptr<tiledb::Array> &array, ha_table_option_struct *option_struct);
 // -- end helpers --
 
 } // namespace tile

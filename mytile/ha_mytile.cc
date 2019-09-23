@@ -88,6 +88,8 @@ ha_create_table_option mytile_table_option_list[] = {
                     TILEDB_ROW_MAJOR),
     HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
                     TILEDB_ROW_MAJOR),
+    HA_TOPTION_STRING("spider_lower_bound", spider_lower_bound),
+    HA_TOPTION_STRING("spider_upper_bound", spider_upper_bound),
     HA_TOPTION_END};
 
 // Structure for specific field options
@@ -457,6 +459,12 @@ int tile::mytile::init_scan(
         DBUG_RETURN(HA_ERR_END_OF_FILE);
 
       sql_print_information("no pushdowns possible for query");
+
+      if (this->table_share->option_struct->spider_lower_bound != nullptr && this->table_share->option_struct->spider_upper_bound != nullptr) {
+        std::cerr << "Using spider_lower_bound(" << this->table_share->option_struct->spider_lower_bound << ") and spider_upper_bound(" << this->table_share->option_struct->spider_upper_bound << ")" << std::endl;
+        auto first_dim_spider_partitioning = get_spider_lower_upper(this->array, this->table_share->option_struct);
+        memcpy(subarray.get(), first_dim_spider_partitioning.get(), 2 * tiledb_datatype_size(domain.type()));
+      }
 
       // Set subarray using capi
       ctx.handle_error(tiledb_query_set_subarray(

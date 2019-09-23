@@ -129,6 +129,13 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts, HA_CREATE_
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
+    if (ts->option_struct != nullptr) {
+      if (ts->option_struct->spider_lower_bound != nullptr && ts->option_struct->spider_upper_bound != nullptr) {
+        table_options << " spider_lower_bound=" << ts->option_struct->spider_lower_bound;
+        table_options << " spider_upper_bound=" << ts->option_struct->spider_upper_bound;
+      }
+    }
+
     for (const auto &dim : schema->domain().dimensions()) {
       std::string domain_str = dim.domain_to_str();
       domain_str = domain_str.substr(1, domain_str.size() - 2);

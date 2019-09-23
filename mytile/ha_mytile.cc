@@ -587,6 +587,13 @@ int tile::mytile::rnd_end() {
   DBUG_ENTER("tile::mytile::rnd_end");
   dealloc_buffers();
   this->pushdown_ranges.clear();
+  // Reset indicators
+  this->record_index = 0;
+  this->records = 0;
+  this->records_read = 0;
+  this->status = tiledb::Query::Status::UNINITIALIZED;
+  this->total_num_records_UB = 0;
+  this->query.reset();
   DBUG_RETURN(0);
 };
 

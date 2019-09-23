@@ -188,7 +188,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   }
   case tiledb_datatype_t::TILEDB_INT32:
   case tiledb_datatype_t::TILEDB_UINT32: {
-    return MYSQL_TYPE_INT24;
+    return MYSQL_TYPE_LONG;
   }
 
   case tiledb_datatype_t::TILEDB_INT64:

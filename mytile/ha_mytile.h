@@ -166,6 +166,30 @@ public:
    */
   int write_row(const uchar *buf) override;
 
+  /**
+   *
+   * @param rows
+   * @param flags
+   */
+  void start_bulk_insert(ha_rows rows, uint flags) override;
+
+  /**
+   *
+   * @return
+   */
+  int end_bulk_insert() override;
+
+  /**
+   * flush_write
+   * @return
+   */
+  int flush_write();
+
+  /**
+   * Convert a mysql row to attribute/coordinate buffers (columns)
+   * @param buf
+   * @return
+   */
   int mysql_row_to_tiledb_buffers(const uchar *buf);
 
   /**
@@ -310,5 +334,19 @@ private:
 
   // in bulk write mode
   bool bulk_write = false;
+
+  // Old map used for write/read bitmaps
+  my_bitmap_map *original_bitmap;
+
+  /**
+   * Helper to setup writes
+   */
+  void setup_write();
+
+  /**
+   * Helper to end and finalize writes
+   * @return
+   */
+  int finalize_write();
 };
 } // namespace tile

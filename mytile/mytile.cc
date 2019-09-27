@@ -143,6 +143,7 @@ std::string tile::MysqlTypeString(int type) {
     return "ENUM";
 
   case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_NEWDATE:
     return "DATE";
 
   case MYSQL_TYPE_DATETIME:
@@ -155,8 +156,6 @@ std::string tile::MysqlTypeString(int type) {
   case MYSQL_TYPE_TIMESTAMP:
   case MYSQL_TYPE_TIMESTAMP2:
     return "TIMESTAMP(6)";
-  case MYSQL_TYPE_NEWDATE:
-    return "DATETIME(6)";
   default: {
     sql_print_error("Unknown mysql data type in determining string");
   }
@@ -188,7 +187,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   }
   case tiledb_datatype_t::TILEDB_INT32:
   case tiledb_datatype_t::TILEDB_UINT32: {
-    return MYSQL_TYPE_INT24;
+    return MYSQL_TYPE_LONG;
   }
 
   case tiledb_datatype_t::TILEDB_INT64:
@@ -565,23 +564,33 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
 // int tile::set_datetime_field(THD *thd, Field *field, INTERVAL interval,
 // interval_type interval_type) {
 int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
-                             uint64_t second_part) {
+                             uint64_t second_part,
+                             enum_mysql_timestamp_type type) {
   //  MYSQL_TIME local_epoch = epoch;
   //
   //  date_add_interval(thd, &local_epoch, interval_type, interval);
   //  adjust_time_range_with_warn(thd, &local_epoch, TIME_SECOND_PART_DIGITS);
 
   MYSQL_TIME to;
-  thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
-  thd->time_zone_used = true;
-  to.second_part = second_part;
-  adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
+  if (type != MYSQL_TIMESTAMP_DATE) {
+    thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
+    thd->time_zone_used = true;
+    to.second_part = second_part;
+    adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
+  } else {
+    // For dates we can't convert tz, so use UTC
+    my_tz_OFFSET0->gmt_sec_to_TIME(&to, seconds);
+  }
+  to.time_type = type;
 
   return field->store_time(&to);
 }
 
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                     uint64_t i) {
+
+  const char *str;
+  tiledb_datatype_to_str(buff->type, &str);
   switch (buff->type) {
   /** 8-bit signed integer */
   case TILEDB_INT8:
@@ -663,39 +672,41 @@ case TILEDB_STRING_UCS4:
     // TODO: This isn't a good calculation we should fix it
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 365) / 12;
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 7);
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24);
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_HR: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60);
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * 60;
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, seconds, 0);
+    return set_datetime_field(thd, field, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MS: {
     uint64_t ms = static_cast<uint64_t *>(buff->buffer)[i];
     uint64_t seconds = ms / 1000;
-    return set_datetime_field(thd, field, seconds, ms - (seconds * 1000));
+    return set_datetime_field(thd, field, seconds, ms - (seconds * 1000),
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_US: {
     uint64_t us = static_cast<uint64_t *>(buff->buffer)[i];
     uint64_t seconds = us / 1000000;
-    return set_datetime_field(thd, field, seconds, us - (seconds * 1000000));
+    return set_datetime_field(thd, field, seconds, us - (seconds * 1000000),
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
@@ -836,8 +847,9 @@ case TILEDB_STRING_UCS4:
     field->get_date(&mysql_time, date_mode_t(0));
 
     uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    // Since we are only using the day portion we want to ignore any TZ
+    // conversions by assuming it is already in UTC
+    my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
 
     return set_buffer_from_field<int64_t>(seconds / (60 * 60 * 24), buff, i);
   }

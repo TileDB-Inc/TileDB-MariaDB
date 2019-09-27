@@ -166,7 +166,7 @@ uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
  * @return
  */
 int set_datetime_field(THD *thd, Field *field, uint64_t seconds,
-                       uint64_t second_part);
+                       uint64_t second_part, enum_mysql_timestamp_type type);
 
 /**
  * Set field, stores the value from a tiledb read in the mariadb field
@@ -199,7 +199,7 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
   // If its not the first value, we need to see where the previous position
   // ended to know where to start.
   if (i > 0) {
-    start_position = offset_buffer[i - 1];
+    start_position = offset_buffer[i];
   }
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
@@ -282,7 +282,6 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 
   buff->buffer_size += res->length() * sizeof(T);
   buff->offset_buffer_size += sizeof(uint64_t);
-  // if (i < buff->offset_buffer_size / sizeof(uint64_t))
   buff->offset_buffer[i] = start;
 
   return 0;

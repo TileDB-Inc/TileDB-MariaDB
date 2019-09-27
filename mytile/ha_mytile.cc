@@ -499,6 +499,9 @@ int tile::mytile::init_scan(
 /* Table Scanning */
 int tile::mytile::rnd_init(bool scan) {
   DBUG_ENTER("tile::mytile::rnd_init");
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  original_bitmap = dbug_tmp_use_all_columns(table, table->write_set);
   DBUG_RETURN(init_scan(
       this->ha_thd(),
       std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
@@ -593,7 +596,10 @@ int tile::mytile::rnd_end() {
   this->records_read = 0;
   this->status = tiledb::Query::Status::UNINITIALIZED;
   this->total_num_records_UB = 0;
-  this->query.reset();
+  this->query = nullptr;
+
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
   DBUG_RETURN(0);
 };
 
@@ -938,8 +944,11 @@ void tile::mytile::alloc_buffers(uint64_t size) {
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
     std::string field_name = field->field_name.str;
-    // Only set buffers for fields that are asked for except always set dimension
-    if (!bitmap_is_set(this->table->read_set, fieldIndex) && !schema.domain().has_dimension(field_name)) {
+    // Only set buffers for fields that are asked for except always set
+    // dimension We check the read_set because the read_set is set to ALL column
+    // for writes and set to the subset of columns for reads
+    if (!bitmap_is_set(this->table->read_set, fieldIndex) &&
+        !schema.domain().has_dimension(field_name)) {
       continue;
     }
 
@@ -1022,15 +1031,13 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
                                TABLE *table) {
   DBUG_ENTER("tile::mytile::tileToFields");
   int rc = 0;
-  // We must set the bitmap for debug purpose, it is "write_set" because we use
-  // Field->store
-  my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->write_set);
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
       std::shared_ptr<buffer> buff = this->buffers[fieldIndex];
       // Only read fields that are asked for and the buffer was originally set
-      if (!bitmap_is_set(this->table->read_set, fieldIndex) || buff == nullptr) {
+      if (!bitmap_is_set(this->table->read_set, fieldIndex) ||
+          buff == nullptr) {
         continue;
       }
       uint64_t index = orignal_index;
@@ -1055,8 +1062,7 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -132;
   }
-  // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->write_set, orig);
+
   DBUG_RETURN(rc);
 };
 
@@ -1064,12 +1070,7 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   DBUG_ENTER("tile::mytile::mysql_row_to_tiledb_buffers");
   int error = 0;
 
-  // We must set the bitmap for debug purpose, it is "write_set" because we use
-  // Field->store
-  my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->read_set);
-
   try {
-    // for (Field **field = table->field; *field; field++) {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
       // Error if there is a field missing from writting
@@ -1103,21 +1104,35 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
     error = -102;
   }
 
-  // Reset bitmap to original
-
-  dbug_tmp_restore_column_map(table->read_set, old_map);
   DBUG_RETURN(error);
 }
 
-void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
-  DBUG_ENTER("tile::mytile::start_bulk_insert");
-  this->bulk_write = true;
+/**
+ * Helper to handle common setup tasks for writes
+ */
+void tile::mytile::setup_write() {
+  DBUG_ENTER("tile::mytile::setup_write");
+  // We must set the bitmap for debug purpose, it is "read_set" because we use
+  // Field->val_*
+  original_bitmap = dbug_tmp_use_all_columns(table, table->read_set);
+
+  this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
+  alloc_buffers(this->write_buffer_size);
+  this->record_index = 0;
+  // Reset buffer sizes to 0 for writes
+  // We increase the size for every cell/row we are given to write
+  for (auto &buff : this->buffers) {
+    buff->buffer_size = 0;
+    buff->offset_buffer_size = 0;
+  }
   DBUG_VOID_RETURN;
 }
 
-int tile::mytile::end_bulk_insert() {
-  DBUG_ENTER("tile::mytile::end_bulk_insert");
-
+/**
+ * Helper to end and finalize writes
+ */
+int tile::mytile::finalize_write() {
+  DBUG_ENTER("tile::mytile::finalize_write");
   int rc = 0;
   // Set all buffers with proper size
   try {
@@ -1130,18 +1145,32 @@ int tile::mytile::end_bulk_insert() {
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR,
-                    "[end_bulk_insert] error for table %s : %s",
+                    "[finalize_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -301;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR,
-                    "[end_bulk_insert] error for table %s : %s",
+                    "[finalize_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -302;
   }
 
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_RETURN(rc);
+}
+
+void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
+  DBUG_ENTER("tile::mytile::start_bulk_insert");
+  this->bulk_write = true;
+  setup_write();
+  DBUG_VOID_RETURN;
+}
+
+int tile::mytile::end_bulk_insert() {
+  DBUG_ENTER("tile::mytile::end_bulk_insert");
+  DBUG_RETURN(finalize_write());
 }
 
 int tile::mytile::flush_write() {
@@ -1184,6 +1213,7 @@ int tile::mytile::flush_write() {
 
   DBUG_RETURN(rc);
 }
+
 /**
  * Write row
  * @param buf
@@ -1192,9 +1222,6 @@ int tile::mytile::flush_write() {
 int tile::mytile::write_row(const uchar *buf) {
   DBUG_ENTER("tile::mytile::write_row");
   int rc = 0;
-  // We must set the bitmap for debug purpose, it is "read_set" because we use
-  // Field->val_*
-  my_bitmap_map *orig = dbug_tmp_use_all_columns(table, table->read_set);
 
   if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
       !this->array->is_open()) {
@@ -1210,16 +1237,7 @@ int tile::mytile::write_row(const uchar *buf) {
   }
 
   if (!this->bulk_write) {
-    this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
-    alloc_buffers(this->write_buffer_size);
-    this->record_index = 0;
-
-    // Reset buffer sizes to 0 for writes
-    // We increase the size for every cell/row we are given to write
-    for (auto &buff : this->buffers) {
-      buff->buffer_size = 0;
-      buff->offset_buffer_size = 0;
-    }
+    setup_write();
   }
 
   try {
@@ -1232,10 +1250,7 @@ int tile::mytile::write_row(const uchar *buf) {
     auto domain = this->array->schema().domain();
 
     if (!this->bulk_write) {
-      flush_write();
-      query->finalize();
-      this->query = nullptr;
-      this->array->close();
+      rc = finalize_write();
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -1248,8 +1263,7 @@ int tile::mytile::write_row(const uchar *buf) {
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -202;
   }
-  // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->read_set, orig);
+
   DBUG_RETURN(rc);
 }
 

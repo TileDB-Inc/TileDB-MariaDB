@@ -334,5 +334,19 @@ private:
 
   // in bulk write mode
   bool bulk_write = false;
+
+  // Old map used for write/read bitmaps
+  my_bitmap_map *original_bitmap;
+
+  /**
+   * Helper to setup writes
+   */
+  void setup_write();
+
+  /**
+   * Helper to end and finalize writes
+   * @return
+   */
+  int finalize_write();
 };
 } // namespace tile

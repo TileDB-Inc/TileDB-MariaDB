@@ -1,0 +1,46 @@
+
+--echo # CSV Load Test
+CREATE TABLE mbta_greenline (
+    `date` DATE dimension=1 lower_bound="0" upper_bound="2000000" tile_extent="365",
+    `MODE` varchar(4),
+    RIDERSHIP DOUBLE PRECISION,
+    COUNTOFDATES INTEGER,
+    AVG_RIDERSHIP DOUBLE PRECISION,
+    ROUTE_OR_LINE VARCHAR(255)
+) ENGINE=mytile;
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+copy_file $MTR_SUITE_DIR/test_data/MBTA_Weekday_Greenline_Ridership_2019.csv $MYSQLD_DATADIR/test/MBTA_Weekday_Greenline_Ridership_2019.csv;
+
+--disable_warnings
+LOAD DATA
+     INFILE 'MBTA_Weekday_Greenline_Ridership_2019.csv'
+     INTO TABLE mbta_greenline
+     FIELDS TERMINATED BY ','
+     ENCLOSED BY '"'
+     LINES TERMINATED BY '\n'
+     IGNORE 1 LINES
+     (`date`, `MODE`, RIDERSHIP, COUNTOFDATES, AVG_RIDERSHIP, ROUTE_OR_LINE);
+--enable_warnings
+SELECT `date`, `MODE`, RIDERSHIP, COUNTOFDATES, AVG_RIDERSHIP, ROUTE_OR_LINE FROM mbta_greenline;
+
+remove_file $MYSQLD_DATADIR/test/MBTA_Weekday_Greenline_Ridership_2019.csv;
+
+copy_file $MTR_SUITE_DIR/test_data/empty.csv $MYSQLD_DATADIR/test/empty.csv;
+
+--disable_warnings
+LOAD DATA
+     INFILE 'empty.csv'
+     INTO TABLE mbta_greenline
+     FIELDS TERMINATED BY ','
+     ENCLOSED BY '"'
+     LINES TERMINATED BY '\n'
+     IGNORE 1 LINES
+     (`date`, `MODE`, RIDERSHIP, COUNTOFDATES, AVG_RIDERSHIP, ROUTE_OR_LINE);
+--enable_warnings
+SELECT `date`, `MODE`, RIDERSHIP, COUNTOFDATES, AVG_RIDERSHIP, ROUTE_OR_LINE FROM mbta_greenline;
+
+remove_file $MYSQLD_DATADIR/test/empty.csv;
+
+
+DROP TABLE mbta_greenline;

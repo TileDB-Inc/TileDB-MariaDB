@@ -572,11 +572,14 @@ int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
   //  adjust_time_range_with_warn(thd, &local_epoch, TIME_SECOND_PART_DIGITS);
 
   MYSQL_TIME to;
-  thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
-  thd->time_zone_used = true;
   if (type != MYSQL_TIMESTAMP_DATE) {
+    thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
+    thd->time_zone_used = true;
     to.second_part = second_part;
     adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
+  } else {
+    // For dates we can't convert tz, so use UTC
+    my_tz_OFFSET0->gmt_sec_to_TIME(&to, seconds);
   }
   to.time_type = type;
 
@@ -588,7 +591,6 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 
   const char *str;
   tiledb_datatype_to_str(buff->type, &str);
-  std::cout << "field " << buff->name << " has datatype " << str << std::endl;
   switch (buff->type) {
   /** 8-bit signed integer */
   case TILEDB_INT8:
@@ -845,8 +847,9 @@ case TILEDB_STRING_UCS4:
     field->get_date(&mysql_time, date_mode_t(0));
 
     uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    // Since we are only using the day portion we want to ignore any TZ
+    // conversions by assuming it is already in UTC
+    my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
 
     return set_buffer_from_field<int64_t>(seconds / (60 * 60 * 24), buff, i);
   }

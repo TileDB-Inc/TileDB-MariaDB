@@ -1137,9 +1137,11 @@ int tile::mytile::finalize_write() {
   // Set all buffers with proper size
   try {
     // Submit query
-    flush_write();
-    query->finalize();
-    this->query = nullptr;
+    if (this->query != nullptr) {
+      flush_write();
+      this->query->finalize();
+      this->query = nullptr;
+    }
     this->array->close();
 
   } catch (const tiledb::TileDBError &e) {
@@ -1177,6 +1179,9 @@ int tile::mytile::flush_write() {
   DBUG_ENTER("tile::mytile::flush_write");
 
   int rc = 0;
+  if (this->query == nullptr)
+    DBUG_RETURN(rc);
+
   // Set all buffers with proper size
   try {
     for (auto &buff : this->buffers) {

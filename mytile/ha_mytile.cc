@@ -404,6 +404,11 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   try {
     // Create the array on storage
     tiledb::Array::create(create_uri, schema);
+
+    // Next we call the discover table structure so the newly created array will
+    // show up as a table in mysql
+    mytile_discover_table_structure(reinterpret_cast<handlerton *>(this),
+                                    ha_thd(), table_arg->s, create_info);
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());

@@ -947,8 +947,7 @@ ulonglong tile::mytile::table_flags(void) const {
               // HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
               HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT |
               HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
-              HA_CAN_BIT_FIELD | HA_FILE_BASED | HA_BINLOG_ROW_CAPABLE |
-              HA_BINLOG_STMT_CAPABLE);
+              HA_CAN_BIT_FIELD | HA_FILE_BASED);
 }
 
 void tile::mytile::alloc_buffers(uint64_t size) {

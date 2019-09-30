@@ -121,7 +121,7 @@ tile::mytile_share::mytile_share() {
 tile::mytile_share *tile::mytile::get_share() {
   tile::mytile_share *tmp_share;
 
-  DBUG_ENTER("tile::mytile::get_share()");
+  DBUG_ENTER("tile::mytile::get_share");
 
   lock_shared_ha_data();
   if (!(tmp_share = static_cast<tile::mytile_share *>(get_ha_share_ptr()))) {
@@ -887,32 +887,42 @@ void tile::mytile::cond_pop() {
 }
 
 /**
- * Delete a table by rm'ing the tiledb directory
+ * Drop a table by rm'ing the tiledb directory
+ *
+ * note: we implement drop_table not delete_table because in drop_table the
+ * table is open
  * @param name
  * @return
  */
-int tile::mytile::delete_table(const char *name) {
-  DBUG_ENTER("tile::mytile::delete_table");
+void tile::mytile::drop_table(const char *name) {
+  DBUG_ENTER("tile::mytile::drop_table");
   if (!THDVAR(ha_thd(), delete_arrays)) {
-    DBUG_RETURN(0);
+    DBUG_VOID_RETURN;
   }
+
   try {
     tiledb::VFS vfs(ctx);
-    if (this->table_share->option_struct->array_uri != nullptr) {
+    TABLE_SHARE *s;
+    if (this->table != nullptr)
+      s = this->table->s;
+    else
+      s = this->table_share;
+    if (s != nullptr && this->table_share->option_struct != nullptr &&
+        this->table_share->option_struct->array_uri != nullptr) {
       vfs.remove_dir(this->table_share->option_struct->array_uri);
     } else {
       vfs.remove_dir(name);
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    sql_print_error("delete_table error for table %s : %s", name, e.what());
-    DBUG_RETURN(-20);
+    sql_print_error("drop_table error for table %s : %s", name, e.what());
+    DBUG_VOID_RETURN;
   } catch (const std::exception &e) {
     // Log errors
-    sql_print_error("delete_table error for table %s : %s", name, e.what());
-    DBUG_RETURN(-21);
+    sql_print_error("drop_table error for table %s : %s", name, e.what());
+    DBUG_VOID_RETURN;
   }
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 /**

@@ -69,13 +69,4 @@ int mytile_discover_table_structure(handlerton *hton, THD *thd,
  */
 int mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts);
 
-/**
- * Checks if an array exists or not
- * @param hton
- * @param db
- * @param name
- * @return
- */
-int mytile_discover_table_existence(handlerton *hton, const char *db,
-                                    const char *name);
 } // namespace tile

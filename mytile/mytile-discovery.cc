@@ -206,18 +206,3 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
   // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
   DBUG_RETURN(res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res);
 }
-
-int tile::mytile_discover_table_existence(handlerton *hton, const char *db,
-                                          const char *name) {
-
-  DBUG_ENTER("tile::mytile_discover_table_existence");
-  try {
-    tiledb::Context ctx;
-    std::string uri = name;
-    tiledb::ArraySchema schema(ctx, uri);
-  } catch (tiledb::TileDBError &e) {
-    DBUG_RETURN(false);
-  }
-
-  DBUG_RETURN(true);
-}

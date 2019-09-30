@@ -163,7 +163,6 @@ static int mytile_init_func(void *p) {
   // Set table discovery functions
   mytile_hton->discover_table_structure = tile::mytile_discover_table_structure;
   mytile_hton->discover_table = tile::mytile_discover_table;
-  mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
 
   DBUG_RETURN(0);
 }

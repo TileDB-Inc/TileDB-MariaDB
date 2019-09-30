@@ -94,11 +94,11 @@ public:
                    HA_CREATE_INFO *create_info, tiledb::Context ctx);
 
   /**
-   * Delete table, not implemented
+   * Drop a table
    * @param name
    * @return
    */
-  int delete_table(const char *name) override;
+  void drop_table(const char *name) override;
 
   // int rename_table(const char *from, const char *to) override;
 

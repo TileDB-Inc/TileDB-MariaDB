@@ -401,8 +401,14 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     DBUG_RETURN(-10);
   }
 
-  // Create the array on storage
-  tiledb::Array::create(create_uri, schema);
+  try {
+    // Create the array on storage
+    tiledb::Array::create(create_uri, schema);
+  } catch (tiledb::TileDBError &e) {
+    my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
+                    ME_ERROR_LOG | ME_FATAL, e.what());
+    DBUG_RETURN(-11);
+  }
   DBUG_RETURN(rc);
 }
 

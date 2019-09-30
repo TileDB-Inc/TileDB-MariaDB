@@ -24,13 +24,13 @@ make -j4
 - Based on TileDB arrays
 - Supports basic pushdown of predicates for dimensions
 - Create arrays through CREATE TABLE syntax.
+- Existing arrays can be dynamically queried
+- Supports all datatypes except geometry
 
 ## Known Issues
 
-- Bulk writes are currently not supported
 - Condition pushdown only works for constants not sub selects
 - Buffers will double in size for incomplete queries with zero results
-- Array URIs must be less than 64 characters
 
 ## Usage
 
@@ -46,6 +46,13 @@ Basic select:
 
 ```
 select * from `s3://my/array`;
+```
+
+Use assisted table discovery for long uris:
+
+```
+create table my_array ENGINE=mytile uri='s3://my_bucket/arrays/sub_prefix/path_is_longer_than_64_chars/my_array_1';
+select * from my_arrays;
 ```
 
 Create table:

@@ -76,7 +76,8 @@ static void init_mytile_psi_keys() {
 
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size), NULL};
+    MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size),
+    MYSQL_SYSVAR(delete_arrays), NULL};
 
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
@@ -160,6 +161,7 @@ static int mytile_init_func(void *p) {
   mytile_hton->table_options = mytile_table_option_list;
   mytile_hton->field_options = mytile_field_option_list;
   // Set table discovery functions
+  mytile_hton->discover_table_structure = tile::mytile_discover_table_structure;
   mytile_hton->discover_table = tile::mytile_discover_table;
   mytile_hton->discover_table_existence = tile::mytile_discover_table_existence;
 
@@ -245,9 +247,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     // Always open in read only mode, we'll re-open for writes if we hit init
     // write
     tiledb_query_type_t openType = tiledb_query_type_t::TILEDB_READ;
-
-    //    if (mode == O_RDWR)
-    //      openType = tiledb_query_type_t::TILEDB_WRITE;
 
     this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
 
@@ -386,8 +385,12 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   std::string create_uri = name;
   if (create_info->option_struct->array_uri != nullptr)
     create_uri = create_info->option_struct->array_uri;
-  else
-    create_info->option_struct->array_uri = const_cast<char *>(name);
+  else {
+    char *fixed_name =
+        static_cast<char *>(std::malloc(sizeof(char) * create_uri.size()));
+    strcpy(fixed_name, create_uri.data());
+    create_info->option_struct->array_uri = const_cast<char *>(fixed_name);
+  }
 
   // Check array schema
   try {
@@ -879,10 +882,16 @@ void tile::mytile::cond_pop() {
  */
 int tile::mytile::delete_table(const char *name) {
   DBUG_ENTER("tile::mytile::delete_table");
-  // Delete dir
+  if (!THDVAR(ha_thd(), delete_arrays)) {
+    DBUG_RETURN(0);
+  }
   try {
     tiledb::VFS vfs(ctx);
-    vfs.remove_dir(name);
+    if (this->table_share->option_struct->array_uri != nullptr) {
+      vfs.remove_dir(this->table_share->option_struct->array_uri);
+    } else {
+      vfs.remove_dir(name);
+    }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     sql_print_error("delete_table error for table %s : %s", name, e.what());

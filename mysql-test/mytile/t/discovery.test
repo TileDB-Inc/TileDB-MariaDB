@@ -1,0 +1,15 @@
+--echo # Testing table discovery
+
+let $TABLE="$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense"
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval select `rows`, `cols`, `a` from `$TABLE`;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+
+--echo # Testing assisted table discovery
+
+--eval CREATE TABLE quickstart_sparse ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_sparse';
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+
+select `rows`, `cols`, `a` from `quickstart_sparse`;
+
+DROP TABLE `quickstart_sparse`;

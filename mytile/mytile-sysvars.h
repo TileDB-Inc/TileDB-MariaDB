@@ -45,8 +45,11 @@ extern struct st_mysql_sys_var *mytile_system_variables[];
 static MYSQL_THDVAR_ULONGLONG(read_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
                               NULL, 104857600, 0, ~0UL, 0);
 
-// Write buffer size, currently unused
+// Write buffer size
 static MYSQL_THDVAR_ULONGLONG(write_buffer_size, PLUGIN_VAR_OPCMDARG, "", NULL,
                               NULL, 104857600, 0, ~0UL, 0);
 
+// Physically delete arrays
+static MYSQL_THDVAR_BOOL(delete_arrays, PLUGIN_VAR_OPCMDARG, "", NULL, NULL,
+                         false);
 #endif // MYTILE_SYSVARS_H

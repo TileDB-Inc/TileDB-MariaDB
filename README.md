@@ -31,6 +31,7 @@ make -j4
 
 - Condition pushdown only works for constants not sub selects
 - Buffers will double in size for incomplete queries with zero results
+- MyTile is not capable of binlogging currently both stmt and row based is disabled at the storage engine level
 
 ## Usage
 

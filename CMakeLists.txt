@@ -45,12 +45,16 @@ set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 
 find_package(TileDB)
 
+
 if(NOT TileDB_FOUND AND SUPERBUILD)
     include(ExternalProject)
 
+    SET(TILEDB_VERSION "1.6.3")
+
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
-            URL "https://github.com/TileDB-Inc/TileDB/archive/1.6.3.zip"
+            URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
             URL_HASH SHA1=19f572759d1386c9fd4b8b1dc97dc819e3a541ff
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
@@ -70,11 +74,10 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             LOG_INSTALL TRUE
             )
 
-    ExternalProject_Get_Property(tiledb install_dir)
-
-    # Manually link static merged library
+    # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
-#    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtbb${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtiledb${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    FILE(GLOB TILEDB_INSTALL_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtiledb*")
 else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
@@ -99,4 +102,5 @@ endif()
 if(NOT TileDB_FOUND AND SUPERBUILD)
     add_dependencies(mytile tiledb)
     target_include_directories(mytile PUBLIC "${EP_INSTALL_PREFIX}/include" "mytile")
+    INSTALL(FILES ${TILEDB_INSTALL_LIBRARIES} DESTINATION ${INSTALL_PLUGINDIR})
 endif()

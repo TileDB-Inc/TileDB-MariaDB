@@ -12,6 +12,8 @@ else ()
     set (CMAKE_CXX_STANDARD 14)
 endif ()
 
+option(SUPERBUILD "Build missing dependencies" ON)
+
 
 ############################################################
 # "make format" and "make check-format" targets
@@ -39,28 +41,29 @@ endif()
 # Get library directory for multiarch linux distros
 include(GNUInstallDirs)
 
+set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
+
 find_package(TileDB)
 
-# Does not actually work currently
-if(NOT TileDB_FOUND)
+if(NOT TileDB_FOUND AND SUPERBUILD)
     include(ExternalProject)
-
-    set(TILEDB_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 
     ExternalProject_Add(tiledb
             PREFIX "externals"
-            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/TileDB"
-            DOWNLOAD_COMMAND ""
-            #  CONFIGURE_COMMAND ""
-            #  BUILD_IN_SOURCE TRUE
-            INSTALL_COMMAND $(MAKE) -C tiledb install
-            #  UPDATE_COMMAND ""
+            URL "https://github.com/TileDB-Inc/TileDB/archive/1.6.3.zip"
+            URL_HASH SHA1=19f572759d1386c9fd4b8b1dc97dc819e3a541ff
+            DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
+            -DCMAKE_PREFIX_PATH=${EP_INSTALL_PREFIX}
             -DTILEDB_VERBOSE=ON
             -DTILEDB_S3=ON
+            -DTILEDB_STATIC=ON
+            -DTILEDB_SERIALIZATION=ON
             -DTILEDB_FORCE_ALL_DEPS=ON
-            -DCMAKE_INSTALL_PREFIX=${TILEDB_INSTALL_PREFIX}
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            UPDATE_COMMAND ""
+            INSTALL_COMMAND
+            ${CMAKE_COMMAND} --build . --target install-tiledb
             LOG_DOWNLOAD TRUE
             LOG_CONFIGURE TRUE
             LOG_BUILD TRUE
@@ -68,13 +71,10 @@ if(NOT TileDB_FOUND)
             )
 
     ExternalProject_Get_Property(tiledb install_dir)
-    target_include_directories(mytile PUBLIC "${TILEDB_INSTALL_PREFIX}/include" "mytile")
-
-    add_dependencies(mytile tiledb)
 
     # Manually link static merged library
     # Must use full library name else cmake things its the external target of `tiledb`
-    SET(TILEDB_LIBRARIES "${TILEDB_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtbb${CMAKE_SHARED_LIBRARY_SUFFIX}")
+#    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtbb${CMAKE_SHARED_LIBRARY_SUFFIX}")
 else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
@@ -94,4 +94,9 @@ if(WITH_EMBEDDED_SERVER)
 # Else build as a dynamic library
 else()
     MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE DEFAULT MODULE_ONLY RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
+endif()
+
+if(NOT TileDB_FOUND AND SUPERBUILD)
+    add_dependencies(mytile tiledb)
+    target_include_directories(mytile PUBLIC "${EP_INSTALL_PREFIX}/include" "mytile")
 endif()

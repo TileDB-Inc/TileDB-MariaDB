@@ -9,9 +9,8 @@ wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARI
 && tar xf ${MARIADB_VERSION}.tar.gz \
 && mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd ${MARIADB_VERSION} \
-&& mkdir build \
-&& cd build \
+&& mkdir builddir \
+&& cd builddir \
 && cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug .. \
 && make -j$(nproc) \
 && if ! ./mysql-test/mysql-test-run.pl  --suite=mytile --debug; then cat ./mysql-test/var/log/mysqld.1.err && false; fi;
-set +e +x

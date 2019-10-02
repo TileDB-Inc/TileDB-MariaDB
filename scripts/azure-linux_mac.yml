@@ -38,6 +38,12 @@ steps:
     if [[ "$AGENT_OS" == "Darwin" ]]; then
       brew install cmake jemalloc traildb/judy/judy openssl boost gnutls
     fi
+    if [[ "$AGENT_OS" == "Linux" ]]; then
+      export LD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:/usr/local/lib:$LD_LIBRARY_PATH
+    else
+      export DYLD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:$DYLD_LIBRARY_PATH
+    fi
+    source ./scripts/ci_install_tiledb.sh
     source ./scripts/ci_tests.sh
 
     #  displayName: 'Build examples, PNG test, and benchmarks (build-only)'

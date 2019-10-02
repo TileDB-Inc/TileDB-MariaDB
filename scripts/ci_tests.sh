@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
 set -e -x
-export MARIADB_VERSION="mariadb-10.4.6"
+export MARIADB_VERSION="mariadb-10.4.8"
 mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp
+mv tmp/build_deps .
 wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
 && tar xf ${MARIADB_VERSION}.tar.gz \
 && mv tmp ${MARIADB_VERSION}/storage/mytile \

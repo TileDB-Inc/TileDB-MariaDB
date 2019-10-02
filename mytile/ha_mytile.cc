@@ -512,9 +512,6 @@ int tile::mytile::init_scan(
 /* Table Scanning */
 int tile::mytile::rnd_init(bool scan) {
   DBUG_ENTER("tile::mytile::rnd_init");
-  // We must set the bitmap for debug purpose, it is "write_set" because we use
-  // Field->store
-  original_bitmap = dbug_tmp_use_all_columns(table, table->write_set);
   DBUG_RETURN(init_scan(
       this->ha_thd(),
       std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
@@ -524,6 +521,10 @@ int tile::mytile::rnd_row(TABLE *table) {
   DBUG_ENTER("tile::mytile::rnd_row");
   int rc = 0;
   const char *query_status;
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  my_bitmap_map *original_bitmap =
+      dbug_tmp_use_all_columns(table, table->write_set);
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
 
@@ -532,12 +533,16 @@ int tile::mytile::rnd_row(TABLE *table) {
   // this check is not guaranteed see the next check were we look for complete
   // query and row position
   if (this->records_read >= this->total_num_records_UB) {
+    // Reset bitmap to original
+    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
   // If we are complete and there is no more records we report EOF
   if (this->status == tiledb::Query::Status::COMPLETE &&
       static_cast<int64_t>(this->record_index) >= this->records) {
+    // Reset bitmap to original
+    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -582,6 +587,9 @@ int tile::mytile::rnd_row(TABLE *table) {
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -122;
   }
+
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 
@@ -610,9 +618,6 @@ int tile::mytile::rnd_end() {
   this->status = tiledb::Query::Status::UNINITIALIZED;
   this->total_num_records_UB = 0;
   this->query = nullptr;
-
-  // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
   DBUG_RETURN(0);
 };
 
@@ -1140,10 +1145,6 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
  */
 void tile::mytile::setup_write() {
   DBUG_ENTER("tile::mytile::setup_write");
-  // We must set the bitmap for debug purpose, it is "read_set" because we use
-  // Field->val_*
-  original_bitmap = dbug_tmp_use_all_columns(table, table->read_set);
-
   this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
   alloc_buffers(this->write_buffer_size);
   this->record_index = 0;
@@ -1185,9 +1186,6 @@ int tile::mytile::finalize_write() {
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -302;
   }
-
-  // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 
@@ -1255,6 +1253,10 @@ int tile::mytile::flush_write() {
 int tile::mytile::write_row(const uchar *buf) {
   DBUG_ENTER("tile::mytile::write_row");
   int rc = 0;
+  // We must set the bitmap for debug purpose, it is "read_set" because we use
+  // Field->val_*
+  my_bitmap_map *original_bitmap =
+      dbug_tmp_use_all_columns(table, table->read_set);
 
   if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
       !this->array->is_open()) {
@@ -1277,6 +1279,9 @@ int tile::mytile::write_row(const uchar *buf) {
     rc = mysql_row_to_tiledb_buffers(buf);
     if (rc == ERR_WRITE_FLUSH_NEEDED) {
       flush_write();
+
+      // Reset bitmap to original
+      dbug_tmp_restore_column_map(table->read_set, original_bitmap);
       DBUG_RETURN(write_row(buf));
     }
     this->record_index++;
@@ -1297,6 +1302,8 @@ int tile::mytile::write_row(const uchar *buf) {
     rc = -202;
   }
 
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 

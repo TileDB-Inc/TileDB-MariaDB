@@ -100,6 +100,13 @@ public:
    */
   void drop_table(const char *name) override;
 
+  /**
+   * Delete a table
+   * @param name
+   * @return
+   */
+  int delete_table(const char *name) override;
+
   // int rename_table(const char *from, const char *to) override;
 
   /**

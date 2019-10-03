@@ -1116,7 +1116,7 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
-      // Error if there is a field missing from writting
+      // Error if there is a field missing from writing
       if (!bitmap_is_set(this->table->write_set, fieldIndex)) {
         my_printf_error(ER_UNKNOWN_ERROR,
                         "[mysql_row_to_tiledb_buffers] field %s is not set, "

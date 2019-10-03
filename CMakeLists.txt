@@ -45,7 +45,6 @@ set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 
 find_package(TileDB QUIET)
 
-
 if(NOT TileDB_FOUND AND SUPERBUILD)
     MESSAGE(STATUS "TileDB not found for MyTile. Building as depedency from source")
     include(ExternalProject)
@@ -84,10 +83,10 @@ else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
     # If no release lib try debug lib
-    if(${TILEDB_LIBRARIES} STREQUAL "NOTFOUND")
+    if(${TILEDB_LIBRARIES} MATCHES "NOTFOUND")
         GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_DEBUG)
     endif()
-    message(STATUS ${TILEDB_LIBRARIES})
+    message(STATUS "${TILEDB_LIBRARIES}")
 endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)

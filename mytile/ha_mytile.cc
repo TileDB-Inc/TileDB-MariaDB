@@ -739,6 +739,12 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   bool neg = FALSE;
 
   Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
+  // If we can't convert the condition to a column let's bail
+  // We should add support at some point for handling functions (i.e.
+  // date_dimension = current_date())
+  if (column_field == nullptr) {
+    DBUG_RETURN(func_item);
+  }
   // If the condition is not a dimension we can't handle it
   if (!this->array->schema().domain().has_dimension(
           column_field->field_name.str)) {

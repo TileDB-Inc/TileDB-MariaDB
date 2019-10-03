@@ -32,7 +32,7 @@ steps:
 
     if [[ "$AGENT_OS" == "Linux" ]]; then
       sudo apt update
-      sudo apt install -y libncurses5-dev bison
+      sudo apt install -y libncurses5-dev bison gdb
       export LD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:/usr/local/lib:$LD_LIBRARY_PATH
     fi
 

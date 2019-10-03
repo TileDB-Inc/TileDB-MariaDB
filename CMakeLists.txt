@@ -91,19 +91,21 @@ endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)
 
-# We need to set RPATH so if tiledb is built as superbuild we correctly can find it in the plugin dir after install
-SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
-SET(CMAKE_SKIP_RPATH FALSE)
+if(NOT TileDB_FOUND AND SUPERBUILD)
+    # We need to set RPATH so if tiledb is built as superbuild we correctly can find it in the plugin dir after install
+    SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+    SET(CMAKE_SKIP_RPATH FALSE)
 
-# when building, don't use the install RPATH already
-# (but later on when installing)
-SET(PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}")
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_INSTALL_RPATH "${PLUGIN_INSTALL_DIR}")
+    # when building, don't use the install RPATH already
+    # (but later on when installing)
+    SET(PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}")
+    SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    SET(CMAKE_INSTALL_RPATH "${PLUGIN_INSTALL_DIR}")
 
-# add the automatically determined parts of the RPATH
-# which point to directories outside the build tree to the install RPATH
-SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    # add the automatically determined parts of the RPATH
+    # which point to directories outside the build tree to the install RPATH
+    SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 # Add the storage engine plugin
 # If we are compiling embedded server make it statically linked

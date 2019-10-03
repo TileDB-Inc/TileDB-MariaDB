@@ -1268,7 +1268,10 @@ int tile::mytile::flush_write() {
       }
     }
 
-    query->submit();
+    // Only submit the query if there is actual data, else just carry on
+    if (coord_size > 0) {
+      query->submit();
+    }
 
     // After query submit reset buffer sizes
     this->record_index = 0;

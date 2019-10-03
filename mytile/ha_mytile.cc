@@ -1247,11 +1247,13 @@ int tile::mytile::flush_write() {
 
   // Set all buffers with proper size
   try {
+    uint64_t coord_size = 0;
     for (auto &buff : this->buffers) {
       if (this->array->schema().domain().has_dimension(buff->name)) {
+        coord_size = buff->buffer_size * buff->fixed_size_elements;
         this->ctx.handle_error(tiledb_query_set_buffer(
             this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
-            buff->buffer, &buff->buffer_size));
+            buff->buffer, &coord_size));
       } else {
         if (buff->offset_buffer != nullptr) {
           this->ctx.handle_error(tiledb_query_set_buffer_var(
@@ -1267,6 +1269,15 @@ int tile::mytile::flush_write() {
     }
 
     query->submit();
+
+    // After query submit reset buffer sizes
+    this->record_index = 0;
+    // Reset buffer sizes to 0 for writes
+    // We increase the size for every cell/row we are given to write
+    for (auto &buff : this->buffers) {
+      buff->buffer_size = 0;
+      buff->offset_buffer_size = 0;
+    }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[flush_write] error for table %s : %s",

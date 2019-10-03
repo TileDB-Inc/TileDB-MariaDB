@@ -1198,6 +1198,18 @@ int tile::mytile::finalize_write() {
 void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
   DBUG_ENTER("tile::mytile::start_bulk_insert");
   this->bulk_write = true;
+  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
+      !this->array->is_open()) {
+    if (this->array->is_open())
+      this->array->close();
+
+    this->array->open(TILEDB_WRITE);
+  }
+  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
+    this->query =
+        std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  }
   setup_write();
   DBUG_VOID_RETURN;
 }

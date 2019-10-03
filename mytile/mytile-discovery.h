@@ -34,6 +34,7 @@
 
 #include "my_global.h" /* ulonglong */
 #include <handler.h>
+#include <tiledb/tiledb>
 
 namespace tile {
 /**
@@ -45,7 +46,9 @@ namespace tile {
  * @return
  */
 int discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
-                   HA_CREATE_INFO *info);
+                   HA_CREATE_INFO *info,
+                   std::unique_ptr<tiledb::ArraySchema> schema,
+                   std::string array_uri);
 
 /**
  *

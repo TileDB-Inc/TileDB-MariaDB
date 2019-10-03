@@ -314,7 +314,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   }
 
   // Create array schema
-  tiledb::ArraySchema schema(ctx, arrayType);
+  std::unique_ptr<tiledb::ArraySchema> schema =
+      std::make_unique<tiledb::ArraySchema>(ctx, arrayType);
 
   // Create domain
   tiledb::Domain domain(ctx);
@@ -357,27 +358,27 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       tiledb::Filter filter(ctx, TILEDB_FILTER_ZSTD);
       filterList.add_filter(filter);
       tiledb::Attribute attr = create_field_attribute(ctx, field, filterList);
-      schema.add_attribute(attr);
+      schema->add_attribute(attr);
     };
   }
 
-  schema.set_domain(domain);
+  schema->set_domain(domain);
 
   // Set capacity
-  schema.set_capacity(create_info->option_struct->capacity);
+  schema->set_capacity(create_info->option_struct->capacity);
 
   // Set cell ordering if configured
   if (create_info->option_struct->cell_order == 0) {
-    schema.set_cell_order(TILEDB_ROW_MAJOR);
+    schema->set_cell_order(TILEDB_ROW_MAJOR);
   } else if (create_info->option_struct->cell_order == 1) {
-    schema.set_cell_order(TILEDB_COL_MAJOR);
+    schema->set_cell_order(TILEDB_COL_MAJOR);
   }
 
   // Set tile ordering if configured
   if (create_info->option_struct->tile_order == 0) {
-    schema.set_tile_order(TILEDB_ROW_MAJOR);
+    schema->set_tile_order(TILEDB_ROW_MAJOR);
   } else if (create_info->option_struct->tile_order == 1) {
-    schema.set_tile_order(TILEDB_COL_MAJOR);
+    schema->set_tile_order(TILEDB_COL_MAJOR);
   }
 
   // Get array uri from name or table option
@@ -393,7 +394,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
   // Check array schema
   try {
-    schema.check();
+    schema->check();
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in building schema %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());
@@ -402,12 +403,12 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
   try {
     // Create the array on storage
-    tiledb::Array::create(create_uri, schema);
+    tiledb::Array::create(create_uri, *schema);
 
     // Next we call the discover table structure so the newly created array will
     // show up as a table in mysql
-    mytile_discover_table_structure(reinterpret_cast<handlerton *>(this),
-                                    ha_thd(), table_arg->s, create_info);
+    discover_array(reinterpret_cast<handlerton *>(this), ha_thd(), table_arg->s,
+                   create_info, std::move(schema), create_uri);
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());

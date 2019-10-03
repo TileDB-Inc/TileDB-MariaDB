@@ -335,9 +335,6 @@ private:
   // in bulk write mode
   bool bulk_write = false;
 
-  // Old map used for write/read bitmaps
-  my_bitmap_map *original_bitmap;
-
   /**
    * Helper to setup writes
    */

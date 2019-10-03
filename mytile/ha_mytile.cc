@@ -1145,6 +1145,10 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
  */
 void tile::mytile::setup_write() {
   DBUG_ENTER("tile::mytile::setup_write");
+  // We must set the bitmap for debug purpose, it is "read_set" because we use
+  // Field->val_*
+  my_bitmap_map *original_bitmap =
+      dbug_tmp_use_all_columns(table, table->read_set);
   this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
   alloc_buffers(this->write_buffer_size);
   this->record_index = 0;
@@ -1154,6 +1158,8 @@ void tile::mytile::setup_write() {
     buff->buffer_size = 0;
     buff->offset_buffer_size = 0;
   }
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_VOID_RETURN;
 }
 

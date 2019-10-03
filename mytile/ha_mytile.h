@@ -352,5 +352,14 @@ private:
    * @return
    */
   int finalize_write();
+
+  /**
+   * Helper function which validates the array is open for reads
+   */
+  void open_array_for_reads();
+  /**
+   * Helper function which validates the array is open for writes
+   */
+  void open_array_for_writes();
 };
 } // namespace tile

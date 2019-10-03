@@ -900,8 +900,21 @@ void tile::mytile::cond_pop() {
  */
 void tile::mytile::drop_table(const char *name) {
   DBUG_ENTER("tile::mytile::drop_table");
+  delete_table(name);
+  DBUG_VOID_RETURN;
+}
+
+/**
+ * Drop a table by rm'ing the tiledb directory
+ *
+ * note: drop_table isn't called so we implement delete_table also`
+ * @param name
+ * @return
+ */
+int tile::mytile::delete_table(const char *name) {
+  DBUG_ENTER("tile::mytile::delete_table");
   if (!THDVAR(ha_thd(), delete_arrays)) {
-    DBUG_VOID_RETURN;
+    DBUG_RETURN(0);
   }
 
   try {
@@ -919,14 +932,14 @@ void tile::mytile::drop_table(const char *name) {
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    sql_print_error("drop_table error for table %s : %s", name, e.what());
-    DBUG_VOID_RETURN;
+    sql_print_error("delete_table error for table %s : %s", name, e.what());
+    DBUG_RETURN(-25);
   } catch (const std::exception &e) {
     // Log errors
-    sql_print_error("drop_table error for table %s : %s", name, e.what());
-    DBUG_VOID_RETURN;
+    sql_print_error("delete_table error for table %s : %s", name, e.what());
+    DBUG_RETURN(-26);
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 /**

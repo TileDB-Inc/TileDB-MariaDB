@@ -912,9 +912,9 @@ int tile::mytile::delete_table(const char *name) {
       s = this->table->s;
     else
       s = this->table_share;
-    if (s != nullptr && this->table_share->option_struct != nullptr &&
-        this->table_share->option_struct->array_uri != nullptr) {
-      vfs.remove_dir(this->table_share->option_struct->array_uri);
+    if (s != nullptr && s->option_struct != nullptr &&
+        s->option_struct->array_uri != nullptr) {
+      vfs.remove_dir(s->option_struct->array_uri);
     } else {
       vfs.remove_dir(name);
     }
@@ -1206,6 +1206,7 @@ void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
 
 int tile::mytile::end_bulk_insert() {
   DBUG_ENTER("tile::mytile::end_bulk_insert");
+  this->bulk_write = false;
   DBUG_RETURN(finalize_write());
 }
 

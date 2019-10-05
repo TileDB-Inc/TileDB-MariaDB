@@ -385,12 +385,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   std::string create_uri = name;
   if (create_info->option_struct->array_uri != nullptr)
     create_uri = create_info->option_struct->array_uri;
-  else {
-    char *fixed_name =
-        static_cast<char *>(std::malloc(sizeof(char) * create_uri.size()));
-    strcpy(fixed_name, create_uri.data());
-    create_info->option_struct->array_uri = const_cast<char *>(fixed_name);
-  }
 
   // Check array schema
   try {

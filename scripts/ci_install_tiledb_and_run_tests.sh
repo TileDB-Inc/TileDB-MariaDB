@@ -13,7 +13,7 @@ git clone https://github.com/Shelnutt2/server.git -b MDEV-20767 ${MARIADB_VERSIO
 
 # Install tiledb using 1.6 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b ttd/backport-schema-h && cd TileDB \
 && export deps_args="" \
 && export bootstrap_args="--enable=verbose,static-tiledb,s3,serialization,debug" \
 && mkdir -p build && cd build

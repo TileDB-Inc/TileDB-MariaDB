@@ -420,18 +420,7 @@ int tile::mytile::init_scan(
   this->read_buffer_size = THDVAR(thd, read_buffer_size);
 
   try {
-    if ((this->array->is_open() && this->array->query_type() != TILEDB_READ) ||
-        !this->array->is_open()) {
-      if (this->array->is_open())
-        this->array->close();
-
-      this->array->open(TILEDB_READ);
-    }
-    if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
-      this->query =
-          std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
-      this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-    }
+    open_array_for_reads();
 
     alloc_read_buffers(this->read_buffer_size);
 
@@ -843,6 +832,8 @@ const COND *tile::mytile::cond_push(const COND *cond) {
   // NOTE: This is called one or more times by handle interface. Once for each
   // condition
 
+  open_array_for_reads();
+
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty())
     for (uint64_t i = 0; i < this->ndim; i++)
@@ -921,9 +912,9 @@ int tile::mytile::delete_table(const char *name) {
       s = this->table->s;
     else
       s = this->table_share;
-    if (s != nullptr && this->table_share->option_struct != nullptr &&
-        this->table_share->option_struct->array_uri != nullptr) {
-      vfs.remove_dir(this->table_share->option_struct->array_uri);
+    if (s != nullptr && s->option_struct != nullptr &&
+        s->option_struct->array_uri != nullptr) {
+      vfs.remove_dir(s->option_struct->array_uri);
     } else {
       vfs.remove_dir(name);
     }
@@ -1116,7 +1107,7 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
-      // Error if there is a field missing from writting
+      // Error if there is a field missing from writing
       if (!bitmap_is_set(this->table->write_set, fieldIndex)) {
         my_printf_error(ER_UNKNOWN_ERROR,
                         "[mysql_row_to_tiledb_buffers] field %s is not set, "
@@ -1208,24 +1199,14 @@ int tile::mytile::finalize_write() {
 void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
   DBUG_ENTER("tile::mytile::start_bulk_insert");
   this->bulk_write = true;
-  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
-      !this->array->is_open()) {
-    if (this->array->is_open())
-      this->array->close();
-
-    this->array->open(TILEDB_WRITE);
-  }
-  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
-    this->query =
-        std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-  }
+  open_array_for_writes();
   setup_write();
   DBUG_VOID_RETURN;
 }
 
 int tile::mytile::end_bulk_insert() {
   DBUG_ENTER("tile::mytile::end_bulk_insert");
+  this->bulk_write = false;
   DBUG_RETURN(finalize_write());
 }
 
@@ -1300,18 +1281,7 @@ int tile::mytile::write_row(const uchar *buf) {
   my_bitmap_map *original_bitmap =
       dbug_tmp_use_all_columns(table, table->read_set);
 
-  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
-      !this->array->is_open()) {
-    if (this->array->is_open())
-      this->array->close();
-
-    this->array->open(TILEDB_WRITE);
-  }
-  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
-    this->query =
-        std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-  }
+  open_array_for_writes();
 
   if (!this->bulk_write) {
     setup_write();
@@ -1362,6 +1332,35 @@ ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
               HA_DO_INDEX_COND_PUSHDOWN | HA_DO_RANGE_FILTER_PUSHDOWN);
 }
 
+void tile::mytile::open_array_for_reads() {
+  if ((this->array->is_open() && this->array->query_type() != TILEDB_READ) ||
+      !this->array->is_open()) {
+    if (this->array->is_open())
+      this->array->close();
+
+    this->array->open(TILEDB_READ);
+  }
+  if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
+    this->query =
+        std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  }
+}
+
+void tile::mytile::open_array_for_writes() {
+  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
+      !this->array->is_open()) {
+    if (this->array->is_open())
+      this->array->close();
+
+    this->array->open(TILEDB_WRITE);
+  }
+  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
+    this->query =
+        std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  }
+}
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
                                   */

@@ -12,6 +12,8 @@ else ()
     set (CMAKE_CXX_STANDARD 14)
 endif ()
 
+option(SUPERBUILD "Build missing dependencies" ON)
+
 
 ############################################################
 # "make format" and "make check-format" targets
@@ -39,53 +41,71 @@ endif()
 # Get library directory for multiarch linux distros
 include(GNUInstallDirs)
 
-find_package(TileDB)
+set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 
-# Does not actually work currently
-if(NOT TileDB_FOUND)
+find_package(TileDB QUIET)
+
+if(NOT TileDB_FOUND AND SUPERBUILD)
+    MESSAGE(STATUS "TileDB not found for MyTile. Building as depedency from source")
     include(ExternalProject)
 
-    set(TILEDB_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
+    SET(TILEDB_VERSION "1.6.3")
 
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
-            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/TileDB"
-            DOWNLOAD_COMMAND ""
-            #  CONFIGURE_COMMAND ""
-            #  BUILD_IN_SOURCE TRUE
-            INSTALL_COMMAND $(MAKE) -C tiledb install
-            #  UPDATE_COMMAND ""
+            URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
+            URL_HASH SHA1=967f23e8cd0b4474457c88ad9bcbebdb1b7e626b
+            DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
+            -DCMAKE_PREFIX_PATH=${EP_INSTALL_PREFIX}
             -DTILEDB_VERBOSE=ON
             -DTILEDB_S3=ON
+            -DTILEDB_STATIC=ON
+            -DTILEDB_SERIALIZATION=ON
             -DTILEDB_FORCE_ALL_DEPS=ON
-            -DCMAKE_INSTALL_PREFIX=${TILEDB_INSTALL_PREFIX}
-            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            UPDATE_COMMAND ""
+            INSTALL_COMMAND
+            ${CMAKE_COMMAND} --build . --target install-tiledb
             LOG_DOWNLOAD TRUE
             LOG_CONFIGURE TRUE
             LOG_BUILD TRUE
             LOG_INSTALL TRUE
             )
 
-    ExternalProject_Get_Property(tiledb install_dir)
-    target_include_directories(mytile PUBLIC "${TILEDB_INSTALL_PREFIX}/include" "mytile")
-
-    add_dependencies(mytile tiledb)
-
-    # Manually link static merged library
+    # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
-    SET(TILEDB_LIBRARIES "${TILEDB_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtbb${CMAKE_SHARED_LIBRARY_SUFFIX}")
+#    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}tiledb${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    FILE(GLOB TILEDB_INSTALL_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtiledb*")
 else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
     # If no release lib try debug lib
-    if(${TILEDB_LIBRARIES} STREQUAL "NOTFOUND")
+    if(${TILEDB_LIBRARIES} MATCHES "NOTFOUND")
         GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_DEBUG)
     endif()
-    message(STATUS ${TILEDB_LIBRARIES})
+    message(STATUS "${TILEDB_LIBRARIES}")
 endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)
+
+if(NOT TileDB_FOUND AND SUPERBUILD)
+    # We need to set RPATH so if tiledb is built as superbuild we correctly can find it in the plugin dir after install
+    SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+    SET(CMAKE_SKIP_RPATH FALSE)
+
+    # when building, don't use the install RPATH already
+    # (but later on when installing)
+    SET(PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}")
+    SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    SET(CMAKE_INSTALL_RPATH "${PLUGIN_INSTALL_DIR}")
+
+    # add the automatically determined parts of the RPATH
+    # which point to directories outside the build tree to the install RPATH
+    SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+endif()
 
 # Add the storage engine plugin
 # If we are compiling embedded server make it statically linked
@@ -94,4 +114,11 @@ if(WITH_EMBEDDED_SERVER)
 # Else build as a dynamic library
 else()
     MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE DEFAULT MODULE_ONLY RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
+endif()
+
+if(NOT TileDB_FOUND AND SUPERBUILD)
+    add_dependencies(mytile tiledb)
+
+    target_include_directories(mytile PUBLIC "${EP_INSTALL_PREFIX}/include" "mytile")
+    INSTALL(FILES ${TILEDB_INSTALL_LIBRARIES} DESTINATION ${INSTALL_PLUGINDIR})
 endif()

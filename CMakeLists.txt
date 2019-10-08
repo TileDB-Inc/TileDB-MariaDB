@@ -54,10 +54,8 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
-            #URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-            #URL_HASH SHA1=d90a9512d1e324805317b9d6b663269a9cb0a7d7
-            GIT_REPOSITORY https://github.com/TileDB-Inc/TileDB.git
-            GIT_TAG ttd/backport-schema-h
+            URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
+            URL_HASH SHA1=967f23e8cd0b4474457c88ad9bcbebdb1b7e626b
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

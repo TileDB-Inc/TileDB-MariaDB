@@ -64,7 +64,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             -DTILEDB_S3=ON
             -DTILEDB_STATIC=ON
             -DTILEDB_SERIALIZATION=ON
-#            -DTILEDB_FORCE_ALL_DEPS=ON
+            -DTILEDB_FORCE_ALL_DEPS=ON
             UPDATE_COMMAND ""
             INSTALL_COMMAND
             ${CMAKE_COMMAND} --build . --target install-tiledb

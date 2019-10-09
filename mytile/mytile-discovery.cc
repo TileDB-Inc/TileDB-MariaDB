@@ -42,56 +42,55 @@ int tile::mytile_discover_table_structure(handlerton *hton, THD *thd,
                                           TABLE_SHARE *share,
                                           HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::mytile_discover_table_structure");
-  DBUG_RETURN(discover_array(hton, thd, share, info, nullptr, ""));
+  DBUG_RETURN(discover_array(hton, thd, share, info));
 }
 
 int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
   DBUG_ENTER("tile::mytile_discover_table");
-  DBUG_RETURN(discover_array(hton, thd, ts, nullptr, nullptr, ""));
+  DBUG_RETURN(discover_array(hton, thd, ts, nullptr));
 }
 
 int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
-                         HA_CREATE_INFO *info,
-                         std::unique_ptr<tiledb::ArraySchema> schema,
-                         std::string array_uri) {
+                         HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
   tiledb::Context ctx;
+  std::string array_uri;
+  std::unique_ptr<tiledb::ArraySchema> schema;
 
-  if (schema == nullptr) {
-    // First try if the array_uri option is set
-    if (info != nullptr && info->option_struct != nullptr &&
-        info->option_struct->array_uri != nullptr) {
+  // First try if the array_uri option is set
+  if (info != nullptr && info->option_struct != nullptr &&
+      info->option_struct->array_uri != nullptr) {
+    try {
+      array_uri = info->option_struct->array_uri;
+      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+    } catch (tiledb::TileDBError &e) {
+      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    }
+  } else if (ts != nullptr && ts->option_struct != nullptr &&
+             ts->option_struct->array_uri != nullptr) {
+    try {
+      array_uri = ts->option_struct->array_uri;
+      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+    } catch (tiledb::TileDBError &e) {
+      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+    }
+  } else {
+    try {
+      array_uri = ts->table_name.str;
+      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+    } catch (tiledb::TileDBError &e) {
       try {
-        array_uri = info->option_struct->array_uri;
+        array_uri =
+            std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
         schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
       } catch (tiledb::TileDBError &e) {
         DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-      }
-    } else if (ts != nullptr && ts->option_struct != nullptr &&
-               ts->option_struct->array_uri != nullptr) {
-      try {
-        array_uri = ts->option_struct->array_uri;
-        schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
-      } catch (tiledb::TileDBError &e) {
-        DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-      }
-    } else {
-      try {
-        schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
-      } catch (tiledb::TileDBError &e) {
-        try {
-          array_uri =
-              std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
-          schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
-        } catch (tiledb::TileDBError &e) {
-          DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-        }
       }
     }
   }
 
-  if (schema == nullptr || array_uri.empty()) {
+  if (schema == nullptr) {
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 

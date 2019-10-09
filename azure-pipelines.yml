@@ -3,6 +3,9 @@ trigger:
     include:
     - master
 
+variables:
+  imageName: 'tiledb/tiledb-mariadb'
+
 jobs:
 - job:
   strategy:

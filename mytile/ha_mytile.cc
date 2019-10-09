@@ -1366,8 +1366,8 @@ mysql_declare_plugin(mytile){
                                   */
     &mytile_storage_engine,  /* pointer to type-specific plugin descriptor   */
     "MyTile",                /* plugin name                                  */
-    "Seth Shelnutt",         /* plugin author (for I_S.PLUGINS)              */
-    "MyTile storage engine", /* general descriptive text (for I_S.PLUGINS)   */
+    "TileDB, Inc.",         /* plugin author (for I_S.PLUGINS)              */
+    "Storage engine for accessing TileDB Arrays", /* general descriptive text (for I_S.PLUGINS)   */
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
@@ -1382,8 +1382,8 @@ maria_declare_plugin(mytile){
                                   */
     &mytile_storage_engine,  /* pointer to type-specific plugin descriptor   */
     "MyTile",                /* plugin name                                  */
-    "Seth Shelnutt",         /* plugin author (for I_S.PLUGINS)              */
-    "MyTile storage engine", /* general descriptive text (for I_S.PLUGINS)   */
+    "TileDB, Inc.",         /* plugin author (for I_S.PLUGINS)              */
+    "Storage engine for accessing TileDB Arrays", /* general descriptive text (for I_S.PLUGINS)   */
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */

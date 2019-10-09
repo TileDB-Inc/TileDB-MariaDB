@@ -46,9 +46,7 @@ namespace tile {
  * @return
  */
 int discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
-                   HA_CREATE_INFO *info,
-                   std::unique_ptr<tiledb::ArraySchema> schema,
-                   std::string array_uri);
+                   HA_CREATE_INFO *info);
 
 /**
  *

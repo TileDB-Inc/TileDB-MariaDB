@@ -54,7 +54,12 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ENV MYTILE_VERSION="0.0.1"
+ARG MYTILE_VERSION="0.0.1"
+
+# Download mytile release
+RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
+  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
+  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 RUN groupadd -r mysql && useradd -r -g mysql mysql
@@ -67,11 +72,6 @@ RUN mkdir build_deps && cd build_deps \
  && make -j4 \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps
-
-# Download mytile release
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
-  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
-  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh

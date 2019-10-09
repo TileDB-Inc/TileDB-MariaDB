@@ -15,7 +15,7 @@ docker run -it tiledb/tiledb-mariadb
 
 If you want to access arrays on s3, you will need to add your AWS keys as env variables
 ```
-docker run -e AWS_ACCESS_KEY_ID="<key>"" -e AWS_SECRET_ACCESS_KEY="<secret>" -it tiledb/tiledb-mariadb
+docker run -e AWS_ACCESS_KEY_ID="<key>" -e AWS_SECRET_ACCESS_KEY="<secret>" -it tiledb/tiledb-mariadb
 ```
 or mount a local array into the Docker container with the -v option:
 
@@ -43,7 +43,7 @@ Use assisted table discovery for long uris:
 
 ```
 create table my_array ENGINE=mytile uri='s3://my_bucket/arrays/sub_prefix/path_is_longer_than_64_chars/my_array_1';
-select * from my_arrays;
+select * from my_array;
 ```
 
 Create table:
@@ -72,6 +72,16 @@ mkdir build && cd build
 cmake ..
 make -j4
 ```
+
+## Parameters
+
+There are three parameters currently supported for MyTile.
+
+| Paramater | Scope | Data Type | Default Value | Description |
+| --------- | ----- | --------- | ------------- | ----------- |
+| read_buffer_size | global or session | integer | 100M | Read buffer size for tiledb query attribute/coordinates |
+| write_buffer_size | global or session | integer | 100M | Write buffer size for tiledb query attribute/coordinates |
+| delete_arrays | global or session | boolean | False | Controls if a `delete table` statement causes the array to be deleted on disk or just deregistered from mariadb. True value causes actual deletions of data |
 
 ## Features
 

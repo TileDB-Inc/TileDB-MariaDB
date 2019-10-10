@@ -61,6 +61,9 @@ RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.
   && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
   && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
 
+# Copy example arrays to opt
+RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
+
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 RUN groupadd -r mysql && useradd -r -g mysql mysql
 
@@ -118,6 +121,10 @@ ENV PATH="${PATH}:/opt/server/bin:/opt/server/scripts"
 RUN mkdir /var/log/mysql
 
 RUN chown -R mysql:mysql /var/log/mysql
+
+RUN chown -R mysql:mysql /opt/server
+
+RUN chown -R mysql:mysql /opt/tiledb_arrays
 
 USER mysql
 

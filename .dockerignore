@@ -1,0 +1,7 @@
+build
+cmake-build-debug
+cmake-build-release
+Dockerfile
+Dockerfile-dev
+Dockerfile-interactive
+.git

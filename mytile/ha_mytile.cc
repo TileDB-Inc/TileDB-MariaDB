@@ -1343,7 +1343,11 @@ void tile::mytile::open_array_for_reads() {
   if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+    if (this->array->schema().array_type() ==
+        tiledb_array_type_t::TILEDB_SPARSE)
+      this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+    else
+      this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
   }
 }
 
@@ -1364,10 +1368,11 @@ void tile::mytile::open_array_for_writes() {
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
                                   */
-    &mytile_storage_engine,  /* pointer to type-specific plugin descriptor   */
-    "MyTile",                /* plugin name                                  */
+    &mytile_storage_engine, /* pointer to type-specific plugin descriptor   */
+    "MyTile",               /* plugin name                                  */
     "TileDB, Inc.",         /* plugin author (for I_S.PLUGINS)              */
-    "Storage engine for accessing TileDB Arrays", /* general descriptive text (for I_S.PLUGINS)   */
+    "Storage engine for accessing TileDB Arrays", /* general descriptive text
+                                                     (for I_S.PLUGINS)   */
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
@@ -1380,10 +1385,11 @@ mysql_declare_plugin(mytile){
 maria_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
                                   */
-    &mytile_storage_engine,  /* pointer to type-specific plugin descriptor   */
-    "MyTile",                /* plugin name                                  */
+    &mytile_storage_engine, /* pointer to type-specific plugin descriptor   */
+    "MyTile",               /* plugin name                                  */
     "TileDB, Inc.",         /* plugin author (for I_S.PLUGINS)              */
-    "Storage engine for accessing TileDB Arrays", /* general descriptive text (for I_S.PLUGINS)   */
+    "Storage engine for accessing TileDB Arrays", /* general descriptive text
+                                                     (for I_S.PLUGINS)   */
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */

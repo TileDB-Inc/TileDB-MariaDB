@@ -15,3 +15,10 @@ let $TABLE="$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense"
 select `rows`, `cols`, `a` from `quickstart_sparse`;
 
 DROP TABLE `quickstart_sparse`;
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+select `rows`, `cols`, `a` from `quickstart_dense`;
+
+DROP TABLE `quickstart_dense`;

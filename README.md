@@ -10,17 +10,17 @@ A docker image is provided to allow for quick testing of the mytile storage engi
 server and connects to it from the shell for you.
 
 ```
-docker run -it tiledb/tiledb-mariadb
+docker run --rm -e MYSQL_ALLOW_EMPTY_PASSWORD=1 -it tiledb/tiledb-mariadb
 ```
 
 If you want to access arrays on s3, you will need to add your AWS keys as env variables
 ```
-docker run -e AWS_ACCESS_KEY_ID="<key>" -e AWS_SECRET_ACCESS_KEY="<secret>" -it tiledb/tiledb-mariadb
+docker run --rm -e MYSQL_ALLOW_EMPTY_PASSWORD=1 -e AWS_ACCESS_KEY_ID="<key>" -e AWS_SECRET_ACCESS_KEY="<secret>" -it tiledb/tiledb-mariadb
 ```
 or mount a local array into the Docker container with the -v option:
 
 ```
-docker run -it --rm -v /local/array/path:/data/local_array tiledb/tiledb-mariadb
+docker run -e MYSQL_ALLOW_EMPTY_PASSWORD=1 -it --rm -v /local/array/path:/data/local_array tiledb/tiledb-mariadb
 ```
 
 ### Example SQL Usage
@@ -57,6 +57,25 @@ CREATE TABLE `s3://bucket/regions`(
 ```
 
 ## Installation
+
+### Docker
+
+To build the default docker image simply use the following:
+
+```
+git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git
+cd TileDB-MariaDB
+docker build -t mytile -f docker/Dockerfile .
+```
+
+If you would prefer to build a more traditional mariadb which launches the
+server and is not interactive use the Dockerfile-server
+
+```
+git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git
+cd TileDB-MariaDB
+docker build -t mytile -f docker/Dockerfile-server .
+```
 
 ### Requirements
 

@@ -11,6 +11,7 @@
 #include <mysqld_error.h> /* ER_UNKNOWN_ERROR */
 #include <tiledb/tiledb>
 
+/** Table options */
 struct ha_table_option_struct {
   const char *array_uri;
   ulonglong capacity;
@@ -19,6 +20,7 @@ struct ha_table_option_struct {
   ulonglong tile_order;
 };
 
+/** Field options */
 struct ha_field_option_struct {
   bool dimension;
   const char *lower_bound;
@@ -76,9 +78,23 @@ bool MysqlBlobType(enum_field_types type);
  */
 bool MysqlDatetimeType(enum_field_types type);
 
+/**
+ * Used when create table is being translated to create array
+ * @param ctx
+ * @param field
+ * @param filterList
+ * @return tiledb::Attribute from field
+ */
 tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
                                          const tiledb::FilterList &filterList);
 
+/**
+ *
+ * Used when create table is being translated to create array
+ * @param ctx
+ * @param field
+ * @return tiledb::Dimension from field
+ */
 tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field);
 
 // -- helpers --

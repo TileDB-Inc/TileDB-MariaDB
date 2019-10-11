@@ -38,24 +38,24 @@
 
 namespace tile {
 /**
- *
+ * Helper function to do actual array discovery
  * @param hton
  * @param thd
  * @param ts
  * @param info
- * @return
+ * @return status
  */
 int discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
                    HA_CREATE_INFO *info);
 
 /**
  *
- * Disvoer an array structure through assisted discovery
+ * Discover an array structure through assisted discovery
  * @param hton
  * @param thd
  * @param share
  * @param info
- * @return
+ * @return status
  */
 int mytile_discover_table_structure(handlerton *hton, THD *thd,
                                     TABLE_SHARE *share, HA_CREATE_INFO *info);
@@ -66,7 +66,7 @@ int mytile_discover_table_structure(handlerton *hton, THD *thd,
  * @param hton
  * @param thd
  * @param ts
- * @return
+ * @return status
  */
 int mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts);
 

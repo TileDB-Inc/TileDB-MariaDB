@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=GMT
 
 RUN apt-get update && apt-get install -y \
+  gosu \
   pwgen \
   tzdata \
   gcc \
@@ -53,6 +54,14 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
+ADD . /tmp/mytile
+
+# Copy example arrays to opt
+RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
+
+# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+RUN groupadd -r mysql && useradd -r -g mysql mysql
+
 # Install tiledb using 1.6 release
 RUN mkdir build_deps && cd build_deps \
  && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
@@ -62,20 +71,20 @@ RUN mkdir build_deps && cd build_deps \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps
 
-ADD . /tmp/mytile
-
-COPY /tmp/mytile/docker/my.cnf /etc/mysql/
-COPY /tmp/mytile/docker/docker-entrypoint.sh /usr/local/bin/
+RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
+ && cp /tmp/mytile/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \
-  && mv mytile ${MARIADB_VERSION}/storage/mytile \
+  && mv /tmp/mytile ${MARIADB_VERSION}/storage/mytile \
   && cd ${MARIADB_VERSION} \
   && mkdir builddir \
   && cd builddir \
-  && cmake -DCMAKE_PREFIX_PATH=../build_deps/TileDB/dist -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DCMAKE_INSTALL_PREFIX=/opt/server .. \
+  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
-  && make install
+  && make install \
+  && cd ../../ \
+  && rm -r ${MARIADB_VERSION}
 
 
 # the "/var/lib/mysql" stuff here is because the mysql-server postinst doesn't have an explicit way to disable the mysql_install_db codepath besides having a database already "configured" (ie, stuff in /var/lib/mysql/mysql)
@@ -98,8 +107,23 @@ RUN set -ex; \
 
 VOLUME /var/lib/mysql
 
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 RUN ln -s usr/local/bin/docker-entrypoint.sh / # backwards compat
-ENTRYPOINT ["docker-entrypoint.sh"]
+
+ENV PATH="${PATH}:/opt/server/bin:/opt/server/scripts"
+
+RUN mkdir /var/log/mysql
+
+RUN chown -R mysql:mysql /var/log/mysql
+
+RUN chown -R mysql:mysql /opt/server
+
+RUN chown -R mysql:mysql /opt/tiledb_arrays
+
+USER mysql
 
 EXPOSE 3306
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["mysqld"]

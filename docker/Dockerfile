@@ -54,7 +54,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ARG MYTILE_VERSION="0.0.1"
+ARG MYTILE_VERSION="0.0.2"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \

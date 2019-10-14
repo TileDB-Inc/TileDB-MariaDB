@@ -67,6 +67,7 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
     } catch (tiledb::TileDBError &e) {
       DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
     }
+    // Next try the table share if it is non-null
   } else if (ts != nullptr && ts->option_struct != nullptr &&
              ts->option_struct->array_uri != nullptr) {
     try {
@@ -75,26 +76,36 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
     } catch (tiledb::TileDBError &e) {
       DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
     }
+    // Lastly try accessing the name directly, the name might be a uri
   } else {
     try {
       array_uri = ts->table_name.str;
       schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
     } catch (tiledb::TileDBError &e) {
+      // If the name isn't a URI perhaps the array was created like a normal
+      // table and the proper location is under <db>/<table_name> like normal
+      // tables.
       try {
         array_uri =
             std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
         schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
       } catch (tiledb::TileDBError &e) {
+        // We've tried everything, array can't be found
         DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
       }
     }
   }
 
+  // Catch incase we don't properly return above in the event the schema wasn't
+  // actually opened
   if (schema == nullptr) {
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 
   try {
+    // Now that we have the schema opened we need to build the create table
+    // statement Its easier to build the create table query string than to try
+    // to create the fmt data.
     std::stringstream table_options;
 
     sql_string << "create table `" << ts->table_name.str << "` (";
@@ -106,7 +117,6 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
     } else {
       table_options << " array_type='DENSE'";
     }
-    // table_options << "uri='" <<
     if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
       table_options << " capacity=" << schema->capacity();
     }
@@ -177,17 +187,7 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
       sql_string << ",";
     }
 
-    /*
-     * TODO: primary key support caused rnd index to be required.. need to add
-    in eventually
-     * sql_string << "primary key(";
-
-    for (const auto &dim : schema->domain().dimensions()) {
-      sql_string << "`" << dim.name() << "`,";
-    }
-    // move head back one so we can override it
-
-    sql_string << ")";*/
+    // move head back one so we can override last command
     sql_string.seekp(-1, std::ios_base::end);
 
     sql_string << std::endl << ") ENGINE=MyTile ";
@@ -201,8 +201,7 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
 
   std::string sql_statement = sql_string.str();
   int res = ts->init_from_sql_statement_string(
-      thd, info == nullptr ? false : true, sql_statement.c_str(),
-      sql_statement.length());
+      thd, info != nullptr, sql_statement.c_str(), sql_statement.length());
 
   // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
   DBUG_RETURN(res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res);

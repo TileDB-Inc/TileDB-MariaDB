@@ -73,14 +73,6 @@ void tile::setup_range(const std::shared_ptr<range> &range,
     return setup_range<uint64_t>(range,
                                  static_cast<uint64_t *>(non_empty_domain));
 
-    /*case tiledb_datatype_t::TILEDB_CHAR:
-    case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    case tiledb_datatype_t::TILEDB_STRING_UTF8:
-    case tiledb_datatype_t::TILEDB_STRING_UTF16:
-    case tiledb_datatype_t::TILEDB_STRING_UTF32:
-    case tiledb_datatype_t::TILEDB_STRING_UCS2:
-    case tiledb_datatype_t::TILEDB_STRING_UCS4:*/
-
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
     return setup_range<int64_t>(range,
                                 static_cast<int64_t *>(non_empty_domain));
@@ -144,9 +136,6 @@ int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
     *static_cast<double *>(range->upper_value.get()) = upper_const->val_real();
     break;
   }
-    //                        case ROW_RESULT:
-    //                            DBUG_ASSERT(0);
-    //                            return NULL;
   default:
     DBUG_RETURN(1);
   }

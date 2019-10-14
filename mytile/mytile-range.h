@@ -43,6 +43,10 @@
 #include <tiledb/tiledb>
 
 namespace tile {
+/**
+ * struct to store a tiledb query range and the operation type if coming from a
+ * mysql predicate
+ */
 typedef struct range_struct {
   std::unique_ptr<void, decltype(&std::free)> lower_value;
   std::unique_ptr<void, decltype(&std::free)> upper_value;
@@ -53,7 +57,29 @@ typedef struct range_struct {
 int set_range_from_item_consts(Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                std::shared_ptr<range> &range);
-
+/**
+ * Take a range, and will set the lower/upper bound as appropriate if it is
+ * missing and takes into account the mariadb operations.
+ *
+ * Example:
+ * if a users sets `WHERE dim1 > 10` the range that is passed to this function
+ * will have: {lower_value = 10, upper_value=nullptr,
+ * operation_type=Item_func::GT_FUNC, datatype=TILEDB_INT32}
+ *
+ * This function will see that upper_value is null and we want greater than so
+ * it will set upper_value to the non_empty_domain max value, and because we
+ * want greater than but not equal to it will increment the lower_value by
+ * epsilon, which since it is an int is 1.
+ *
+ * The final range is:
+ *
+ * {lower_value = 11, upper_value=non_empty_domain[1],
+ * operation_type=Item_func::GT_FUNC, datatype=TILEDB_INT32}
+ *
+ * @param range
+ * @param non_empty_domain
+ * @param dimension
+ */
 void setup_range(const std::shared_ptr<range> &range, void *non_empty_domain,
                  tiledb::Dimension dimension);
 
@@ -61,7 +87,7 @@ template <typename T>
 void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
   switch (range->operation_type) {
   case Item_func::IN_FUNC: /* IN is treated like equal */
-  case Item_func::BETWEEN: /* BETWEEN Is treaded like equal */
+  case Item_func::BETWEEN: /* BETWEEN Is treated like equal */
   case Item_func::EQUAL_FUNC:
   case Item_func::EQ_FUNC:
     break;

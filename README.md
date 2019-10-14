@@ -92,6 +92,16 @@ cmake ..
 make -j4
 ```
 
+#### Running Unit Test
+
+Once MariaDB has been build you can run unit tests from the build directory:
+
+```
+./mysql-test/mtr --suite mytile
+```
+
+That will run all unit tests defined for mytile
+
 ## Parameters
 
 There are three parameters currently supported for MyTile.

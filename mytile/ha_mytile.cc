@@ -92,11 +92,6 @@ ha_create_table_option mytile_table_option_list[] = {
 
 // Structure for specific field options
 ha_create_table_option mytile_field_option_list[] = {
-    /*
-      If the engine wants something more complex than a string, number, enum,
-      or boolean - for example a list - it needs to specify the option
-      as a string and parse it internally.
-    */
     HA_FOPTION_BOOL("dimension", dimension, false),
     HA_FOPTION_STRING("lower_bound", lower_bound),
     HA_FOPTION_STRING("upper_bound", upper_bound),
@@ -173,6 +168,7 @@ struct st_mysql_storage_engine mytile_storage_engine = {
 
 /**
  * Store a lock, we aren't using table or row locking at this point.
+ * We really should find a way to avoid even needing these locks
  * @param thd
  * @param to
  * @param lock_type
@@ -341,7 +337,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
 
       // Validate the user has set the tile extent
-      // Onyl tile extent is checked because for the dimension domain we use the
+      // Only tile extent is checked because for the dimension domain we use the
       // datatypes min/max values
       if (field->option_struct->tile_extent == nullptr ||
           strcmp(field->option_struct->tile_extent, "") == 0) {
@@ -417,16 +413,21 @@ int tile::mytile::init_scan(
   this->records_read = 0;
   this->status = tiledb::Query::Status::UNINITIALIZED;
 
+  // Get the read buffer size, either from user session or system setting
   this->read_buffer_size = THDVAR(thd, read_buffer_size);
 
   try {
+    // Validate the array is open for reads
     open_array_for_reads();
 
+    // Allocate user buffers
     alloc_read_buffers(this->read_buffer_size);
 
+    // Get domain and dimensions
     auto domain = this->array->schema().domain();
     auto dims = domain.dimensions();
 
+    // Create the subarray
     uint64_t subarray_size =
         tiledb_datatype_size(domain.type()) * dims.size() * 2;
     if (subarray == nullptr) {
@@ -435,6 +436,7 @@ int tile::mytile::init_scan(
     }
     int empty;
 
+    // Get the non empty domain
     ctx.handle_error(tiledb_array_get_non_empty_domain(
         ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
 
@@ -450,6 +452,7 @@ int tile::mytile::init_scan(
           ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
 
     } else {
+      // Loop over dimensions and build rangers for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         const auto &ranges = this->pushdown_ranges[dim_idx];
         void *lower = static_cast<char *>(subarray.get()) +

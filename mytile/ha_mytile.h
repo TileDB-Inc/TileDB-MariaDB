@@ -107,8 +107,6 @@ public:
    */
   int delete_table(const char *name) override;
 
-  // int rename_table(const char *from, const char *to) override;
-
   /**
    * Open array
    * @param name

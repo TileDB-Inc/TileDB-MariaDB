@@ -1,0 +1,25 @@
+[client]
+socket=/tmp/mysql.sock
+
+# Here is entries for some specific programs
+# The following values assume you have at least 32M ram
+
+# The MySQL server
+[mysqld]
+port=3306
+socket=/tmp/mysql.sock
+pid-file=/tmp/mariadb.pid
+temp-pool
+plugin-load=ha_mytile
+default-storage-engine=aria
+
+# Where you want to have your database
+datadir=/var/lib/mysql
+
+log_error=/var/log/mysql/err.log
+
+# Where you have your mysql/MariaDB source + sql/share/english
+language=/opt/server/share/english
+
+plugin_dir=/opt/server/lib/plugin
+plugin-maturity=experimental

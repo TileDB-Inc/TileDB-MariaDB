@@ -77,6 +77,7 @@ RUN mkdir build_deps && cd build_deps \
  && cd /tmp && rm -r build_deps
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
+ && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \

@@ -131,4 +131,6 @@ USER mysql
 
 EXPOSE 3306
 
+ENV MYSQL_DATABASE=test
+
 CMD ["docker-entrypoint-interactive.sh", "mysqld"]

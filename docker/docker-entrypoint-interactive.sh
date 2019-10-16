@@ -197,6 +197,4 @@ do
 done
 printf "\n"
 
-mysql -u root -e "create database test;";
-
 mysql -u root test

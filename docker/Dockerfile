@@ -54,7 +54,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ARG MYTILE_VERSION="0.0.2"
+ARG MYTILE_VERSION="0.0.3"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -72,12 +72,15 @@ RUN mkdir build_deps && cd build_deps \
  && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
- && make -j4 \
+ && make -j$(nproc) \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
+ && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh
+
+RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \
@@ -110,8 +113,6 @@ RUN set -ex; \
 # don't reverse lookup hostnames, they are usually another container
 	echo '[mysqld]\nskip-host-cache\nskip-name-resolve' > /etc/mysql/conf.d/docker.cnf
 
-VOLUME /var/lib/mysql
-
 RUN chmod +x /usr/local/bin/docker-entrypoint-interactive.sh
 
 RUN ln -s usr/local/bin/docker-entrypoint-interactive.sh / # backwards compat
@@ -125,6 +126,14 @@ RUN chown -R mysql:mysql /var/log/mysql
 RUN chown -R mysql:mysql /opt/server
 
 RUN chown -R mysql:mysql /opt/tiledb_arrays
+
+# Set defaults for initializing the server
+ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
+
+ENV MYSQL_DATABASE=test
+
+# Setup initial DB for faster starts
+RUN /tmp/init.sh "mysqld"
 
 USER mysql
 

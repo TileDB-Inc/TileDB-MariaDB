@@ -352,7 +352,6 @@ int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
 
 int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                           uint64_t i, THD *thd);
-
 // -- end helpers --
 
 } // namespace tile

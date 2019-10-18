@@ -31,6 +31,15 @@
  */
 
 #pragma once
+
+#define MYSQL_SERVER 1
+
+#include <string>
+#include <algorithm>
+#include <tiledb/tiledb>
+#include "my_global.h" /* ulonglong */
+#include <handler.h>
+
 namespace tile {
 const char PATH_SEPARATOR =
 #ifdef _WIN32
@@ -58,4 +67,32 @@ static inline void trim(std::string &s) {
   ltrim(s);
   rtrim(s);
 }
+
+/**
+ *
+ * Split a string by delimeter
+ *
+ * @param str string to split
+ * @param delim delimeter to split by
+ * @return vector of split strings
+ */
+std::vector<std::string> split(const std::string &str, char delim = ',');
+
+/**
+ *
+ * Fetches the tiledb_config server/session parameter and builds a tiledb config
+ * object
+ *
+ * @param thd
+ * @return config with any parameters set
+ */
+tiledb::Config build_config(THD *thd);
+
+/**
+ * compares two config
+ * @param rhs
+ * @param lhs
+ * @return true is identical, false otherwise
+ */
+bool compare_configs(tiledb::Config &rhs, tiledb::Config &lhs);
 } // namespace tile

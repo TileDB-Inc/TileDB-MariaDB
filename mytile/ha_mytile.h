@@ -87,11 +87,11 @@ public:
    * @param name
    * @param table_arg
    * @param create_info
-   * @param ctx
+   * @param context
    * @return
    */
   int create_array(const char *name, TABLE *table_arg,
-                   HA_CREATE_INFO *create_info, tiledb::Context ctx);
+                   HA_CREATE_INFO *create_info, tiledb::Context context);
 
   /**
    * Drop a table
@@ -355,6 +355,7 @@ private:
    * Helper function which validates the array is open for reads
    */
   void open_array_for_reads();
+
   /**
    * Helper function which validates the array is open for writes
    */

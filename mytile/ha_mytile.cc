@@ -42,6 +42,7 @@
 #include "mytile-discovery.h"
 #include "mytile-sysvars.h"
 #include "mytile.h"
+#include "utils.h"
 #include <cstring>
 #include <log.h>
 #include <my_config.h>
@@ -77,7 +78,7 @@ static void init_mytile_psi_keys() {
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size),
-    MYSQL_SYSVAR(delete_arrays), NULL};
+    MYSQL_SYSVAR(delete_arrays), MYSQL_SYSVAR(tiledb_config), NULL};
 
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
@@ -96,6 +97,34 @@ ha_create_table_option mytile_field_option_list[] = {
     HA_FOPTION_STRING("lower_bound", lower_bound),
     HA_FOPTION_STRING("upper_bound", upper_bound),
     HA_FOPTION_STRING("tile_extent", tile_extent), HA_FOPTION_END};
+
+/**
+ * build config parameters from server or session settings
+ * This is duplicated
+ * @param thd
+ * @return tiledb config
+ */
+tiledb::Config tile::build_config(THD *thd) {
+  tiledb::Config cfg = tiledb::Config();
+
+  std::string tiledb_config = THDVAR(thd, tiledb_config);
+
+  // If the config is not an empty string, split it from csv to key=value
+  // strings
+  if (!tiledb_config.empty()) {
+    std::vector<std::string> parameters = split(tiledb_config, ',');
+    // Loop through each key=value
+    for (std::string &param : parameters) {
+      // Split key=value into a vector of size two
+      std::vector<std::string> kv = split(param, '=');
+      if (kv.size() == 2) {
+        cfg[kv[0]] = kv[1];
+      }
+    }
+  }
+
+  return cfg;
+}
 
 /**
  * Basic lock structure
@@ -201,8 +230,9 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
  */
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg) {
-  config = tiledb::Config();
-  ctx = tiledb::Context(config);
+  this->config = build_config(ha_thd());
+
+  this->ctx = tiledb::Context(config);
 };
 
 /**
@@ -215,7 +245,7 @@ tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
   DBUG_ENTER("tile::mytile::create");
-  DBUG_RETURN(create_array(name, table_arg, create_info, ctx));
+  DBUG_RETURN(create_array(name, table_arg, create_info, this->ctx));
 }
 
 /**
@@ -227,6 +257,14 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
  */
 int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   DBUG_ENTER("tile::mytile::open");
+
+  // First rebuild context with new config if needed
+  tiledb::Config cfg = build_config(ha_thd());
+
+  if (!compare_configs(cfg, this->config)) {
+    this->config = cfg;
+    this->ctx = tiledb::Context(this->config);
+  }
 
   // We are suppose to get a lock here, but tiledb doesn't require locks.
   if (!(share = get_share()))
@@ -293,12 +331,12 @@ int tile::mytile::close(void) {
  * @param name
  * @param table_arg
  * @param create_info
- * @param ctx
+ * @param context
  * @return
  */
 int tile::mytile::create_array(const char *name, TABLE *table_arg,
                                HA_CREATE_INFO *create_info,
-                               tiledb::Context ctx) {
+                               tiledb::Context context) {
   DBUG_ENTER("tile::create_array");
   int rc = 0;
 
@@ -311,10 +349,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
   // Create array schema
   std::unique_ptr<tiledb::ArraySchema> schema =
-      std::make_unique<tiledb::ArraySchema>(ctx, arrayType);
+      std::make_unique<tiledb::ArraySchema>(context, arrayType);
 
   // Create domain
-  tiledb::Domain domain(ctx);
+  tiledb::Domain domain(context);
 
   // Only a single key is support, and that is the primary key. We can use the
   // primary key as an alternative to get which fields are suppose to be the
@@ -347,13 +385,14 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
             ME_ERROR_LOG | ME_FATAL, field->field_name);
         DBUG_RETURN(-13);
       }
-      domain.add_dimension(create_field_dimension(ctx, field));
+      domain.add_dimension(create_field_dimension(context, field));
     } else { // Else this is treated as a dimension
       // Currently hard code the filter list to zstd compression
-      tiledb::FilterList filterList(ctx);
-      tiledb::Filter filter(ctx, TILEDB_FILTER_ZSTD);
+      tiledb::FilterList filterList(context);
+      tiledb::Filter filter(context, TILEDB_FILTER_ZSTD);
       filterList.add_filter(filter);
-      tiledb::Attribute attr = create_field_attribute(ctx, field, filterList);
+      tiledb::Attribute attr =
+          create_field_attribute(context, field, filterList);
       schema->add_attribute(attr);
     };
   }
@@ -437,8 +476,9 @@ int tile::mytile::init_scan(
     int empty;
 
     // Get the non empty domain
-    ctx.handle_error(tiledb_array_get_non_empty_domain(
-        ctx.ptr().get(), this->array->ptr().get(), subarray.get(), &empty));
+    this->ctx.handle_error(tiledb_array_get_non_empty_domain(
+        this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
+        &empty));
 
     this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
     if (this->pushdown_ranges.empty()) { // No pushdown
@@ -448,8 +488,8 @@ int tile::mytile::init_scan(
       sql_print_information("no pushdowns possible for query");
 
       // Set subarray using capi
-      ctx.handle_error(tiledb_query_set_subarray(
-          ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
+      this->ctx.handle_error(tiledb_query_set_subarray(
+          this->ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
 
     } else {
       // Loop over dimensions and build rangers for that dimension
@@ -464,17 +504,17 @@ int tile::mytile::init_scan(
           for (const std::shared_ptr<range> &range : ranges) {
             setup_range(range, lower, dims[dim_idx]);
 
-            ctx.handle_error(tiledb_query_add_range(
-                ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+            this->ctx.handle_error(tiledb_query_add_range(
+                this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
                 range->lower_value.get(), range->upper_value.get(), nullptr));
           }
         } else { // If the range is empty we need to use the non-empty-domain
 
           void *upper =
               static_cast<char *>(lower) + tiledb_datatype_size(domain.type());
-          ctx.handle_error(
-              tiledb_query_add_range(ctx.ptr().get(), this->query->ptr().get(),
-                                     dim_idx, lower, upper, nullptr));
+          this->ctx.handle_error(tiledb_query_add_range(
+              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+              upper, nullptr));
         }
       }
     }
@@ -615,8 +655,8 @@ int tile::mytile::rnd_end() {
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
   auto domain = this->array->schema().domain();
-  ctx.handle_error(tiledb_query_set_subarray(ctx.ptr().get(),
-                                             this->query->ptr().get(), pos));
+  this->ctx.handle_error(tiledb_query_set_subarray(
+      this->ctx.ptr().get(), this->query->ptr().get(), pos));
   this->total_num_records_UB = computeRecordsUB(this->array, pos);
 
   // Reset indicators
@@ -909,7 +949,7 @@ int tile::mytile::delete_table(const char *name) {
   }
 
   try {
-    tiledb::VFS vfs(ctx);
+    tiledb::VFS vfs(this->ctx);
     TABLE_SHARE *s;
     if (this->table != nullptr)
       s = this->table->s;

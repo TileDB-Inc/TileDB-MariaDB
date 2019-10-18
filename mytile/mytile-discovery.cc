@@ -54,7 +54,8 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
                          HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
-  tiledb::Context ctx;
+  tiledb::Config config = build_config(thd);
+  tiledb::Context ctx(config);
   std::string array_uri;
   std::unique_ptr<tiledb::ArraySchema> schema;
 

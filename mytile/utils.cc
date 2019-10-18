@@ -1,5 +1,5 @@
 /**
- * @file   mytile-sysvars.h
+ * @file   utils.h
  *
  * @section LICENSE
  *
@@ -27,39 +27,46 @@
  *
  * @section DESCRIPTION
  *
- * This declares the system variables for the storage engine
+ * Contains utility functions
  */
 
-#pragma once
+#include "utils.h"
+#include <string>
+#include <vector>
+#include <sstream>
+#include <sql_class.h>
 
-#ifndef MYTILE_SYSVARS_H
-#define MYTILE_SYSVARS_H
+/**
+ *
+ * Split a string by delimeter
+ *
+ * @param str string to split
+ * @param delim delimeter to split by
+ * @return vector of split strings
+ */
+std::vector<std::string> tile::split(const std::string &str, char delim) {
+  std::vector<std::string> res;
+  std::stringstream ss(str);
+  std::string token;
+  while (std::getline(ss, token, delim)) {
+    res.push_back(token);
+  }
+  return res;
+}
 
-#include <handler.h>
-#include <my_global.h>
+/**
+ * compares two config
+ * @param rhs
+ * @param lhs
+ * @return true is identical, false otherwise
+ */
+bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
+  // Check every parameter to see if they are the same or different
+  for (auto it : rhs) {
+    if (lhs.get(it.first) != it.second) {
+      return false;
+    }
+  }
 
-// list of system parameters
-extern struct st_mysql_sys_var *mytile_system_variables[];
-
-// Read buffer size
-static MYSQL_THDVAR_ULONGLONG(
-    read_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Read buffer size per attribute for tiledb queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
-
-// Write buffer size
-static MYSQL_THDVAR_ULONGLONG(
-    write_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Write buffer size per attribute for tiledb queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
-
-// Physically delete arrays
-static MYSQL_THDVAR_BOOL(delete_arrays, PLUGIN_VAR_OPCMDARG,
-                         "Should drop table delete tiledb arrays", NULL, NULL,
-                         false);
-
-static MYSQL_THDVAR_STR(tiledb_config,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "TileDB configuration parameters, comma separated",
-                        NULL, NULL, "");
-#endif // MYTILE_SYSVARS_H
+  return true;
+}

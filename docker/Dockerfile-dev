@@ -52,6 +52,15 @@ ENV MTR_MEM /tmp
 
 WORKDIR /tmp
 
+# Install tiledb using 1.6 release
+RUN mkdir build_deps && cd build_deps \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
+ && mkdir -p build && cd build \
+ && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
+ && make -j$(nproc) \
+ && make -C tiledb install \
+ && cd /tmp && rm -r build_deps
+
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
 ADD . /tmp/mytile
@@ -62,20 +71,14 @@ RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 RUN groupadd -r mysql && useradd -r -g mysql mysql
 
-# Install tiledb using 1.6 release
-RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
- && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
- && make -j$(nproc) \
- && make -C tiledb install \
- && cd /tmp && rm -r build_deps
-
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
+
+ENV CFLAGS "${CFLAGS} -Wno-error=noexcept-type"
+ENV CXXFLAGS "${CXXFLAGS} -Wno-error=noexcept-type"
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \
@@ -83,7 +86,7 @@ RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${
   && cd ${MARIADB_VERSION} \
   && mkdir builddir \
   && cd builddir \
-  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
+  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=DEBUG -SWITH_DEBUG=1 -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
   && cd ../../ \
@@ -128,6 +131,10 @@ RUN chown -R mysql:mysql /opt/tiledb_arrays
 ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
 
 ENV MYSQL_DATABASE=test
+
+# Set paths needed for bitnami helm mariadb
+RUN mkdir /opt/bitnami
+RUN ln -s /opt/server /opt/bitnami/mariadb
 
 USER mysql
 

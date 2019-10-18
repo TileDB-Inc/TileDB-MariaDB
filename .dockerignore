@@ -1,7 +1,7 @@
 build
 cmake-build-debug
 cmake-build-release
-Dockerfile
-Dockerfile-dev
-Dockerfile-interactive
+docker/Dockerfile
+docker/Dockerfile-dev
+docker/Dockerfile-interactive
 .git

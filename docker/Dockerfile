@@ -54,7 +54,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ARG MYTILE_VERSION="0.0.4"
+ARG MYTILE_VERSION="0.0.5"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -131,6 +131,10 @@ RUN chown -R mysql:mysql /opt/tiledb_arrays
 ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
 
 ENV MYSQL_DATABASE=test
+
+# Set paths needed for bitnami helm mariadb
+RUN mkdir /opt/bitnami
+RUN ln -s /opt/server /opt/bitnami/mariadb
 
 # Setup initial DB for faster starts
 RUN /tmp/init.sh "mysqld"

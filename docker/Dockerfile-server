@@ -54,7 +54,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ARG MYTILE_VERSION="0.0.3"
+ARG MYTILE_VERSION="0.0.4"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -128,14 +128,6 @@ RUN chown -R mysql:mysql /var/log/mysql
 RUN chown -R mysql:mysql /opt/server
 
 RUN chown -R mysql:mysql /opt/tiledb_arrays
-
-# Set defaults for initializing the server
-ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
-
-ENV MYSQL_DATABASE=test
-
-# Setup initial DB for faster starts
-RUN /tmp/init.sh mysqld
 
 USER mysql
 

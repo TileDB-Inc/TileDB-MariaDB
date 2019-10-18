@@ -129,9 +129,6 @@ ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
 
 ENV MYSQL_DATABASE=test
 
-# Setup initial DB for faster starts
-RUN /tmp/init.sh mysqld
-
 USER mysql
 
 EXPOSE 3306

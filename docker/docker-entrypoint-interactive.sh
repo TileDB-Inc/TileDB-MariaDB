@@ -18,6 +18,37 @@ for arg; do
 	esac
 done
 
+
+# Support both MARIADB_ and MYSQL_ parameters
+# Docker expects one, helm another so lets do both
+if [ ! -z "$MARIADB_ROOT_PASSWORD" ]; then
+    export MYSQL_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+fi
+
+if [ ! -z "$MARIADB_ALLOW_EMPTY_PASSWORD" ]; then
+    export MYSQL_ROOT_PASSWORD=${MARIADB_ALLOW_EMPTY_PASSWORD}
+fi
+
+if [ ! -z "$MARIADB_RANDOM_ROOT_PASSWORD" ]; then
+    export MYSQL_ROOT_PASSWORD=${MARIADB_RANDOM_ROOT_PASSWORD}
+fi
+
+if [ ! -z "$MARIADB_USER" ]; then
+    export MYSQL_USER=${MARIADB_USER}
+fi
+
+if [ ! -z "$MARIADB_USERNAME" ]; then
+    export MYSQL_USER=${MARIADB_USERNAME}
+fi
+
+if [ ! -z "$MARIADB_PASSWORD" ]; then
+    export MYSQL_PASSWORD=${MARIADB_PASSWORD}
+fi
+
+if [ ! -z "$MARIADB_DATABASE" ]; then
+    export MYSQL_DATABASE=${MARIADB_DATABASE}
+fi
+
 # usage: file_env VAR [DEFAULT]
 #    ie: file_env 'XYZ_DB_PASSWORD' 'example'
 # (will allow for "$XYZ_DB_PASSWORD_FILE" to fill in the value of

@@ -1191,8 +1191,7 @@ void tile::mytile::setup_write() {
   DBUG_ENTER("tile::mytile::setup_write");
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
-  my_bitmap_map *original_bitmap =
-      dbug_tmp_use_all_columns(table, table->read_set);
+  my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
   this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
   alloc_buffers(this->write_buffer_size);
   this->record_index = 0;
@@ -1203,7 +1202,7 @@ void tile::mytile::setup_write() {
     buff->offset_buffer_size = 0;
   }
   // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
+  tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_VOID_RETURN;
 }
 
@@ -1321,8 +1320,7 @@ int tile::mytile::write_row(const uchar *buf) {
   int rc = 0;
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
-  my_bitmap_map *original_bitmap =
-      dbug_tmp_use_all_columns(table, table->read_set);
+  my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
 
   open_array_for_writes();
 
@@ -1336,7 +1334,7 @@ int tile::mytile::write_row(const uchar *buf) {
       flush_write();
 
       // Reset bitmap to original
-      dbug_tmp_restore_column_map(table->read_set, original_bitmap);
+      tmp_restore_column_map(table->read_set, original_bitmap);
       DBUG_RETURN(write_row(buf));
     }
     this->record_index++;
@@ -1358,7 +1356,7 @@ int tile::mytile::write_row(const uchar *buf) {
   }
 
   // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->read_set, original_bitmap);
+  tmp_restore_column_map(table->read_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 

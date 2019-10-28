@@ -1217,7 +1217,10 @@ int tile::mytile::finalize_write() {
     // Submit query
     if (this->query != nullptr) {
       flush_write();
-      this->query->finalize();
+      // If the layout is GLOBAL_ORDER we need to call finalize
+      if (query->query_layout() == tiledb_layout_t::TILEDB_GLOBAL_ORDER) {
+        this->query->finalize();
+      }
       this->query = nullptr;
     }
     this->array->close();
@@ -1258,33 +1261,37 @@ int tile::mytile::flush_write() {
   int rc = 0;
   if (this->query == nullptr)
     DBUG_RETURN(rc);
-
   // Set all buffers with proper size
   try {
-    uint64_t coord_size = 0;
-    for (auto &buff : this->buffers) {
-      if (this->array->schema().domain().has_dimension(buff->name)) {
-        coord_size = buff->buffer_size * buff->fixed_size_elements;
-        this->ctx.handle_error(tiledb_query_set_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
-            buff->buffer, &coord_size));
-      } else {
-        if (buff->offset_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_buffer_var(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->offset_buffer,
-              &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
-        } else {
+
+    // Handle case where flush was called but no data was written
+    if (coord_buffer->buffer_size != 0) {
+
+      uint64_t coord_size = 0;
+      for (auto &buff : this->buffers) {
+        if (this->array->schema().domain().has_dimension(buff->name)) {
+          coord_size = buff->buffer_size * buff->fixed_size_elements;
           this->ctx.handle_error(tiledb_query_set_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->buffer, &buff->buffer_size));
+              this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
+              buff->buffer, &coord_size));
+        } else {
+          if (buff->offset_buffer != nullptr) {
+            this->ctx.handle_error(tiledb_query_set_buffer_var(
+                this->ctx.ptr().get(), this->query->ptr().get(),
+                buff->name.c_str(), buff->offset_buffer,
+                &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
+          } else {
+            this->ctx.handle_error(tiledb_query_set_buffer(
+                this->ctx.ptr().get(), this->query->ptr().get(),
+                buff->name.c_str(), buff->buffer, &buff->buffer_size));
+          }
         }
       }
-    }
 
-    // Only submit the query if there is actual data, else just carry on
-    if (coord_size > 0) {
-      query->submit();
+      // Only submit the query if there is actual data, else just carry on
+      if (coord_size > 0) {
+        query->submit();
+      }
     }
 
     // After query submit reset buffer sizes

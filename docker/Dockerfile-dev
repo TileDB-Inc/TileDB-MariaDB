@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y \
   gnutls-dev \
   libaio-dev \
   libboost-dev \
-  libcurl3-dev \
   libdbd-mysql \
   libjudy-dev \
   libncurses5-dev \
@@ -52,14 +51,24 @@ ENV MTR_MEM /tmp
 
 WORKDIR /tmp
 
-# Install tiledb using 1.6 release
+# Set git config so superbuild of tiledb can cherry-pick capnp fix
+RUN git config --global user.email "you@example.com" \
+ && git config --global user.name "Your Name"
+
+# Install tiledb using 1.7 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.0 && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps
+
+# Install curl after building tiledb
+RUN apt-get update && apt-get install -y \
+  libcurl4 \
+  libcurl4-openssl-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 

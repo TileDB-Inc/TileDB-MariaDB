@@ -126,6 +126,22 @@ tiledb::Config tile::build_config(THD *thd) {
   return cfg;
 }
 
+tiledb::Context tile::build_context(tiledb::Config &cfg) {
+  tiledb::Context ctx(cfg);
+  std::string prefix = "context.tag.";
+
+  // Loop through config and see if there are any context tags which need to be
+  // set
+  for (auto &it : cfg) {
+    auto res = std::mismatch(prefix.begin(), prefix.end(), it.first.begin());
+    if (res.first == prefix.end()) {
+      std::string tag_key = it.first.substr(prefix.length(), it.first.length());
+      ctx.set_tag(tag_key, it.second);
+    }
+  }
+
+  return ctx;
+}
 /**
  * Basic lock structure
  */
@@ -232,7 +248,7 @@ tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg) {
   this->config = build_config(ha_thd());
 
-  this->ctx = tiledb::Context(config);
+  this->ctx = build_context(config);
 };
 
 /**
@@ -263,7 +279,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
   if (!compare_configs(cfg, this->config)) {
     this->config = cfg;
-    this->ctx = tiledb::Context(this->config);
+    this->ctx = build_context(this->config);
   }
 
   // We are suppose to get a lock here, but tiledb doesn't require locks.

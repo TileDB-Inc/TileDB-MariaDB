@@ -21,7 +21,6 @@ RUN apt-get update && apt-get install -y \
   gnutls-dev \
   libaio-dev \
   libboost-dev \
-  libcurl3-dev \
   libdbd-mysql \
   libjudy-dev \
   libncurses5-dev \
@@ -54,7 +53,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.8"
 
-ARG MYTILE_VERSION="0.0.5"
+ARG MYTILE_VERSION="0.1.1"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -67,9 +66,13 @@ RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 RUN groupadd -r mysql && useradd -r -g mysql mysql
 
-# Install tiledb using 1.6 release
+# Set git config so superbuild of tiledb can cherry-pick capnp fix
+RUN git config --global user.email "you@example.com" \
+ && git config --global user.name "Your Name"
+
+# Install tiledb using 1.7 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.0 && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \
@@ -81,6 +84,12 @@ RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
+
+# Install curl after building tiledb
+RUN apt-get update && apt-get install -y \
+  libcurl4 \
+  libcurl4-openssl-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

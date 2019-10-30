@@ -13,7 +13,7 @@ git clone https://github.com/Shelnutt2/server.git -b MDEV-20767-10.4 ${MARIADB_V
 
 # Install tiledb using 1.6 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.6.3 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.0 && cd TileDB \
 && mkdir -p build && cd build
 
 # Configure and build TileDB

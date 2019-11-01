@@ -1,0 +1,33 @@
+--echo #
+--echo # The purpose of this test is to validate mytile_reopen_for_every_query for both true and false settings
+--echo #
+
+--echo # Setup existing array first
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+
+--echo # Create test array
+CREATE TABLE quickstart_dense_2 (`rows` INTEGER DIMENSION=1 tile_extent=100, `cols` INTEGER DIMENSION=1 tile_extent=100, a INTEGER unsigned) ENGINE=MyTile;
+
+--echo # Start with no tables open
+FLUSH TABLES;
+
+--echo # Test with mytile_reopen_for_every_query=1
+set mytile_reopen_for_every_query = 1;
+INSERT INTO quickstart_dense_2 (`rows`, `cols`, `a`) SELECT `rows`, `cols`, `a` FROM  (select * from quickstart_dense) q1;
+select * from quickstart_dense_2;
+
+--echo # Close all tables between queries
+FLUSH TABLES;
+
+--echo # Test with mytile_reopen_for_every_query=0
+set mytile_reopen_for_every_query = 0;
+INSERT INTO quickstart_dense_2 (`rows`, `cols`, `a`) SELECT `rows`, `cols`, `a` FROM  (select * from quickstart_dense) q1;
+select * from quickstart_dense_2;
+
+--echo # Cleanup
+DROP TABLE quickstart_dense_2;
+set mytile_delete_arrays=0;
+DROP TABLE `quickstart_dense`;
+set mytile_delete_arrays=1;

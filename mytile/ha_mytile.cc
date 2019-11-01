@@ -77,8 +77,9 @@ static void init_mytile_psi_keys() {
 
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size), MYSQL_SYSVAR(write_buffer_size),
-    MYSQL_SYSVAR(delete_arrays), MYSQL_SYSVAR(tiledb_config), NULL};
+    MYSQL_SYSVAR(read_buffer_size),       MYSQL_SYSVAR(write_buffer_size),
+    MYSQL_SYSVAR(delete_arrays),          MYSQL_SYSVAR(tiledb_config),
+    MYSQL_SYSVAR(reopen_for_every_query), NULL};
 
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
@@ -295,11 +296,15 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
     // Always open in read only mode, we'll re-open for writes if we hit init
     // write
-    tiledb_query_type_t openType = tiledb_query_type_t::TILEDB_READ;
+    //    tiledb_query_type_t openType = tiledb_query_type_t::TILEDB_READ;
 
-    this->array = std::make_shared<tiledb::Array>(this->ctx, uri, openType);
+    //    this->array = std::make_shared<tiledb::Array>(this->ctx, uri,
+    //    openType);
 
-    auto domain = this->array->schema().domain();
+    //    auto domain = this->array->schema().domain();
+
+    auto schema = tiledb::ArraySchema(this->ctx, this->uri);
+    auto domain = schema.domain();
     this->ndim = domain.ndim();
 
     // Set ref length used for storing reference in position(), this is the size
@@ -327,7 +332,16 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 int tile::mytile::close(void) {
   DBUG_ENTER("tile::mytile::close");
   try {
-    this->array->close();
+    // remove query if exists
+    if (this->query != nullptr)
+      this->query = nullptr;
+
+    // close array
+    if (this->array != nullptr && this->array->is_open())
+      this->array->close();
+
+    // Clear all allocated buffers
+    dealloc_buffers();
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "close error for table %s : %s",
@@ -473,7 +487,7 @@ int tile::mytile::init_scan(
 
   try {
     // Validate the array is open for reads
-    open_array_for_reads();
+    open_array_for_reads(thd);
 
     // Allocate user buffers
     alloc_read_buffers(this->read_buffer_size);
@@ -657,7 +671,7 @@ int tile::mytile::rnd_end() {
   this->status = tiledb::Query::Status::UNINITIALIZED;
   this->total_num_records_UB = 0;
   this->query = nullptr;
-  DBUG_RETURN(0);
+  DBUG_RETURN(close());
 };
 
 /**
@@ -891,7 +905,7 @@ const COND *tile::mytile::cond_push(const COND *cond) {
   // NOTE: This is called one or more times by handle interface. Once for each
   // condition
 
-  open_array_for_reads();
+  open_array_for_reads(ha_thd());
 
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty())
@@ -1205,6 +1219,10 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
  */
 void tile::mytile::setup_write() {
   DBUG_ENTER("tile::mytile::setup_write");
+
+  // Make sure array is open for writes
+  open_array_for_writes(ha_thd());
+
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
   my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
@@ -1238,8 +1256,11 @@ int tile::mytile::finalize_write() {
         this->query->finalize();
       }
       this->query = nullptr;
+
+      // Clear all allocated buffers
+      dealloc_buffers();
     }
-    this->array->close();
+    rc = close();
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -1260,7 +1281,6 @@ int tile::mytile::finalize_write() {
 void tile::mytile::start_bulk_insert(ha_rows rows, uint flags) {
   DBUG_ENTER("tile::mytile::start_bulk_insert");
   this->bulk_write = true;
-  open_array_for_writes();
   setup_write();
   DBUG_VOID_RETURN;
 }
@@ -1345,8 +1365,6 @@ int tile::mytile::write_row(const uchar *buf) {
   // Field->val_*
   my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
 
-  open_array_for_writes();
-
   if (!this->bulk_write) {
     setup_write();
   }
@@ -1396,38 +1414,81 @@ ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
               HA_DO_INDEX_COND_PUSHDOWN | HA_DO_RANGE_FILTER_PUSHDOWN);
 }
 
-void tile::mytile::open_array_for_reads() {
-  if ((this->array->is_open() && this->array->query_type() != TILEDB_READ) ||
-      !this->array->is_open()) {
-    if (this->array->is_open())
-      this->array->close();
+void tile::mytile::open_array_for_reads(THD *thd) {
 
-    this->array->open(TILEDB_READ);
-  }
-  if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
+  bool reopen_for_every_query = THDVAR(thd, reopen_for_every_query);
+
+  // If we want to reopen for every query then we'll build a new context and do
+  // it
+  if (reopen_for_every_query || this->array == nullptr) {
+    // First rebuild context with new config if needed
+    tiledb::Config cfg = build_config(ha_thd());
+
+    if (!compare_configs(cfg, this->config)) {
+      this->config = cfg;
+      this->ctx = build_context(this->config);
+    }
+    this->array =
+        std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_READ);
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
-    if (this->array->schema().array_type() ==
-        tiledb_array_type_t::TILEDB_SPARSE)
-      this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-    else
-      this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
+    // Else lets try to open reopen and use existing contexts
+  } else {
+    if ((this->array->is_open() && this->array->query_type() != TILEDB_READ) ||
+        !this->array->is_open()) {
+      if (this->array->is_open())
+        this->array->close();
+
+      this->array->open(TILEDB_READ);
+    }
+
+    if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {
+      this->query =
+          std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
+    }
   }
+
+  // Set layout
+  if (this->array->schema().array_type() == tiledb_array_type_t::TILEDB_SPARSE)
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  else
+    this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
 }
 
-void tile::mytile::open_array_for_writes() {
-  if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
-      !this->array->is_open()) {
-    if (this->array->is_open())
-      this->array->close();
+void tile::mytile::open_array_for_writes(THD *thd) {
+  bool reopen_for_every_query = THDVAR(thd, reopen_for_every_query);
 
-    this->array->open(TILEDB_WRITE);
-  }
-  if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
+  // If we want to reopen for every query then we'll build a new context and do
+  // it
+  if (reopen_for_every_query || this->array == nullptr) {
+    // First rebuild context with new config if needed
+    tiledb::Config cfg = build_config(ha_thd());
+
+    if (!compare_configs(cfg, this->config)) {
+      this->config = cfg;
+      this->ctx = build_context(this->config);
+    }
+    this->array =
+        std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_WRITE);
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+    // Else lets try to open reopen and use existing contexts
+  } else {
+
+    if ((this->array->is_open() && this->array->query_type() != TILEDB_WRITE) ||
+        !this->array->is_open()) {
+      if (this->array->is_open())
+        this->array->close();
+
+      this->array->open(TILEDB_WRITE);
+    }
+    if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
+      this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array,
+                                                    TILEDB_WRITE);
+    }
   }
+
+  this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
 }
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)

@@ -44,22 +44,30 @@ extern struct st_mysql_sys_var *mytile_system_variables[];
 // Read buffer size
 static MYSQL_THDVAR_ULONGLONG(
     read_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Read buffer size per attribute for tiledb queries", NULL, NULL, 104857600,
+    "Read buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
     0, ~0UL, 0);
 
 // Write buffer size
 static MYSQL_THDVAR_ULONGLONG(
     write_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Write buffer size per attribute for tiledb queries", NULL, NULL, 104857600,
+    "Write buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
     0, ~0UL, 0);
 
 // Physically delete arrays
 static MYSQL_THDVAR_BOOL(delete_arrays, PLUGIN_VAR_OPCMDARG,
-                         "Should drop table delete tiledb arrays", NULL, NULL,
+                         "Should drop table delete TileDB arrays", NULL, NULL,
                          false);
-
+// Set TileDB Configuration parameters
 static MYSQL_THDVAR_STR(tiledb_config,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
                         "TileDB configuration parameters, comma separated",
                         NULL, NULL, "");
+
+// Should arrays force to be reopened? This allows for new TileDB Configuration
+// parameters to always take effect
+static MYSQL_THDVAR_BOOL(
+    reopen_for_every_query, PLUGIN_VAR_OPCMDARG,
+    "Force reopen TileDB array for every query, this allows for tiledb_config "
+    "paraneters to always take effect",
+    NULL, NULL, true);
 #endif // MYTILE_SYSVARS_H

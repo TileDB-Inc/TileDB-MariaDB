@@ -89,6 +89,15 @@ std::vector<std::string> split(const std::string &str, char delim = ',');
 tiledb::Config build_config(THD *thd);
 
 /**
+ *
+ * Builds a tiledb config from a config
+ *
+ * @param cfg
+ * @return context
+ */
+tiledb::Context build_context(tiledb::Config &cfg);
+
+/**
  * compares two config
  * @param rhs
  * @param lhs

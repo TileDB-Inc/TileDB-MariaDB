@@ -354,11 +354,11 @@ private:
   /**
    * Helper function which validates the array is open for reads
    */
-  void open_array_for_reads();
+  void open_array_for_reads(THD *thd);
 
   /**
    * Helper function which validates the array is open for writes
    */
-  void open_array_for_writes();
+  void open_array_for_writes(THD *thd);
 };
 } // namespace tile

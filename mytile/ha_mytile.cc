@@ -1448,11 +1448,8 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     }
   }
 
-  // Set layout
-  if (this->array->schema().array_type() == tiledb_array_type_t::TILEDB_SPARSE)
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-  else
-    this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
+  // Set layout to unordred for both dense and sparse
+  this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {

@@ -57,6 +57,7 @@ static MYSQL_THDVAR_ULONGLONG(
 static MYSQL_THDVAR_BOOL(delete_arrays, PLUGIN_VAR_OPCMDARG,
                          "Should drop table delete TileDB arrays", NULL, NULL,
                          false);
+
 // Set TileDB Configuration parameters
 static MYSQL_THDVAR_STR(tiledb_config,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -70,4 +71,18 @@ static MYSQL_THDVAR_BOOL(
     "Force reopen TileDB array for every query, this allows for tiledb_config "
     "paraneters to always take effect",
     NULL, NULL, true);
+
+const char *query_layout_names[] = {"row-major", "col-major", "unordered",
+                                    "global-order", NullS};
+
+TYPELIB query_layout_typelib = {array_elements(query_layout_names) - 1,
+                                "query_layout_typelib", query_layout_names,
+                                NULL};
+
+static MYSQL_THDVAR_ENUM(read_query_layout, PLUGIN_VAR_OPCMDARG,
+                         "TileDB query layout, valid layouts are row-major, "
+                         "col-major, unordered, global-order",
+                         NULL, NULL,
+                         2, // default to unordered
+                         &query_layout_typelib);
 #endif // MYTILE_SYSVARS_H

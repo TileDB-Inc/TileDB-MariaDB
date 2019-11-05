@@ -321,6 +321,9 @@ private:
   // Number of dimensions, this is used frequently so let's cache it
   uint64_t ndim = 0;
 
+  // Array Schema
+  std::unique_ptr<tiledb::ArraySchema> array_schema;
+
   // Upper bound for number of records so we know stopping condition
   uint64_t total_num_records_UB = 0;
 
@@ -360,5 +363,11 @@ private:
    * Helper function which validates the array is open for writes
    */
   void open_array_for_writes(THD *thd);
+
+  /**
+   * Checks if there are any ranges pushed
+   * @return
+   */
+  bool valid_pushed_ranges();
 };
 } // namespace tile

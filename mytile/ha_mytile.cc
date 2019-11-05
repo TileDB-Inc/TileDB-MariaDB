@@ -294,17 +294,9 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     if (this->table->s->option_struct->array_uri != nullptr)
       uri = this->table->s->option_struct->array_uri;
 
-    // Always open in read only mode, we'll re-open for writes if we hit init
-    // write
-    //    tiledb_query_type_t openType = tiledb_query_type_t::TILEDB_READ;
-
-    //    this->array = std::make_shared<tiledb::Array>(this->ctx, uri,
-    //    openType);
-
-    //    auto domain = this->array->schema().domain();
-
-    auto schema = tiledb::ArraySchema(this->ctx, this->uri);
-    auto domain = schema.domain();
+    this->array_schema = std::unique_ptr<tiledb::ArraySchema>(
+        new tiledb::ArraySchema(this->ctx, this->uri));
+    auto domain = this->array_schema->domain();
     this->ndim = domain.ndim();
 
     // Set ref length used for storing reference in position(), this is the size
@@ -493,7 +485,7 @@ int tile::mytile::init_scan(
     alloc_read_buffers(this->read_buffer_size);
 
     // Get domain and dimensions
-    auto domain = this->array->schema().domain();
+    auto domain = this->array_schema->domain();
     auto dims = domain.dimensions();
 
     // Create the subarray
@@ -511,7 +503,7 @@ int tile::mytile::init_scan(
         &empty));
 
     this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
-    if (this->pushdown_ranges.empty()) { // No pushdown
+    if (!this->valid_pushed_ranges()) { // No pushdown
       if (empty)
         DBUG_RETURN(HA_ERR_END_OF_FILE);
 
@@ -684,7 +676,7 @@ int tile::mytile::rnd_end() {
  */
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
-  auto domain = this->array->schema().domain();
+  auto domain = this->array_schema->domain();
   this->ctx.handle_error(tiledb_query_set_subarray(
       this->ctx.ptr().get(), this->query->ptr().get(), pos));
   this->total_num_records_UB = computeRecordsUB(this->array, pos);
@@ -799,13 +791,13 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     DBUG_RETURN(func_item);
   }
   // If the condition is not a dimension we can't handle it
-  if (!this->array->schema().domain().has_dimension(
+  if (!this->array_schema->domain().has_dimension(
           column_field->field_name.str)) {
     DBUG_RETURN(func_item);
   }
 
   uint64_t dim_idx = 0;
-  auto dims = this->array->schema().domain().dimensions();
+  auto dims = this->array_schema->domain().dimensions();
   for (uint64_t j = 0; j < this->ndim; j++) {
     if (dims[j].name() == column_field->field_name.str)
       dim_idx = j;
@@ -904,8 +896,6 @@ const COND *tile::mytile::cond_push(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push");
   // NOTE: This is called one or more times by handle interface. Once for each
   // condition
-
-  open_array_for_reads(ha_thd());
 
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty())
@@ -1032,12 +1022,11 @@ ulonglong tile::mytile::table_flags(void) const {
 void tile::mytile::alloc_buffers(uint64_t size) {
   DBUG_ENTER("tile::mytile::alloc_buffers");
   // Set Attribute Buffers
-  auto schema = this->array->schema();
-  auto domain = schema.domain();
+  auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
 
   const char *array_type;
-  tiledb_array_type_to_str(schema.array_type(), &array_type);
+  tiledb_array_type_to_str(this->array_schema->array_type(), &array_type);
 
   // Set Coordinate Buffer
   // We don't use set_coords to avoid needing to switch on datatype
@@ -1055,7 +1044,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
     // dimension We check the read_set because the read_set is set to ALL column
     // for writes and set to the subset of columns for reads
     if (!bitmap_is_set(this->table->read_set, fieldIndex) &&
-        !schema.domain().has_dimension(field_name)) {
+        !this->array_schema->domain().has_dimension(field_name)) {
       continue;
     }
 
@@ -1068,7 +1057,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
     buff->buffer_size = size;
     buff->allocated_buffer_size = size;
 
-    if (schema.domain().has_dimension(field_name)) {
+    if (this->array_schema->domain().has_dimension(field_name)) {
       buff->buffer = coords_buffer;
       buff->type = domain.type();
       buff->dimension = true;
@@ -1081,7 +1070,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       buff->fixed_size_elements = domain.ndim();
       this->coord_buffer = buff;
     } else { // attribute
-      tiledb::Attribute attr = schema.attribute(field_name);
+      tiledb::Attribute attr = this->array_schema->attribute(field_name);
       uint64_t *offset_buffer = nullptr;
       auto data_buffer = alloc_buffer(attr.type(), size);
       buff->fixed_size_elements = attr.cell_val_num();
@@ -1103,7 +1092,7 @@ void tile::mytile::alloc_buffers(uint64_t size) {
 
 void tile::mytile::alloc_read_buffers(uint64_t size) {
   alloc_buffers(size);
-  auto domain = this->array->schema().domain();
+  auto domain = this->array_schema->domain();
 
   for (auto &buff : this->buffers) {
     // Only set buffers which are non-null
@@ -1305,7 +1294,7 @@ int tile::mytile::flush_write() {
 
       uint64_t coord_size = 0;
       for (auto &buff : this->buffers) {
-        if (this->array->schema().domain().has_dimension(buff->name)) {
+        if (this->array_schema->domain().has_dimension(buff->name)) {
           coord_size = buff->buffer_size * buff->fixed_size_elements;
           this->ctx.handle_error(tiledb_query_set_buffer(
               this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
@@ -1379,7 +1368,7 @@ int tile::mytile::write_row(const uchar *buf) {
       DBUG_RETURN(write_row(buf));
     }
     this->record_index++;
-    auto domain = this->array->schema().domain();
+    auto domain = this->array_schema->domain();
 
     if (!this->bulk_write) {
       rc = finalize_write();
@@ -1449,7 +1438,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
   }
 
   // Set layout
-  if (this->array->schema().array_type() == tiledb_array_type_t::TILEDB_SPARSE)
+  if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE)
     this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
   else
     this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
@@ -1490,6 +1479,26 @@ void tile::mytile::open_array_for_writes(THD *thd) {
 
   this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
 }
+
+bool tile::mytile::valid_pushed_ranges() {
+  if (this->pushdown_ranges.empty())
+    return false;
+
+  // Check all ranges and makes sure that atleast one is non empty and non null
+  bool one_valid_range = false;
+  for (auto &range : this->pushdown_ranges) {
+    if (!range.empty()) {
+      for (auto &range_ptr : range) {
+        if (range_ptr != nullptr) {
+          one_valid_range = true;
+        }
+      }
+    }
+  }
+
+  return one_valid_range;
+}
+
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
                                   */

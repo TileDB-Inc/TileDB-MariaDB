@@ -1441,7 +1441,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
   if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE)
     this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
   else
-    this->query->set_layout(tiledb_layout_t::TILEDB_GLOBAL_ORDER);
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {

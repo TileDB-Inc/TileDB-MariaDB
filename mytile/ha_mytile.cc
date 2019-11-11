@@ -246,11 +246,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
  * @param table_arg
  */
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg) {
-  this->config = build_config(ha_thd());
-
-  this->ctx = build_context(config);
-};
+    : handler(hton, table_arg){};
 
 /**
  * Create a table structure and TileDB array schema
@@ -262,6 +258,13 @@ tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
   DBUG_ENTER("tile::mytile::create");
+  // First rebuild context with new config if needed
+  tiledb::Config cfg = build_config(ha_thd());
+
+  if (!compare_configs(cfg, this->config)) {
+    this->config = cfg;
+    this->ctx = build_context(this->config);
+  }
   DBUG_RETURN(create_array(name, table_arg, create_info, this->ctx));
 }
 

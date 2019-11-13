@@ -141,7 +141,10 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
     auto res = std::mismatch(prefix.begin(), prefix.end(), it.first.begin());
     if (res.first == prefix.end()) {
       std::string tag_key = it.first.substr(prefix.length(), it.first.length());
-      ctx.set_tag(tag_key, it.second);
+      std::string value = it.second;
+      trim(tag_key);
+      trim(value);
+      ctx.set_tag(tag_key, value);
     }
   }
 

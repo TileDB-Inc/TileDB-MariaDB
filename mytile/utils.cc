@@ -62,8 +62,12 @@ std::vector<std::string> tile::split(const std::string &str, char delim) {
  */
 bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
   // Check every parameter to see if they are the same or different
-  for (auto it : rhs) {
-    if (lhs.get(it.first) != it.second) {
+  for (auto &it : rhs) {
+    try {
+      if (lhs.get(it.first) != it.second) {
+        return false;
+      }
+    } catch (tiledb::TileDBError &e) {
       return false;
     }
   }

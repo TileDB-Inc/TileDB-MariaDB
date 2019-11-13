@@ -119,7 +119,11 @@ tiledb::Config tile::build_config(THD *thd) {
       // Split key=value into a vector of size two
       std::vector<std::string> kv = split(param, '=');
       if (kv.size() == 2) {
-        cfg[kv[0]] = kv[1];
+        std::string key = kv[0];
+        std::string value = kv[1];
+        trim(key);
+        trim(value);
+        cfg[key] = value;
       }
     }
   }

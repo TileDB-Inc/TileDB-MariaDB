@@ -513,7 +513,8 @@ int tile::mytile::init_scan(
         &empty));
 
     this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
-    if (!this->valid_pushed_ranges()) { // No pushdown
+    if (!this->valid_pushed_ranges() &&
+        !this->valid_pushed_in_ranges()) { // No pushdown
       if (empty)
         DBUG_RETURN(HA_ERR_END_OF_FILE);
 
@@ -524,21 +525,60 @@ int tile::mytile::init_scan(
           this->ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
 
     } else {
+      sql_print_information("pushdown of ranges for query");
+
       // Loop over dimensions and build rangers for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-        const auto &ranges = this->pushdown_ranges[dim_idx];
+        // This ranges vector and the ranges it contains will be manipulated in
+        // merge ranges
+        auto &ranges = this->pushdown_ranges[dim_idx];
+
+        // If there is valid ranges from IN clause, first we must see if they
+        // are contained inside the merged super range we have
+        auto &in_ranges = this->pushdown_in_ranges[dim_idx];
+
+        // get start of non empty domain
         void *lower = static_cast<char *>(subarray.get()) +
                       (dim_idx * 2 * tiledb_datatype_size(domain.type()));
 
-        if (!ranges.empty()) {
+        // If the ranges for this dimension are not empty, we'll push it down
+        // else non empty domain is used
+        if (!ranges.empty() || !in_ranges.empty()) {
           sql_print_information("Pushdown for %s",
                                 dims[dim_idx].name().c_str());
-          for (const std::shared_ptr<range> &range : ranges) {
-            setup_range(range, lower, dims[dim_idx]);
 
-            this->ctx.handle_error(tiledb_query_add_range(
-                this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
-                range->lower_value.get(), range->upper_value.get(), nullptr));
+          std::shared_ptr<tile::range> range = nullptr;
+          if (!ranges.empty()) {
+            // Merge multiple ranges into single super range
+            range = merge_ranges(ranges, dims[dim_idx].type());
+
+            if (range != nullptr) {
+              // Setup the range by filling in missing values with non empty
+              // domain
+              setup_range(range, lower, dims[dim_idx]);
+
+              // set range
+              this->ctx.handle_error(tiledb_query_add_range(
+                  this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                  range->lower_value.get(), range->upper_value.get(), nullptr));
+            }
+          }
+
+          // If there are ranges from in conditions let's build proper ranges for them
+          if (!in_ranges.empty()) {
+            // First make the in ranges unique and remove any which are contained by the main range (if it is non null)
+            auto unique_in_ranges =
+                get_unique_non_contained_in_ranges(in_ranges, range);
+
+            for (auto &in_range : unique_in_ranges) {
+              // setup range so values are set to correct datatypes
+              setup_range(in_range, lower, dims[dim_idx]);
+              // set range
+              this->ctx.handle_error(tiledb_query_add_range(
+                  this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                  in_range->lower_value.get(), in_range->upper_value.get(),
+                  nullptr));
+            }
           }
         } else { // If the range is empty we need to use the non-empty-domain
 
@@ -666,6 +706,7 @@ int tile::mytile::rnd_end() {
   DBUG_ENTER("tile::mytile::rnd_end");
   dealloc_buffers();
   this->pushdown_ranges.clear();
+  this->pushdown_in_ranges.clear();
   // Reset indicators
   this->record_index = 0;
   this->records = 0;
@@ -767,6 +808,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
     break;
   case Item_func::COND_OR_FUNC: // Currently don't support OR pushdown
     DBUG_RETURN(cond_item);
+    //    break;
   default:
     DBUG_RETURN(nullptr);
   } // endswitch functype
@@ -816,8 +858,9 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   switch (func_item->functype()) {
   case Item_func::NE_FUNC:
     DBUG_RETURN(func_item); /* Not equal is not supported */
+    // In is special because we need to do a tiledb range per argument and treat
+    // it as OR not AND
   case Item_func::IN_FUNC:
-    // In is special because we need to do a tiledb range per argument
     // Start at 1 because 0 is the field
     for (uint i = 1; i < func_item->argument_count(); i++) {
       Item_basic_constant *lower_const =
@@ -830,43 +873,35 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
-      int ret = set_range_from_item_consts(lower_const, upper_const, range);
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
+
+      // Get field type for comparison
+      Item_result cmp_type = args[i]->cmp_type();
+
+      int ret =
+          set_range_from_item_consts(lower_const, upper_const, cmp_type, range);
 
       if (ret)
         DBUG_RETURN(func_item);
 
-      // Add the range to the pushdown ranges
-      auto &range_vec = this->pushdown_ranges[dim_idx];
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_in_ranges[dim_idx];
       range_vec.push_back(std::move(range));
     }
 
     break;
-  case Item_func::BETWEEN:
-    neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
-    if (neg) // don't support negations!
-      DBUG_RETURN(func_item);
-    // fall through
-  default: // Handle all cases where there is 1 or 2 arguments we must set on
-    // the range
-
-    Item_basic_constant *lower_const =
-        dynamic_cast<Item_basic_constant *>(args[1]);
-    // Init upper to be lower
-    Item_basic_constant *upper_const =
-        dynamic_cast<Item_basic_constant *>(args[1]);
-
-    if (func_item->argument_count() == 3) {
-      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
-    }
-
+    // Handle equal case by setting upper and lower ranges to same value
+  case Item_func::EQ_FUNC: {
     // Create unique ptrs
     std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
 
-    int ret = set_range_from_item_consts(lower_const, upper_const, range);
+    int ret =
+        set_range_from_item_consts(dynamic_cast<Item_basic_constant *>(args[1]),
+                                   dynamic_cast<Item_basic_constant *>(args[1]),
+                                   args[1]->cmp_type(), range);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -876,6 +911,58 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     range_vec.push_back(std::move(range));
 
     break;
+  }
+  case Item_func::BETWEEN:
+    neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
+    if (neg) // don't support negations!
+      DBUG_RETURN(func_item);
+    // fall through
+  case Item_func::LE_FUNC: // Handle all cases where there is 1 or 2 arguments
+                           // we must set on
+  case Item_func::LT_FUNC:
+  case Item_func::GE_FUNC:
+  case Item_func::GT_FUNC: {
+    // the range
+    Item_basic_constant *lower_const = nullptr;
+    Item_basic_constant *upper_const = nullptr;
+
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    // If we have 3 items then we can set lower and upper
+    if (func_item->argument_count() == 3) {
+      lower_const = dynamic_cast<Item_basic_constant *>(args[1]);
+      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
+      // If the condition is less than we know its the upper limit we have
+    } else if (func_item->functype() == Item_func::LT_FUNC ||
+               func_item->functype() == Item_func::LE_FUNC) {
+      upper_const = dynamic_cast<Item_basic_constant *>(args[1]);
+      // If the condition is greater than we know its the lower limit we have
+    } else if (func_item->functype() == Item_func::GT_FUNC ||
+               func_item->functype() == Item_func::GE_FUNC) {
+      lower_const = dynamic_cast<Item_basic_constant *>(args[1]);
+    }
+
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+
+    int ret =
+        set_range_from_item_consts(lower_const, upper_const, cmp_type, range);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // Add the range to the pushdown ranges
+    auto &range_vec = this->pushdown_ranges[dim_idx];
+    range_vec.push_back(std::move(range));
+
+    break;
+  }
+  default:
+    DBUG_RETURN(func_item);
   } // endswitch functype
   DBUG_RETURN(nullptr);
 }
@@ -912,21 +999,22 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     for (uint64_t i = 0; i < this->ndim; i++)
       this->pushdown_ranges.emplace_back();
 
+  // Make sure pushdown in ranges is not empty
+  if (this->pushdown_in_ranges.empty())
+    for (uint64_t i = 0; i < this->ndim; i++)
+      this->pushdown_in_ranges.emplace_back();
+
   switch (cond->type()) {
   case Item::COND_ITEM: {
     Item_cond *cond_item = dynamic_cast<Item_cond *>(const_cast<COND *>(cond));
     const COND *ret = cond_push_cond(cond_item);
-    if (ret != nullptr) {
-      DBUG_RETURN(ret);
-    }
+    DBUG_RETURN(ret);
     break;
   }
   case Item::FUNC_ITEM: {
     const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
     const COND *ret = cond_push_func(func_item);
-    if (ret != nullptr) {
-      DBUG_RETURN(ret);
-    }
+    DBUG_RETURN(ret);
     break;
   }
   // not supported currently
@@ -1410,7 +1498,7 @@ int tile::mytile::write_row(const uchar *buf) {
 ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
   DBUG_ENTER("tile::mytile::index_flags");
   DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
-              HA_DO_INDEX_COND_PUSHDOWN | HA_DO_RANGE_FILTER_PUSHDOWN);
+              HA_DO_RANGE_FILTER_PUSHDOWN);
 }
 
 void tile::mytile::open_array_for_reads(THD *thd) {
@@ -1497,6 +1585,25 @@ bool tile::mytile::valid_pushed_ranges() {
   // Check all ranges and makes sure that atleast one is non empty and non null
   bool one_valid_range = false;
   for (auto &range : this->pushdown_ranges) {
+    if (!range.empty()) {
+      for (auto &range_ptr : range) {
+        if (range_ptr != nullptr) {
+          one_valid_range = true;
+        }
+      }
+    }
+  }
+
+  return one_valid_range;
+}
+
+bool tile::mytile::valid_pushed_in_ranges() {
+  if (this->pushdown_in_ranges.empty())
+    return false;
+
+  // Check all ranges and makes sure that atleast one is non empty and non null
+  bool one_valid_range = false;
+  for (auto &range : this->pushdown_in_ranges) {
     if (!range.empty()) {
       for (auto &range_ptr : range) {
         if (range_ptr != nullptr) {

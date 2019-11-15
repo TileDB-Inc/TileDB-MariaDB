@@ -34,9 +34,13 @@
 #include "mytile-range.h"
 
 std::shared_ptr<tile::range>
-tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges) {
-  tiledb_datatype_t dimensionDataType = ranges[0]->datatype;
-  switch (dimensionDataType) {
+tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges,
+                   tiledb_datatype_t datatype) {
+  if (ranges.empty() || ranges[0] == nullptr) {
+    return nullptr;
+  }
+
+  switch (datatype) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
     return merge_ranges<double>(ranges);
 
@@ -72,7 +76,7 @@ tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges) {
 
   default: {
     const char *datatype_str;
-    tiledb_datatype_to_str(dimensionDataType, &datatype_str);
+    tiledb_datatype_to_str(datatype, &datatype_str);
     my_printf_error(
         ER_UNKNOWN_ERROR,
         "Unknown or unsupported tiledb data type in merge_ranges: %s",
@@ -237,4 +241,67 @@ int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
     DBUG_RETURN(1);
   }
   DBUG_RETURN(0);
+}
+
+std::vector<std::shared_ptr<tile::range>>
+tile::get_unique_non_contained_in_ranges(
+    const std::vector<std::shared_ptr<range>> &in_ranges,
+    const std::shared_ptr<range> &main_range) {
+  tiledb_datatype_t datatype;
+  if (main_range != nullptr) {
+    datatype = main_range->datatype;
+  } else if (!in_ranges.empty()) {
+    datatype = in_ranges[0]->datatype;
+  }
+
+  // If the in_ranges is empty so lets bail early
+  if (in_ranges.empty()) {
+    return {};
+  }
+
+  switch (datatype) {
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return get_unique_non_contained_in_ranges<double>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return get_unique_non_contained_in_ranges<float>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_INT8:
+    return get_unique_non_contained_in_ranges<int8_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return get_unique_non_contained_in_ranges<uint8_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_INT16:
+    return get_unique_non_contained_in_ranges<int16_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return get_unique_non_contained_in_ranges<uint16_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_INT32:
+    return get_unique_non_contained_in_ranges<int32_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return get_unique_non_contained_in_ranges<uint32_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    return get_unique_non_contained_in_ranges<int64_t>(in_ranges, main_range);
+
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return get_unique_non_contained_in_ranges<uint64_t>(in_ranges, main_range);
+
+  default: {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unknown or unsupported tiledb data type in "
+                    "get_unique_non_contained_in_ranges: %s",
+                    ME_ERROR_LOG | ME_FATAL, datatype_str);
+  }
+  }
+
+  return {};
 }

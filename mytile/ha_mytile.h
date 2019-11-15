@@ -334,6 +334,9 @@ private:
   // Vector of pushdowns
   std::vector<std::vector<std::shared_ptr<tile::range>>> pushdown_ranges;
 
+  // Vector of pushdown in ranges
+  std::vector<std::vector<std::shared_ptr<tile::range>>> pushdown_in_ranges;
+
   // read buffer size
   uint64_t read_buffer_size = 0;
 
@@ -369,5 +372,11 @@ private:
    * @return
    */
   bool valid_pushed_ranges();
+
+  /**
+   * Checks if there are any in ranges pushed
+   * @return
+   */
+  bool valid_pushed_in_ranges();
 };
 } // namespace tile

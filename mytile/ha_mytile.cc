@@ -54,27 +54,6 @@
 // Handler for mytile engine
 handlerton *mytile_hton;
 
-/**
-  @brief
-  Function we use in the creation of our hash to get key.
-*/
-
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key ex_key_mutex_mytile_share_mutex;
-
-static PSI_mutex_info all_mytile_mutexes[] = {
-    {&ex_key_mutex_mytile_share_mutex, "mytile_share::mutex", 0}};
-
-static void init_mytile_psi_keys() {
-  const char *category = "mytile";
-  int count;
-
-  count = array_elements(all_mytile_mutexes);
-  mysql_mutex_register(category, all_mytile_mutexes, count);
-}
-
-#endif
-
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(read_buffer_size),       MYSQL_SYSVAR(write_buffer_size),
@@ -150,39 +129,6 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
 
   return ctx;
 }
-/**
- * Basic lock structure
- */
-tile::mytile_share::mytile_share() {
-  thr_lock_init(&lock);
-  mysql_mutex_init(ex_key_mutex_mytile_share_mutex, &mutex, MY_MUTEX_INIT_FAST);
-}
-
-/**
-  @brief
-  Example of simple lock controls. The "share" it creates is a
-  structure we will pass to each mytile handler. Do you have to have
-  one of these? Well, you have pieces that are used for locking, and
-  they are needed to function.
-*/
-
-tile::mytile_share *tile::mytile::get_share() {
-  tile::mytile_share *tmp_share;
-
-  DBUG_ENTER("tile::mytile::get_share");
-
-  lock_shared_ha_data();
-  if (!(tmp_share = static_cast<tile::mytile_share *>(get_ha_share_ptr()))) {
-    tmp_share = new mytile_share;
-    if (!tmp_share)
-      goto err;
-
-    set_ha_share_ptr(static_cast<Handler_share *>(tmp_share));
-  }
-err:
-  unlock_shared_ha_data();
-  DBUG_RETURN(tmp_share);
-}
 
 // Create mytile object
 static handler *mytile_create_handler(handlerton *hton, TABLE_SHARE *table,
@@ -196,11 +142,6 @@ static const char *mytile_exts[] = {NullS};
 // Initialization function
 static int mytile_init_func(void *p) {
   DBUG_ENTER("mytile_init_func");
-
-#ifdef HAVE_PSI_INTERFACE
-  // Initialize performance schema keys
-  init_mytile_psi_keys();
-#endif
 
   mytile_hton = static_cast<handlerton *>(p);
   mytile_hton->state = SHOW_OPTION_YES;
@@ -220,8 +161,8 @@ struct st_mysql_storage_engine mytile_storage_engine = {
     MYSQL_HANDLERTON_INTERFACE_VERSION};
 
 /**
- * Store a lock, we aren't using table or row locking at this point.
- * We really should find a way to avoid even needing these locks
+ * Mytile doesn't need locks, so we just ignore the store_lock request by
+ * returning the original lock data
  * @param thd
  * @param to
  * @param lock_type
@@ -230,9 +171,6 @@ struct st_mysql_storage_engine mytile_storage_engine = {
 THR_LOCK_DATA **tile::mytile::store_lock(THD *thd, THR_LOCK_DATA **to,
                                          enum thr_lock_type lock_type) {
   DBUG_ENTER("tile::mytile::store_lock");
-  if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK)
-    lock.type = lock_type;
-  *to++ = &lock;
   DBUG_RETURN(to);
 };
 
@@ -292,11 +230,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     this->config = cfg;
     this->ctx = build_context(this->config);
   }
-
-  // We are suppose to get a lock here, but tiledb doesn't require locks.
-  if (!(share = get_share()))
-    DBUG_RETURN(1);
-  thr_lock_data_init(&share->lock, &lock, nullptr);
 
   // Open TileDB Array
   try {
@@ -564,9 +497,11 @@ int tile::mytile::init_scan(
             }
           }
 
-          // If there are ranges from in conditions let's build proper ranges for them
+          // If there are ranges from in conditions let's build proper ranges
+          // for them
           if (!in_ranges.empty()) {
-            // First make the in ranges unique and remove any which are contained by the main range (if it is non null)
+            // First make the in ranges unique and remove any which are
+            // contained by the main range (if it is non null)
             auto unique_in_ranges =
                 get_unique_non_contained_in_ranges(in_ranges, range);
 

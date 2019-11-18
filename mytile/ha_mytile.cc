@@ -54,16 +54,6 @@
 // Handler for mytile engine
 handlerton *mytile_hton;
 
-// system variables
-struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size),
-    MYSQL_SYSVAR(write_buffer_size),
-    MYSQL_SYSVAR(delete_arrays),
-    MYSQL_SYSVAR(tiledb_config),
-    MYSQL_SYSVAR(reopen_for_every_query),
-    MYSQL_SYSVAR(read_query_layout),
-    NULL};
-
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
@@ -91,7 +81,7 @@ ha_create_table_option mytile_field_option_list[] = {
 tiledb::Config tile::build_config(THD *thd) {
   tiledb::Config cfg = tiledb::Config();
 
-  std::string tiledb_config = THDVAR(thd, tiledb_config);
+  std::string tiledb_config = tile::sysvars::tiledb_config(thd);
 
   // If the config is not an empty string, split it from csv to key=value
   // strings
@@ -422,7 +412,7 @@ int tile::mytile::init_scan(
   this->status = tiledb::Query::Status::UNINITIALIZED;
 
   // Get the read buffer size, either from user session or system setting
-  this->read_buffer_size = THDVAR(thd, read_buffer_size);
+  this->read_buffer_size = tile::sysvars::read_buffer_size(thd);
 
   try {
     // Validate the array is open for reads
@@ -1001,7 +991,7 @@ void tile::mytile::drop_table(const char *name) {
  */
 int tile::mytile::delete_table(const char *name) {
   DBUG_ENTER("tile::mytile::delete_table");
-  if (!THDVAR(ha_thd(), delete_arrays)) {
+  if (!tile::sysvars::delete_arrays(ha_thd())) {
     DBUG_RETURN(0);
   }
 
@@ -1252,7 +1242,7 @@ void tile::mytile::setup_write() {
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
   my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
-  this->write_buffer_size = THDVAR(this->ha_thd(), write_buffer_size);
+  this->write_buffer_size = tile::sysvars::write_buffer_size(this->ha_thd());
   alloc_buffers(this->write_buffer_size);
   this->record_index = 0;
   // Reset buffer sizes to 0 for writes
@@ -1442,7 +1432,7 @@ ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
 
 void tile::mytile::open_array_for_reads(THD *thd) {
 
-  bool reopen_for_every_query = THDVAR(thd, reopen_for_every_query);
+  bool reopen_for_every_query = tile::sysvars::reopen_for_every_query(thd);
 
   // If we want to reopen for every query then we'll build a new context and do
   // it
@@ -1475,10 +1465,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
   }
 
   // Fetch user set read layout
-  uint64_t layout = THDVAR(thd, read_query_layout);
-
-  const char *layout_str = query_layout_names[layout];
-
+  const char *layout_str = tile::sysvars::read_query_layout(thd);
   tiledb_layout_t query_layout;
   tiledb_layout_from_str(layout_str, &query_layout);
 
@@ -1494,7 +1481,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {
-  bool reopen_for_every_query = THDVAR(thd, reopen_for_every_query);
+  bool reopen_for_every_query = tile::sysvars::reopen_for_every_query(thd);
 
   // If we want to reopen for every query then we'll build a new context and do
   // it
@@ -1582,9 +1569,9 @@ mysql_declare_plugin(mytile){
     NULL,                       /* Plugin Deinit */
     0x0001,                     /* version number (0.1) */
     NULL,                       /* status variables */
-    mytile_system_variables,    /* system variables */
-    NULL,                       /* config options */
-    0,                          /* flags */
+    tile::sysvars::mytile_system_variables, /* system variables */
+    NULL,                                   /* config options */
+    0,                                      /* flags */
 } mysql_declare_plugin_end;
 maria_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
@@ -1599,7 +1586,7 @@ maria_declare_plugin(mytile){
     NULL,                       /* Plugin Deinit */
     0x0001,                     /* version number (0.1) */
     NULL,                       /* status variables */
-    mytile_system_variables,    /* system variables */
-    "0.1",                      /* string version */
-    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL /* maturity */
+    tile::sysvars::mytile_system_variables, /* system variables */
+    "0.1",                                  /* string version */
+    MariaDB_PLUGIN_MATURITY_EXPERIMENTAL    /* maturity */
 } maria_declare_plugin_end;

@@ -74,3 +74,93 @@ bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
 
   return true;
 }
+
+void tile::dbg_print_key(const char *key, uint length,
+                         tiledb_datatype_t datatype) {
+  //  const char *end_ptr;
+  //  uint roop_count = 1;
+  DBUG_ENTER("dbg_print_key");
+  DBUG_PRINT("info", ("mytile key_length=%u", length));
+
+  std::string skey;
+  switch (datatype) {
+  case TILEDB_FLOAT32: {
+    float key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_FLOAT64: {
+    double key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_INT8: {
+    int8_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_UINT8: {
+    uint8_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_INT16: {
+    int16_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_UINT16: {
+    uint16_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_INT32: {
+    int32_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_UINT32: {
+    uint32_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_INT64: {
+    int64_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  case TILEDB_UINT64: {
+    uint64_t key1;
+    memcpy(&key1, key, sizeof(key1));
+    skey = std::to_string(key1);
+    break;
+  }
+  default:
+    // Log errors
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(ER_UNKNOWN_ERROR, "[dbg_print_key] unsupported datatype %s",
+                    ME_ERROR_LOG | ME_FATAL, datatype_str);
+    break;
+  }
+  DBUG_PRINT("info", ("mytile key=%s", skey.c_str()));
+  std::cerr << "mytile key=" << skey << std::endl;
+  /*end_ptr = key + length;
+  while (key < end_ptr)
+  {
+    DBUG_PRINT("info",("mytile key[%u]=%s", roop_count, key));
+    std::cerr << "mytile key[" << roop_count << "]=" << key << std::endl;
+    key = strchr(key, '\0') + 1;
+    roop_count++;
+  }*/
+  DBUG_VOID_RETURN;
+} /* print_key */

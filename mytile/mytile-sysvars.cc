@@ -82,6 +82,18 @@ static MYSQL_THDVAR_ENUM(read_query_layout, PLUGIN_VAR_OPCMDARG,
                          NULL, NULL, 2, // default to unordered
                          &query_layout_typelib);
 
+// Dimensions as primary keys
+static MYSQL_THDVAR_BOOL(dimensions_are_primary_keys,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "Should dimension be treated as primary keys", NULL,
+                         NULL, true);
+
+// Should predicates be pushdown where possible
+static MYSQL_THDVAR_BOOL(enable_pushdown,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "Pushdown predicates where possible", NULL, NULL,
+                         true);
+
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(read_buffer_size),
@@ -90,6 +102,8 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(tiledb_config),
     MYSQL_SYSVAR(reopen_for_every_query),
     MYSQL_SYSVAR(read_query_layout),
+    MYSQL_SYSVAR(dimensions_are_primary_keys),
+    MYSQL_SYSVAR(enable_pushdown),
     NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
@@ -109,5 +123,10 @@ const char *read_query_layout(THD *thd) {
   return query_layout_names[layout];
 }
 
+my_bool dimensions_are_primary_keys(THD *thd) {
+  return THDVAR(thd, dimensions_are_primary_keys);
+}
+
+my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
 } // namespace sysvars
 } // namespace tile

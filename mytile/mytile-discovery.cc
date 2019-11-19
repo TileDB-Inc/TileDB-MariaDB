@@ -32,6 +32,7 @@
 
 #include "mytile-discovery.h"
 #include "mytile.h"
+#include "mytile-sysvars.h"
 #include "utils.h"
 #include <log.h>
 #include <my_global.h>
@@ -58,6 +59,9 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
   tiledb::Context ctx = build_context(config);
   std::string array_uri;
   std::unique_ptr<tiledb::ArraySchema> schema;
+
+  bool dimensions_are_primary_keys =
+      tile::sysvars::dimensions_are_primary_keys(thd);
 
   // First try if the array_uri option is set
   if (info != nullptr && info->option_struct != nullptr &&
@@ -188,8 +192,28 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
       sql_string << ",";
     }
 
-    // move head back one so we can override last command
-    sql_string.seekp(-1, std::ios_base::end);
+    // Add primary key indicator
+    if (dimensions_are_primary_keys) {
+      // In the future we might want to set index instead of primary key when
+      // TileDB supports duplicates
+      std::vector<std::string> index_types = {"PRIMARY KEY"};
+      for (auto &index_type : index_types) {
+        sql_string << std::endl << index_type << "(";
+        for (const auto &dim : schema->domain().dimensions()) {
+          sql_string << "`" << dim.name() << "`,";
+        }
+        // move head back one so we can override last command
+        sql_string.seekp(-1, std::ios_base::end);
+
+        sql_string << "),"; // Closing parentheses for key
+      }
+
+      // move head back one so we can override last command
+      sql_string.seekp(-1, std::ios_base::end);
+    } else {
+      // move head back one so we can override last command
+      sql_string.seekp(-1, std::ios_base::end);
+    }
 
     sql_string << std::endl << ") ENGINE=MyTile ";
 

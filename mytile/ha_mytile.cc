@@ -749,7 +749,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   for (uint32_t i = 0; i < arglist->elements; i++) {
     if ((subitem = li++)) {
       // COND_ITEMs
-      cond_push(dynamic_cast<const COND *>(subitem));
+      cond_push_local(dynamic_cast<const COND *>(subitem));
     }
   }
   DBUG_RETURN(nullptr);
@@ -923,6 +923,15 @@ const COND *tile::mytile::cond_push(const COND *cond) {
   // NOTE: This is called one or more times by handle interface. Once for each
   // condition
 
+  if (!tile::sysvars::enable_pushdown(ha_thd())) {
+    DBUG_RETURN(cond);
+  }
+
+  DBUG_RETURN(cond_push_local(cond));
+}
+
+const COND *tile::mytile::cond_push_local(const COND *cond) {
+  DBUG_ENTER("tile::mytile::cond_push_local");
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty())
     for (uint64_t i = 0; i < this->ndim; i++)
@@ -955,7 +964,7 @@ const COND *tile::mytile::cond_push(const COND *cond) {
   }
   }
   DBUG_RETURN(cond);
-};
+}
 
 /**
   Pop the top condition from the condition stack of the storage engine
@@ -966,6 +975,12 @@ void tile::mytile::cond_pop() {
   DBUG_ENTER("tile::mytile::cond_pop");
 
   DBUG_VOID_RETURN;
+}
+
+Item *tile::mytile::idx_cond_push(uint keyno, Item *idx_cond) {
+  DBUG_ENTER("tile::mytile::idx_cond_push");
+  auto ret = cond_push_local(static_cast<Item_cond *>(idx_cond));
+  DBUG_RETURN(const_cast<Item *>(ret));
 }
 
 /**
@@ -1427,7 +1442,8 @@ int tile::mytile::write_row(const uchar *buf) {
 ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
   DBUG_ENTER("tile::mytile::index_flags");
   DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
-              HA_DO_RANGE_FILTER_PUSHDOWN);
+              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN |
+              HA_DO_INDEX_COND_PUSHDOWN);
 }
 
 void tile::mytile::open_array_for_reads(THD *thd) {
@@ -1554,6 +1570,70 @@ bool tile::mytile::valid_pushed_in_ranges() {
   }
 
   return one_valid_range;
+}
+
+int tile::mytile::index_init(uint idx, bool sorted) {
+  DBUG_ENTER("tile::mytile::index_init");
+  DBUG_RETURN(init_scan(
+      this->ha_thd(),
+      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
+}
+
+int tile::mytile::index_end() {
+  DBUG_ENTER("tile::mytile::index_end");
+  DBUG_RETURN(rnd_end());
+}
+
+/**
+ * This calls index_read_idx_map to find a row based on a key
+ * @param buf
+ * @param key
+ * @param keypart_map
+ * @param find_flag
+ * @return
+ */
+int tile::mytile::index_read_map(uchar *buf, const uchar *key,
+                                 key_part_map keypart_map,
+                                 enum ha_rkey_function find_flag) {
+  DBUG_ENTER("tile::mytile::index_read_map");
+  DBUG_RETURN(rnd_row(table));
+}
+
+int tile::mytile::index_first(uchar *buf) {
+  DBUG_ENTER("tile::mytile::index_first");
+  DBUG_RETURN(rnd_row(table));
+}
+
+int tile::mytile::index_next(uchar *buf) {
+  DBUG_ENTER("tile::mytile::index_next");
+  DBUG_RETURN(rnd_row(table));
+}
+
+/**
+ * Find a row based on a given key, currently only primary keys are supported
+ * @param buf
+ * @param idx
+ * @param key
+ * @param keypart_map
+ * @param find_flag
+ * @return
+ */
+int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
+                                     key_part_map keypart_map,
+                                     enum ha_rkey_function find_flag) {
+  DBUG_ENTER("tile::mytile::index_read_idx_map");
+
+  uint key_len = calculate_key_len(table, idx, key, keypart_map);
+  tile::dbg_print_key(reinterpret_cast<const char *>(key), key_len,
+                      this->array_schema->domain().type());
+
+  int rc = init_scan(
+      this->ha_thd(),
+      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  if (rc)
+    DBUG_RETURN(rc);
+
+  DBUG_RETURN(rnd_row(table));
 }
 
 mysql_declare_plugin(mytile){

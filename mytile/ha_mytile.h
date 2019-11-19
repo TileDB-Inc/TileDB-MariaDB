@@ -132,7 +132,7 @@ public:
   int rnd_init(bool scan) override;
 
   /**
-   * Rext next Row
+   * Read next Row
    * @return
    */
   int rnd_row(TABLE *table);
@@ -235,6 +235,8 @@ public:
 */
   const COND *cond_push(const COND *cond) override;
 
+  const COND *cond_push_local(const COND *cond);
+
   /**
     Pop the top condition from the condition stack of the storage engine
     for each partition.
@@ -244,10 +246,10 @@ public:
   ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
   /**
-   * Returns limit on the number of keys imposed by tokudb.
+   * Returns limit on the number of keys imposed.
    * @return
    */
-  uint max_supported_keys() const override { return 1; }
+  uint max_supported_keys() const override { return MAX_INDEXES; }
 
   /*
    * Store lock
@@ -290,6 +292,35 @@ public:
    * @return
    */
   int info(uint) override;
+
+  int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
+                     enum ha_rkey_function find_flag) override;
+
+  int index_read_idx_map(uchar *buf, uint idx, const uchar *key,
+                         key_part_map keypart_map,
+                         enum ha_rkey_function find_flag) override;
+
+  bool primary_key_is_clustered() override { return FALSE; }
+
+  Item *idx_cond_push(uint keyno, Item *idx_cond) override;
+
+  int index_init(uint idx, bool sorted) override;
+
+  int index_end() override;
+
+  /**
+   * Read "first" row
+   * @param buf
+   * @return
+   */
+  int index_first(uchar *buf) override;
+
+  /**
+   * Read next row
+   * @param buf
+   * @return
+   */
+  int index_next(uchar *buf) override;
 
 private:
   // Table uri

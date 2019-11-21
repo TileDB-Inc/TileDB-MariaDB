@@ -292,10 +292,6 @@ public:
   int info(uint) override;
 
 private:
-  THR_LOCK_DATA lock;        ///< MySQL lock
-  mytile_share *share;       ///< Shared lock info
-  mytile_share *get_share(); ///< Get the share
-
   // Table uri
   std::string uri;
 

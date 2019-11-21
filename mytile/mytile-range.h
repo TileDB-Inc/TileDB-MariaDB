@@ -250,8 +250,9 @@ merge_ranges(std::vector<std::shared_ptr<range>> &ranges) {
 }
 
 /**
- * Takes a vector of ranges build from IN predicates and returns a unique vector of ranges
- * which are not contained by the existing main super range (if non null) and are unique
+ * Takes a vector of ranges build from IN predicates and returns a unique vector
+ * of ranges which are not contained by the existing main super range (if non
+ * null) and are unique
  * @param in_ranges
  * @param main_range
  * @return

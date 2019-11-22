@@ -1574,9 +1574,18 @@ bool tile::mytile::valid_pushed_in_ranges() {
 
 int tile::mytile::index_init(uint idx, bool sorted) {
   DBUG_ENTER("tile::mytile::index_init");
-  DBUG_RETURN(init_scan(
+  // If we are doing an index scan we need to use row-major order to get the
+  // results in the expected order
+  int rc = init_scan(
       this->ha_thd(),
-      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
+      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+
+  if (rc)
+    DBUG_RETURN(rc);
+
+  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+
+  DBUG_RETURN(0);
 }
 
 int tile::mytile::index_end() {
@@ -1592,10 +1601,20 @@ int tile::mytile::index_end() {
  * @param find_flag
  * @return
  */
-int tile::mytile::index_read_map(uchar *buf, const uchar *key,
-                                 key_part_map keypart_map,
-                                 enum ha_rkey_function find_flag) {
+int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
+                             enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read_map");
+  // If no conditions or index have been pushed, use key scan info to push a
+  // range down
+  if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) {
+    this->reset_pushdowns_for_key(key, key_len, find_flag);
+    int rc = init_scan(
+        this->ha_thd(),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+
+    if (rc)
+      DBUG_RETURN(rc);
+  }
   DBUG_RETURN(rnd_row(table));
 }
 
@@ -1624,8 +1643,14 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
   DBUG_ENTER("tile::mytile::index_read_idx_map");
 
   uint key_len = calculate_key_len(table, idx, key, keypart_map);
-  tile::dbg_print_key(reinterpret_cast<const char *>(key), key_len,
-                      this->array_schema->domain().type());
+
+  // If no conditions or index have been pushed, use key scan info to push a
+  // range down
+  if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())
+    this->reset_pushdowns_for_key(key, key_len, find_flag);
+
+  // If we are doing an index scan we need to use row-major order to get the
+  // results in the expected order
 
   int rc = init_scan(
       this->ha_thd(),
@@ -1633,7 +1658,38 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
   if (rc)
     DBUG_RETURN(rc);
 
+  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+
   DBUG_RETURN(rnd_row(table));
+}
+
+ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
+                                       key_range *max_key) {
+  return (ha_rows)10000;
+}
+
+int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
+                                          enum ha_rkey_function find_flag) {
+  DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
+  std::vector<std::shared_ptr<tile::range>> ranges_from_keys =
+      tile::build_ranges_from_key(key, key_len, find_flag,
+                                  this->array_schema->domain().type());
+
+  if (!ranges_from_keys.empty()) {
+    this->pushdown_ranges.clear();
+    this->pushdown_in_ranges.clear();
+
+    for (uint64_t i = 0; i < this->ndim; i++) {
+      this->pushdown_ranges.emplace_back();
+      this->pushdown_in_ranges.emplace_back();
+    }
+
+    // Copy shared pointer to main range pushdown
+    for (uint64_t i = 0; i < ranges_from_keys.size(); i++) {
+      this->pushdown_ranges[i].push_back(ranges_from_keys[i]);
+    }
+  }
+  DBUG_RETURN(0);
 }
 
 mysql_declare_plugin(mytile){

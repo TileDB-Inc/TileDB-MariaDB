@@ -305,3 +305,86 @@ tile::get_unique_non_contained_in_ranges(
 
   return {};
 }
+
+Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag) {
+  switch (find_flag) {
+  case HA_READ_KEY_EXACT:
+    return Item_func::Functype::EQ_FUNC;
+  case HA_READ_KEY_OR_NEXT:
+    return Item_func::Functype::GE_FUNC;
+  case HA_READ_KEY_OR_PREV:
+    return Item_func::Functype::LE_FUNC;
+  case HA_READ_AFTER_KEY:
+    return Item_func::Functype::GT_FUNC;
+  case HA_READ_BEFORE_KEY:
+    return Item_func::Functype::LT_FUNC;
+  case HA_READ_PREFIX:
+    return Item_func::Functype::EQ_FUNC;
+  case HA_READ_PREFIX_LAST:
+    return Item_func::Functype::EQ_FUNC;
+  case HA_READ_PREFIX_LAST_OR_PREV:
+    return Item_func::Functype::EQ_FUNC;
+  case HA_READ_MBR_CONTAIN:
+  case HA_READ_MBR_INTERSECT:
+  case HA_READ_MBR_WITHIN:
+  case HA_READ_MBR_DISJOINT:
+  case HA_READ_MBR_EQUAL:
+    my_printf_error(ER_UNKNOWN_ERROR, "Unsupported ha_rkey_function",
+                    ME_ERROR_LOG | ME_FATAL);
+  }
+  return Item_func::Functype::EQ_FUNC;
+}
+
+std::vector<std::shared_ptr<tile::range>>
+tile::build_ranges_from_key(const uchar *key, uint length,
+                            enum ha_rkey_function find_flag,
+                            tiledb_datatype_t datatype) {
+  // Length shouldn't be zero here but better safe then segfault!
+  if (length == 0)
+    return {};
+
+  switch (datatype) {
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return build_ranges_from_key<double>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return build_ranges_from_key<float>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_INT8:
+    return build_ranges_from_key<int8_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return build_ranges_from_key<uint8_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_INT16:
+    return build_ranges_from_key<int16_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return build_ranges_from_key<uint16_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_INT32:
+    return build_ranges_from_key<int32_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return build_ranges_from_key<uint32_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    return build_ranges_from_key<int64_t>(key, length, find_flag, datatype);
+
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return build_ranges_from_key<uint64_t>(key, length, find_flag, datatype);
+
+  default: {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unknown or unsupported tiledb data type in "
+                    "build_ranges_from_key: %s",
+                    ME_ERROR_LOG | ME_FATAL, datatype_str);
+  }
+  }
+  return {};
+}

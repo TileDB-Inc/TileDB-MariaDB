@@ -293,8 +293,8 @@ public:
    */
   int info(uint) override;
 
-  int index_read_map(uchar *buf, const uchar *key, key_part_map keypart_map,
-                     enum ha_rkey_function find_flag) override;
+  int index_read(uchar *buf, const uchar *key, uint key_len,
+                 enum ha_rkey_function find_flag) override;
 
   int index_read_idx_map(uchar *buf, uint idx, const uchar *key,
                          key_part_map keypart_map,
@@ -321,6 +321,9 @@ public:
    * @return
    */
   int index_next(uchar *buf) override;
+
+  ha_rows records_in_range(uint inx, key_range *min_key,
+                           key_range *max_key) override;
 
 private:
   // Table uri
@@ -405,5 +408,8 @@ private:
    * @return
    */
   bool valid_pushed_in_ranges();
+
+  int reset_pushdowns_for_key(const uchar *key, uint key_len,
+                              enum ha_rkey_function find_flag);
 };
 } // namespace tile

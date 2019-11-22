@@ -330,4 +330,132 @@ std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
 
   return ret;
 }
+
+/**
+ * Converts from key find flag enum to functype used by ranges
+ * @param find_flag
+ * @return
+ */
+Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag);
+
+/**
+ *
+ * Takes a key and find_flag and converts to the a vector of ranges.
+ * @param key
+ * @param length
+ * @param find_flag
+ * @param datatype
+ * @return
+ */
+std::vector<std::shared_ptr<tile::range>>
+build_ranges_from_key(const uchar *key, uint length,
+                      enum ha_rkey_function find_flag,
+                      tiledb_datatype_t datatype);
+
+/**
+ * Takes a key and find_flag and converts to the a vector of ranges.
+ * @tparam T
+ * @param key
+ * @param length
+ * @param find_flag
+ * @param datatype
+ * @return
+ */
+template <typename T>
+std::vector<std::shared_ptr<tile::range>>
+build_ranges_from_key(const uchar *key, uint length,
+                      enum ha_rkey_function find_flag,
+                      tiledb_datatype_t datatype) {
+  // Length shouldn't be zero here but better safe then segfault!
+  if (length == 0)
+    return {};
+
+  uint dims_with_keys = length / sizeof(T);
+
+  std::vector<std::shared_ptr<tile::range>> ranges;
+
+  const T *key_typed = reinterpret_cast<const T *>(key);
+  // Handle all keys but the last one
+  for (size_t i = 0; i < dims_with_keys - 1; i++) {
+    std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
+        tile::range{std::unique_ptr<void, decltype(&std::free)>(
+                        std::malloc(sizeof(T)), &std::free),
+                    std::unique_ptr<void, decltype(&std::free)>(
+                        std::malloc(sizeof(T)), &std::free),
+                    Item_func::EQ_FUNC, datatype});
+
+    memcpy(range->lower_value.get(), &key_typed[i], sizeof(T));
+    memcpy(range->upper_value.get(), &key_typed[i], sizeof(T));
+
+    ranges.push_back(std::move(range));
+  }
+
+  std::shared_ptr<tile::range> last_dimension_range =
+      std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(T)),
+                                                      &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(T)),
+                                                      &std::free),
+          find_flag_to_func(find_flag), datatype});
+
+  T lower = key_typed[dims_with_keys - 1];
+  T upper = key_typed[dims_with_keys - 1];
+
+  // The last key part, is where a range operation might be specified
+  // So for this last dimension we must check to see if we need to set the lower
+  // or upper bound and if we need to convert from greater/less than to the
+  // greater/less than or equal to format.
+  switch (last_dimension_range->operation_type) {
+  // If we have greater than, lets make it greater than or equal
+  // TileDB ranges are inclusive
+  case Item_func::GT_FUNC: {
+    last_dimension_range->operation_type = Item_func::GE_FUNC;
+    if (std::is_floating_point<T>()) {
+      lower = std::nextafter<T>(lower, 1.0f);
+    } else {
+      lower += 1;
+    }
+    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
+    last_dimension_range->upper_value = nullptr;
+    break;
+  }
+  case Item_func::GE_FUNC: {
+    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
+    last_dimension_range->upper_value = nullptr;
+    break;
+  }
+  case Item_func::LT_FUNC: {
+    // If we have less than, lets make it less than or equal
+    // TileDB ranges are inclusive
+    last_dimension_range->operation_type = Item_func::LE_FUNC;
+    if (std::is_floating_point<T>()) {
+      upper = std::nextafter<T>(lower, -1.0f);
+    } else {
+      upper -= 1;
+    }
+    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
+    last_dimension_range->lower_value = nullptr;
+    break;
+  }
+  case Item_func::LE_FUNC: {
+    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
+    last_dimension_range->lower_value = nullptr;
+    break;
+  }
+  case Item_func::EQ_FUNC: {
+    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
+    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
+    break;
+  }
+  default:
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unsupported Item_func::functype in build_ranges_from_key",
+                    ME_ERROR_LOG | ME_FATAL);
+    break;
+  }
+
+  ranges.push_back(std::move(last_dimension_range));
+
+  return ranges;
+}
 } // namespace tile

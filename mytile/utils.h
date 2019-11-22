@@ -104,6 +104,4 @@ tiledb::Context build_context(tiledb::Config &cfg);
  * @return true is identical, false otherwise
  */
 bool compare_configs(tiledb::Config &rhs, tiledb::Config &lhs);
-
-void dbg_print_key(const char *key, uint length, tiledb_datatype_t datatype);
 } // namespace tile

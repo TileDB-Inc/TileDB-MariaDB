@@ -1640,11 +1640,13 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
 
 int tile::mytile::index_first(uchar *buf) {
   DBUG_ENTER("tile::mytile::index_first");
+  // Treat just as normal row read
   DBUG_RETURN(rnd_row(table));
 }
 
 int tile::mytile::index_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::index_next");
+  // Treat just as normal row read
   DBUG_RETURN(rnd_row(table));
 }
 

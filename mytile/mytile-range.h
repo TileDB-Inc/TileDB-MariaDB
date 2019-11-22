@@ -374,9 +374,11 @@ build_ranges_from_key(const uchar *key, uint length,
 
   std::vector<std::shared_ptr<tile::range>> ranges;
 
+  // Cast key to array of type T
   const T *key_typed = reinterpret_cast<const T *>(key);
   // Handle all keys but the last one
   for (size_t i = 0; i < dims_with_keys - 1; i++) {
+    // Initialize range
     std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
         tile::range{std::unique_ptr<void, decltype(&std::free)>(
                         std::malloc(sizeof(T)), &std::free),
@@ -384,12 +386,16 @@ build_ranges_from_key(const uchar *key, uint length,
                         std::malloc(sizeof(T)), &std::free),
                     Item_func::EQ_FUNC, datatype});
 
+    // Copy value into range settings
+    // We can set lower/upper to key value because enforces equality for all key
+    // parts except the last that is set which is handled below
     memcpy(range->lower_value.get(), &key_typed[i], sizeof(T));
     memcpy(range->upper_value.get(), &key_typed[i], sizeof(T));
 
     ranges.push_back(std::move(range));
   }
 
+  // Handle the last dimension
   std::shared_ptr<tile::range> last_dimension_range =
       std::make_shared<tile::range>(tile::range{
           std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(T)),

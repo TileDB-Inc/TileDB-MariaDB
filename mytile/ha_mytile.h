@@ -380,6 +380,7 @@ private:
   // in bulk write mode
   bool bulk_write = false;
 
+  // Upper bound for records, used for table stats by optimized
   uint64_t records_upper_bound = 2;
 
   /**

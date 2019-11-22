@@ -417,7 +417,7 @@ build_ranges_from_key(const uchar *key, uint length,
   case Item_func::GT_FUNC: {
     last_dimension_range->operation_type = Item_func::GE_FUNC;
     if (std::is_floating_point<T>()) {
-      lower = std::nextafter<T>(lower, 1.0f);
+      lower = std::nextafter(lower, static_cast<T>(1.0f));
     } else {
       lower += 1;
     }
@@ -435,7 +435,7 @@ build_ranges_from_key(const uchar *key, uint length,
     // TileDB ranges are inclusive
     last_dimension_range->operation_type = Item_func::LE_FUNC;
     if (std::is_floating_point<T>()) {
-      upper = std::nextafter<T>(lower, -1.0f);
+      upper = std::nextafter(lower, static_cast<T>(-1.0f));
     } else {
       upper -= 1;
     }

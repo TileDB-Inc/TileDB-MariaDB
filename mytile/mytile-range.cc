@@ -212,7 +212,7 @@ int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
       // If we have greater than, lets make it greater than or equal
       // TileDB ranges are inclusive
       if (range->operation_type == Item_func::GT_FUNC) {
-        lower = std::nextafter<double>(lower, 1.0f);
+        lower = std::nextafter(lower, 1.0f);
         range->operation_type = Item_func::GE_FUNC;
       }
 
@@ -227,7 +227,7 @@ int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
       // If we have less than, lets make it less than or equal
       // TileDB ranges are inclusive
       if (range->operation_type == Item_func::LT_FUNC) {
-        upper = std::nextafter<double>(upper, -1.0f);
+        upper = std::nextafter(upper, -1.0f);
         range->operation_type = Item_func::LE_FUNC;
       }
 

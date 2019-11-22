@@ -240,6 +240,26 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     // of a subarray for querying
     this->ref_length = (this->ndim * tiledb_datatype_size(domain.type()) * 2);
 
+    // If the user requests we will compute the table records on opening the
+    // array
+    if (tile::sysvars::compute_table_records(ha_thd())) {
+
+      open_array_for_reads(ha_thd());
+
+      uint64_t subarray_size =
+          tiledb_datatype_size(domain.type()) * this->ndim * 2;
+      auto subarray = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(subarray_size), &std::free);
+      int empty;
+
+      // Get the non empty domain
+      this->ctx.handle_error(tiledb_array_get_non_empty_domain(
+          this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
+          &empty));
+
+      this->records_upper_bound = computeRecordsUB(this->array, subarray.get());
+    }
+
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "open error for table %s : %s",
@@ -1044,7 +1064,7 @@ int tile::mytile::info(uint) {
   DBUG_ENTER("tile::mytile::info");
   // Need records to be greater than 1 to avoid 0/1 row optimizations by query
   // optimizer
-  stats.records = 2;
+  stats.records = this->records_upper_bound;
   DBUG_RETURN(0);
 };
 

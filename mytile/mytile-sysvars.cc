@@ -94,17 +94,26 @@ static MYSQL_THDVAR_BOOL(enable_pushdown,
                          "Pushdown predicates where possible", NULL, NULL,
                          true);
 
-// system variables
-struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size),
-    MYSQL_SYSVAR(write_buffer_size),
-    MYSQL_SYSVAR(delete_arrays),
-    MYSQL_SYSVAR(tiledb_config),
-    MYSQL_SYSVAR(reopen_for_every_query),
-    MYSQL_SYSVAR(read_query_layout),
-    MYSQL_SYSVAR(dimensions_are_primary_keys),
-    MYSQL_SYSVAR(enable_pushdown),
-    NULL};
+// Computing records in array can be intensive, but sometimes the trade off is
+// worth it for smarter optimizer should we compute the record upper bound on
+// array open?
+static MYSQL_THDVAR_BOOL(compute_table_records,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "compute size of table (record count) on opening",
+                         NULL, NULL, false)
+
+    // system variables
+    struct st_mysql_sys_var *mytile_system_variables[] = {
+        MYSQL_SYSVAR(read_buffer_size),
+        MYSQL_SYSVAR(write_buffer_size),
+        MYSQL_SYSVAR(delete_arrays),
+        MYSQL_SYSVAR(tiledb_config),
+        MYSQL_SYSVAR(reopen_for_every_query),
+        MYSQL_SYSVAR(read_query_layout),
+        MYSQL_SYSVAR(dimensions_are_primary_keys),
+        MYSQL_SYSVAR(enable_pushdown),
+        MYSQL_SYSVAR(compute_table_records),
+        NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
 
@@ -128,5 +137,9 @@ my_bool dimensions_are_primary_keys(THD *thd) {
 }
 
 my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
+
+my_bool compute_table_records(THD *thd) {
+  return THDVAR(thd, compute_table_records);
+}
 } // namespace sysvars
 } // namespace tile

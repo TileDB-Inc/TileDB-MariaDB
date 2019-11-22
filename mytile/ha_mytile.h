@@ -322,6 +322,10 @@ public:
    */
   int index_next(uchar *buf) override;
 
+  /**
+   * Implement initial records in range
+   * Currently returns static large value
+   */
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key) override;
 
@@ -376,6 +380,8 @@ private:
   // in bulk write mode
   bool bulk_write = false;
 
+  uint64_t records_upper_bound = 2;
+
   /**
    * Helper to setup writes
    */
@@ -409,6 +415,13 @@ private:
    */
   bool valid_pushed_in_ranges();
 
+  /**
+   * Reset condition pushdowns to be for key conditions
+   * @param key key(s) to pushdown
+   * @param key_len
+   * @param find_flag equality condition of last key
+   * @return
+   */
   int reset_pushdowns_for_key(const uchar *key, uint key_len,
                               enum ha_rkey_function find_flag);
 };

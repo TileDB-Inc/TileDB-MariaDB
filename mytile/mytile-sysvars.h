@@ -60,6 +60,8 @@ const char *read_query_layout(THD *thd);
 my_bool dimensions_are_primary_keys(THD *thd);
 
 my_bool enable_pushdown(THD *thd);
+
+my_bool compute_table_records(THD *thd);
 } // namespace sysvars
 } // namespace tile
 

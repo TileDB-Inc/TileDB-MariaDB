@@ -602,6 +602,7 @@ int tile::mytile::rnd_end() {
   this->status = tiledb::Query::Status::UNINITIALIZED;
   this->total_num_records_UB = 0;
   this->query = nullptr;
+  ds_mrr.dsmrr_close();
   DBUG_RETURN(close());
 };
 
@@ -1548,6 +1549,105 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
   }
   DBUG_RETURN(0);
 }
+
+/****************************************************************************
+ * Maria MRR implementation: use DS-MRR
+ ***************************************************************************/
+
+int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                        uint n_ranges, uint mode,
+                                        HANDLER_BUFFER *buf) {
+
+  DBUG_ENTER("tile::mytile::multi_range_read_init");
+  mrr_iter = seq->init(seq_init_param, n_ranges, mode);
+  mrr_funcs = *seq;
+
+  this->pushdown_ranges.clear();
+  this->pushdown_in_ranges.clear();
+
+  for (uint64_t i = 0; i < this->ndim; i++) {
+    this->pushdown_ranges.emplace_back();
+    this->pushdown_in_ranges.emplace_back();
+  }
+
+  while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
+
+    std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
+    std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
+    if (this->mrr_cur_range.start_key.key != nullptr) {
+      ranges_from_key_start = tile::build_ranges_from_key(
+          this->mrr_cur_range.start_key.key,
+          this->mrr_cur_range.start_key.length, HA_READ_KEY_OR_NEXT,
+          this->array_schema->domain().type());
+    }
+    if (this->mrr_cur_range.end_key.key != nullptr) {
+      ranges_from_key_end = tile::build_ranges_from_key(
+          this->mrr_cur_range.end_key.key, this->mrr_cur_range.end_key.length,
+          HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
+    }
+
+    if (!ranges_from_key_start.empty() || !ranges_from_key_end.empty()) {
+
+      // Copy shared pointer to main range pushdown
+      for (uint64_t i = 0; i < ranges_from_key_start.size(); i++) {
+        std::vector<std::shared_ptr<tile::range>>
+            combined_ranges_for_dimension = {ranges_from_key_start[i]};
+        if (ranges_from_key_end.size() > i) {
+          combined_ranges_for_dimension.push_back(ranges_from_key_end[i]);
+        }
+
+        auto merged_range = merge_ranges(combined_ranges_for_dimension,
+                                         this->array_schema->domain().type());
+        this->pushdown_in_ranges[i].push_back(merged_range);
+      }
+    }
+  }
+
+  int rc = init_scan(
+      this->ha_thd(),
+      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  if (rc)
+    DBUG_RETURN(rc);
+
+  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+
+  DBUG_RETURN(
+      ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf));
+}
+
+int tile::mytile::multi_range_read_next(range_id_t *range_info) {
+  return ds_mrr.dsmrr_next(range_info);
+}
+
+ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                                  void *seq_init_param,
+                                                  uint n_ranges, uint *bufsz,
+                                                  uint *flags,
+                                                  Cost_estimate *cost) {
+  /*
+    This call is here because there is no location where this->table would
+    already be known.
+    TODO: consider moving it into some per-query initialization call.
+  */
+  ds_mrr.init(this, table);
+  return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
+                                 flags, cost);
+}
+
+ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
+                                            uint keys, uint key_parts,
+                                            uint *bufsz, uint *flags,
+                                            Cost_estimate *cost) {
+  ds_mrr.init(this, table);
+  return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags,
+                           cost);
+}
+
+int tile::mytile::multi_range_read_explain_info(uint mrr_mode, char *str,
+                                                size_t size) {
+  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+}
+/* MyISAM MRR implementation ends */
 
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)

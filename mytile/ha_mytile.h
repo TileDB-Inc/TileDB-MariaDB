@@ -354,7 +354,7 @@ public:
    * @return false to workaround mariadb assuming sequential index scans are
    * faster than pushdown
    */
-  bool primary_key_is_clustered() override { return FALSE; }
+  bool primary_key_is_clustered() override { return TRUE; }
 
   /**
    * Pushdown an index condition
@@ -399,7 +399,25 @@ public:
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key) override;
 
+  /**
+   * Multi Range Read interface
+   */
+  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                            uint n_ranges, uint mode,
+                            HANDLER_BUFFER *buf) override;
+  int multi_range_read_next(range_id_t *range_info) override;
+  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                      void *seq_init_param, uint n_ranges,
+                                      uint *bufsz, uint *flags,
+                                      Cost_estimate *cost) override;
+  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                uint key_parts, uint *bufsz, uint *flags,
+                                Cost_estimate *cost) override;
+  int multi_range_read_explain_info(uint mrr_mode, char *str,
+                                    size_t size) override;
+
 private:
+  DsMrr_impl ds_mrr;
   // Table uri
   std::string uri;
 

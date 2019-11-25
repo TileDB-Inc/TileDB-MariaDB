@@ -1522,7 +1522,7 @@ bool tile::mytile::valid_pushed_ranges() {
   for (auto &range : this->pushdown_ranges) {
     if (!range.empty()) {
       for (auto &range_ptr : range) {
-        if (range_ptr != nullptr) {
+        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr || range_ptr->upper_value != nullptr)) {
           one_valid_range = true;
         }
       }
@@ -1541,7 +1541,7 @@ bool tile::mytile::valid_pushed_in_ranges() {
   for (auto &range : this->pushdown_in_ranges) {
     if (!range.empty()) {
       for (auto &range_ptr : range) {
-        if (range_ptr != nullptr) {
+        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr || range_ptr->upper_value != nullptr)) {
           one_valid_range = true;
         }
       }

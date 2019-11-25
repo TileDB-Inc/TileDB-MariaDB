@@ -414,14 +414,16 @@ int tile::mytile::init_scan(
       if (empty)
         DBUG_RETURN(HA_ERR_END_OF_FILE);
 
-      sql_print_information("no pushdowns possible for query");
+      sql_print_information("no pushdowns possible for query on table %s",
+                            this->table->s->table_name.str);
 
       // Set subarray using capi
       this->ctx.handle_error(tiledb_query_set_subarray(
           this->ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
 
     } else {
-      sql_print_information("pushdown of ranges for query");
+      sql_print_information("pushdown of ranges for query on table %s",
+                            this->table->s->table_name.str);
 
       // Loop over dimensions and build rangers for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
@@ -440,7 +442,8 @@ int tile::mytile::init_scan(
         // If the ranges for this dimension are not empty, we'll push it down
         // else non empty domain is used
         if (!ranges.empty() || !in_ranges.empty()) {
-          sql_print_information("Pushdown for %s",
+          sql_print_information("Pushdown for %s.%s",
+                                this->table->s->table_name.str,
                                 dims[dim_idx].name().c_str());
 
           std::shared_ptr<tile::range> range = nullptr;

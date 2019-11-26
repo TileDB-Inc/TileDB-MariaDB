@@ -43,6 +43,7 @@
 #include <handler.h>
 #include <memory>
 #include <tiledb/tiledb>
+#include <queue>
 
 #include "handler.h"   /* handler */
 #include "my_base.h"   /* ha_rows */
@@ -513,5 +514,11 @@ private:
    */
   int reset_pushdowns_for_key(const uchar *key, uint key_len,
                               enum ha_rkey_function find_flag);
+
+  int build_mrr_ranges();
+
+  std::queue<KEY_MULTI_RANGE> mrr_key_ranges;
+
+  bool query_complete();
 };
 } // namespace tile

@@ -207,11 +207,11 @@ merge_ranges(std::vector<std::shared_ptr<range>> &ranges) {
   if (ranges.empty())
     return nullptr;
 
-  // Set the last element as the default for the merged range, this gives us
+  // Set the first element as the default for the merged range, this gives us
   // some initial values to compare against
-  merged_range = std::move(ranges[ranges.size() - 1]);
-  // Remove last element since its now set as initial range
-  ranges.pop_back();
+  merged_range = std::move(ranges[0]);
+  // Remove first element since its now set as initial range
+  ranges.erase(ranges.begin());
 
   // loop through ranges and set upper/lower maxima/minima
   for (auto &range : ranges) {
@@ -269,7 +269,8 @@ std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
   // Return unique non contained ranges
   std::vector<std::shared_ptr<range>> ret;
 
-  std::unordered_set<T> unique_values;
+  std::unordered_set<T> unique_values_set;
+  std::vector<T> unique_values_vec;
 
   // get datatype
   tiledb_datatype_t datatype;
@@ -302,11 +303,14 @@ std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
     }
 
     // Add value to set
-    unique_values.insert(range_lower_value);
+    if (unique_values_set.count(range_lower_value) == 0) {
+      unique_values_set.insert(range_lower_value);
+      unique_values_vec.push_back(range_lower_value);
+    }
   }
 
   // from unique values build final ranges
-  for (T val : unique_values) {
+  for (T val : unique_values_vec) {
     // Build range pointer
     std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),

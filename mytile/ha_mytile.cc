@@ -512,6 +512,25 @@ int tile::mytile::rnd_init(bool scan) {
       std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
 };
 
+bool tile::mytile::query_complete() {
+  DBUG_ENTER("tile::mytile::query_complete");
+  // If we have run out of records report EOF
+  // note the upper bound of records might be *more* than actual results, thus
+  // this check is not guaranteed see the next check were we look for complete
+  // query and row position
+  if (this->records_read >= this->total_num_records_UB) {
+    DBUG_RETURN(true);
+  }
+
+  // If we are complete and there is no more records we report EOF
+  if (this->status == tiledb::Query::Status::COMPLETE &&
+      static_cast<int64_t>(this->record_index) >= this->records) {
+    DBUG_RETURN(true);
+  }
+
+  DBUG_RETURN(false);
+}
+
 int tile::mytile::rnd_row(TABLE *table) {
   DBUG_ENTER("tile::mytile::rnd_row");
   int rc = 0;
@@ -523,19 +542,7 @@ int tile::mytile::rnd_row(TABLE *table) {
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
 
-  // If we have run out of records report EOF
-  // note the upper bound of records might be *more* than actual results, thus
-  // this check is not guaranteed see the next check were we look for complete
-  // query and row position
-  if (this->records_read >= this->total_num_records_UB) {
-    // Reset bitmap to original
-    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
-  }
-
-  // If we are complete and there is no more records we report EOF
-  if (this->status == tiledb::Query::Status::COMPLETE &&
-      static_cast<int64_t>(this->record_index) >= this->records) {
+  if (this->query_complete()) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(table->write_set, original_bitmap);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
@@ -598,6 +605,7 @@ int tile::mytile::rnd_end() {
   dealloc_buffers();
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
+  std::queue<KEY_MULTI_RANGE>().swap(this->mrr_key_ranges);
   // Reset indicators
   this->record_index = 0;
   this->records = 0;
@@ -1557,14 +1565,8 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
  * Maria MRR implementation: use DS-MRR
  ***************************************************************************/
 
-int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
-                                        uint n_ranges, uint mode,
-                                        HANDLER_BUFFER *buf) {
-
-  DBUG_ENTER("tile::mytile::multi_range_read_init");
-  mrr_iter = seq->init(seq_init_param, n_ranges, mode);
-  mrr_funcs = *seq;
-
+int tile::mytile::build_mrr_ranges() {
+  DBUG_ENTER("tile::mytile::build_mrr_ranges");
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
 
@@ -1573,20 +1575,44 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
     this->pushdown_in_ranges.emplace_back();
   }
 
-  while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
+  while (!mrr_key_ranges.empty()) {
+
+    const KEY_MULTI_RANGE range = mrr_key_ranges.front();
+
+    bool break_ranges = false;
+    if (this->valid_pushed_in_ranges()) {
+      tiledb_datatype_t datatype = this->array_schema->domain().type();
+      uint64_t datatype_size = tiledb_datatype_size(datatype);
+
+      // Check all by last dimension for equality, if the key has moved to
+      // another range except the last dimension we need to stop and split
+      // because the multi-range cross product is no longer valid for expected
+      // mariadb results.
+      for (uint64_t i = 0; i < this->ndim - 1; i++) {
+        if (std::memcmp(range.start_key.key + (datatype_size * i),
+                        this->pushdown_in_ranges[i][0]->lower_value.get(),
+                        datatype_size) != 0) {
+          break_ranges = true;
+          break;
+        }
+      }
+    }
+
+    if (break_ranges) {
+      break;
+    }
 
     std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
     std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
-    if (this->mrr_cur_range.start_key.key != nullptr) {
+    if (range.start_key.key != nullptr) {
       ranges_from_key_start = tile::build_ranges_from_key(
-          this->mrr_cur_range.start_key.key,
-          this->mrr_cur_range.start_key.length, HA_READ_KEY_OR_NEXT,
+          range.start_key.key, range.start_key.length, HA_READ_KEY_OR_NEXT,
           this->array_schema->domain().type());
     }
-    if (this->mrr_cur_range.end_key.key != nullptr) {
+    if (range.end_key.key != nullptr) {
       ranges_from_key_end = tile::build_ranges_from_key(
-          this->mrr_cur_range.end_key.key, this->mrr_cur_range.end_key.length,
-          HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
+          range.end_key.key, range.end_key.length, HA_READ_KEY_OR_PREV,
+          this->array_schema->domain().type());
     }
 
     if (!ranges_from_key_start.empty() || !ranges_from_key_end.empty()) {
@@ -1604,6 +1630,9 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
         this->pushdown_in_ranges[i].push_back(merged_range);
       }
     }
+
+    // If we are here pop the queue
+    mrr_key_ranges.pop();
   }
 
   int rc = init_scan(
@@ -1613,13 +1642,38 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
     DBUG_RETURN(rc);
 
   this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  DBUG_RETURN(rc);
+}
 
+int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                        uint n_ranges, uint mode,
+                                        HANDLER_BUFFER *buf) {
+
+  DBUG_ENTER("tile::mytile::multi_range_read_init");
+  mrr_iter = seq->init(seq_init_param, n_ranges, mode);
+  mrr_funcs = *seq;
+
+  while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
+    mrr_key_ranges.push(mrr_cur_range);
+  }
+
+  build_mrr_ranges();
+
+  // Never use default implementation also use sort key access
+  mode &= ~HA_MRR_USE_DEFAULT_IMPL;
   DBUG_RETURN(
       ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf));
 }
 
 int tile::mytile::multi_range_read_next(range_id_t *range_info) {
-  return ds_mrr.dsmrr_next(range_info);
+  DBUG_ENTER("tile::mytile::multi_range_read_next");
+  // If we have run out of records check to see if there is another range in
+  // batch expected
+  if (this->query_complete()) {
+    build_mrr_ranges();
+  }
+  int res = ds_mrr.dsmrr_next(range_info);
+  DBUG_RETURN(res);
 }
 
 ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
@@ -1633,8 +1687,12 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     TODO: consider moving it into some per-query initialization call.
   */
   ds_mrr.init(this, table);
-  return ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                 flags, cost);
+  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
+  bool rc = ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
+                                    flags, cost);
+
+  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
+  return rc;
 }
 
 ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
@@ -1642,12 +1700,16 @@ ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
                                             uint *bufsz, uint *flags,
                                             Cost_estimate *cost) {
   ds_mrr.init(this, table);
-  return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags,
-                           cost);
+  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
+  bool rc =
+      ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
+  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
+  return rc;
 }
 
 int tile::mytile::multi_range_read_explain_info(uint mrr_mode, char *str,
                                                 size_t size) {
+  mrr_mode &= ~HA_MRR_USE_DEFAULT_IMPL;
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 /* MyISAM MRR implementation ends */

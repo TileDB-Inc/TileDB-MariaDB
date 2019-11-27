@@ -384,6 +384,9 @@ int tile::mytile::init_scan(
   this->read_buffer_size = tile::sysvars::read_buffer_size(thd);
 
   try {
+    // Always reset query object so we make sure no ranges are left set
+    this->query = nullptr;
+
     // Validate the array is open for reads
     open_array_for_reads(thd);
 

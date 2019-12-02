@@ -31,6 +31,7 @@
  */
 
 #include "utils.h"
+#include "mytile-sysvars.h"
 #include <string>
 #include <vector>
 #include <sstream>
@@ -73,4 +74,48 @@ bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
   }
 
   return true;
+}
+
+void tile::log_error(THD *thd, const char *msg, ...) {
+
+  if (tile::sysvars::log_level(thd) > tile::sysvars::LOG_LEVEL::ERROR)
+    return;
+
+  va_list args;
+  va_start(args, msg);
+  error_log_print(ERROR_LEVEL, msg, args);
+  va_end(args);
+}
+
+void tile::log_warning(THD *thd, const char *msg, ...) {
+
+  if (tile::sysvars::log_level(thd) > tile::sysvars::LOG_LEVEL::WARNING)
+    return;
+
+  va_list args;
+  va_start(args, msg);
+  error_log_print(WARNING_LEVEL, msg, args);
+  va_end(args);
+}
+
+void tile::log_info(THD *thd, const char *msg, ...) {
+
+  if (tile::sysvars::log_level(thd) > tile::sysvars::LOG_LEVEL::INFORMATION)
+    return;
+
+  va_list args;
+  va_start(args, msg);
+  error_log_print(INFORMATION_LEVEL, msg, args);
+  va_end(args);
+}
+
+void tile::log_debug(THD *thd, const char *msg, ...) {
+
+  if (tile::sysvars::log_level(thd) != tile::sysvars::LOG_LEVEL::DEBUG)
+    return;
+
+  va_list args;
+  va_start(args, msg);
+  error_log_print(INFORMATION_LEVEL, msg, args);
+  va_end(args);
 }

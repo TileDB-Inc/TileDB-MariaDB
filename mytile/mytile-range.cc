@@ -87,56 +87,59 @@ tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges,
   return nullptr;
 }
 
-void tile::setup_range(const std::shared_ptr<range> &range,
+void tile::setup_range(THD *thd, const std::shared_ptr<range> &range,
                        void *non_empty_domain, tiledb::Dimension dimension) {
   switch (dimension.type()) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
-    return setup_range<double>(range, static_cast<double *>(non_empty_domain));
+    return setup_range<double>(thd, range,
+                               static_cast<double *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_FLOAT32:
-    return setup_range<float>(range, static_cast<float *>(non_empty_domain));
+    return setup_range<float>(thd, range,
+                              static_cast<float *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_INT8:
-    return setup_range<int8_t>(range, static_cast<int8_t *>(non_empty_domain));
+    return setup_range<int8_t>(thd, range,
+                               static_cast<int8_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_UINT8:
-    return setup_range<uint8_t>(range,
+    return setup_range<uint8_t>(thd, range,
                                 static_cast<uint8_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_INT16:
-    return setup_range<int16_t>(range,
+    return setup_range<int16_t>(thd, range,
                                 static_cast<int16_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_UINT16:
-    return setup_range<uint16_t>(range,
+    return setup_range<uint16_t>(thd, range,
                                  static_cast<uint16_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_INT32:
-    return setup_range<int32_t>(range,
+    return setup_range<int32_t>(thd, range,
                                 static_cast<int32_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_UINT32:
-    return setup_range<uint32_t>(range,
+    return setup_range<uint32_t>(thd, range,
                                  static_cast<uint32_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_INT64:
-    return setup_range<int64_t>(range,
+    return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_UINT64:
-    return setup_range<uint64_t>(range,
+    return setup_range<uint64_t>(thd, range,
                                  static_cast<uint64_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
-    return setup_range<int64_t>(range,
+    return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-    return setup_range<int64_t>(range,
+    return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    return setup_range<int64_t>(range,
+    return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
   default: {

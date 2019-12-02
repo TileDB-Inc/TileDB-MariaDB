@@ -43,6 +43,7 @@
 #include <log.h>
 #include <tiledb/tiledb>
 #include <unordered_set>
+#include "utils.h"
 
 namespace tile {
 /**
@@ -79,15 +80,17 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
  * {lower_value = 11, upper_value=non_empty_domain[1],
  * operation_type=Item_func::GT_FUNC, datatype=TILEDB_INT32}
  *
+ * @param thd
  * @param range
  * @param non_empty_domain
  * @param dimension
  */
-void setup_range(const std::shared_ptr<range> &range, void *non_empty_domain,
-                 tiledb::Dimension dimension);
+void setup_range(THD *thd, const std::shared_ptr<range> &range,
+                 void *non_empty_domain, tiledb::Dimension dimension);
 
 template <typename T>
-void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
+void setup_range(THD *thd, const std::shared_ptr<range> &range,
+                 T *non_empty_domain) {
   T final_lower_value;
   T final_upper_value;
   switch (range->operation_type) {
@@ -190,8 +193,8 @@ void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
   }        // endswitch functype
 
   // log conditions for debug
-  sql_print_information(
-      "pushed conditions: [%s, %s]",
+  log_debug(
+      thd, "pushed conditions: [%s, %s]",
       std::to_string(*static_cast<T *>(range->lower_value.get())).c_str(),
       std::to_string(*static_cast<T *>(range->upper_value.get())).c_str());
 }

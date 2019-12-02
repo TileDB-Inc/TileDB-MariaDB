@@ -104,4 +104,36 @@ tiledb::Context build_context(tiledb::Config &cfg);
  * @return true is identical, false otherwise
  */
 bool compare_configs(tiledb::Config &rhs, tiledb::Config &lhs);
+
+/**
+ * Log errors only if log level is set to error or higher
+ * @param thd thd to get log level from
+ * @param msg message to log
+ * @param ... formatting parameters for message
+ */
+void log_error(THD *thd, const char *msg, ...);
+
+/**
+ * Log errors only if log level is set to warning or higher
+ * @param thd thd to get log level from
+ * @param msg message to log
+ * @param ... formatting parameters for message
+ */
+void log_warning(THD *thd, const char *msg, ...);
+
+/**
+ * Log errors only if log level is set to info or higher
+ * @param thd thd to get log level from
+ * @param msg message to log
+ * @param ... formatting parameters for message
+ */
+void log_info(THD *thd, const char *msg, ...);
+
+/**
+ * Log errors only if log level is set to debug or higher
+ * @param thd thd to get log level from
+ * @param msg message to log
+ * @param ... formatting parameters for message
+ */
+void log_debug(THD *thd, const char *msg, ...);
 } // namespace tile

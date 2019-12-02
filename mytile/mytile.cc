@@ -631,31 +631,26 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   /** ASCII string */
   case TILEDB_STRING_ASCII:
     return set_string_field<char>(field, buff, i, &my_charset_latin1);
-    // Only char is supported for now
-    /*
 
+    /** UTF-8 string */
+  case TILEDB_STRING_UTF8:
+    return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
 
- */ /** UTF-8 string */ /*
-case TILEDB_STRING_UTF8:
-return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+    /** UTF-16 string */
+  case TILEDB_STRING_UTF16:
+    return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);
 
-*/                      /** UTF-16 string */
-                        /*
-case TILEDB_STRING_UTF16:
-  return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);
-                    
-  */ /** UTF-32 string */ /*
-case TILEDB_STRING_UTF32:
-return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
+  /** UTF-32 string */
+  case TILEDB_STRING_UTF32:
+    return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
 
-*/ /** UCS2 string */   /*
-case TILEDB_STRING_UCS2:
+  /** UCS2 string */
+  case TILEDB_STRING_UCS2:
     return set_string_field<uint16_t>(field, buff, i, &my_charset_ucs2_bin);
-  
-    */
-    /** UCS4 string */  /*
-case TILEDB_STRING_UCS4:
-    return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);*/
+
+    /** UCS4 string */
+  case TILEDB_STRING_UCS4:
+    return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
 
     /** This can be any datatype. Must store (type tag, value) pairs. */
     // case TILEDB_ANY:
@@ -725,9 +720,6 @@ case TILEDB_STRING_UCS4:
         ER_UNKNOWN_ERROR,
         "Unknown or unsupported datatype for converting to MariaDB fields: %s",
         ME_ERROR_LOG | ME_FATAL, type_str);
-    if (type_str != nullptr) {
-      delete type_str;
-    }
     break;
   }
   }
@@ -785,32 +777,47 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     return set_fixed_string_buffer_from_field<char>(field, buff, i);
 
     // Only char is supported for now
-    /*    */ /** ASCII string */
-    /*
-case TILEDB_STRING_ASCII:
-return set_string_field<uint8_t>(field, buff, i, &my_charset_latin1);
+    /** ASCII string */
+  case TILEDB_STRING_ASCII:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<char>(field, buff, i);
 
-*/ /** UTF-8 string */ /*
-case TILEDB_STRING_UTF8:
-return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+    return set_fixed_string_buffer_from_field<char>(field, buff, i);
 
-*/                     /** UTF-16 string */
-    /*
-case TILEDB_STRING_UTF16:
-return set_string_field<uint16_t>(field, buff, i, &my_charset_utf16_bin);
+  /** UTF-8 string */
+  case TILEDB_STRING_UTF8:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<uint8_t>(field, buff, i);
 
-*/ /** UTF-32 string */ /*
-case TILEDB_STRING_UTF32:
-return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);
+    return set_fixed_string_buffer_from_field<uint8_t>(field, buff, i);
 
-*/ /** UCS2 string */   /*
-case TILEDB_STRING_UCS2:
+  /** UTF-16 string */
+  case TILEDB_STRING_UTF16:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<uint16_t>(field, buff, i);
+
+    return set_fixed_string_buffer_from_field<uint16_t>(field, buff, i);
+
+  /** UTF-32 string */
+  case TILEDB_STRING_UTF32:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<uint32_t>(field, buff, i);
+
+    return set_fixed_string_buffer_from_field<uint32_t>(field, buff, i);
+  /** UCS2 string */
+  case TILEDB_STRING_UCS2:
     return set_string_field<uint16_t>(field, buff, i, &my_charset_ucs2_bin);
-  
-    */
-    /** UCS4 string */  /*
-case TILEDB_STRING_UCS4:
-  return set_string_field<uint32_t>(field, buff, i, &my_charset_utf32_bin);*/
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<uint16_t>(field, buff, i);
+
+    return set_fixed_string_buffer_from_field<uint16_t>(field, buff, i);
+
+    /** UCS4 string */
+  case TILEDB_STRING_UCS4:
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<uint32_t>(field, buff, i);
+
+    return set_fixed_string_buffer_from_field<uint32_t>(field, buff, i);
 
     /** This can be any datatype. Must store (type tag, value) pairs. */
     // case TILEDB_ANY:
@@ -927,9 +934,6 @@ case TILEDB_STRING_UCS4:
         ER_UNKNOWN_ERROR,
         "Unknown or unsupported datatype for converting to MariaDB fields: %s",
         ME_ERROR_LOG | ME_FATAL, type_str);
-    if (type_str != nullptr) {
-      delete type_str;
-    }
     break;
   }
   }

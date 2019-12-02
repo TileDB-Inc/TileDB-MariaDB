@@ -225,7 +225,7 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
     end_position = offset_buffer[i + 1];
   }
   size_t size = end_position - start_position;
-  return field->store(static_cast<char *>(&buffer[start_position]), size,
+  return field->store(reinterpret_cast<char *>(&buffer[start_position]), size,
                       charset_info);
 }
 
@@ -240,7 +240,7 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
 template <typename T>
 int set_string_field(Field *field, T *buffer, uint64_t fixed_size_elements,
                      uint64_t i, charset_info_st *charset_info) {
-  return field->store(static_cast<char *>(&buffer[i]), fixed_size_elements,
+  return field->store(reinterpret_cast<char *>(&buffer[i]), fixed_size_elements,
                       charset_info);
 }
 
@@ -248,8 +248,8 @@ template <typename T>
 int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
                      charset_info_st *charset_info) {
   if (buff->offset_buffer == nullptr) {
-    return set_string_field<char>(field, static_cast<T *>(buff->buffer),
-                                  buff->fixed_size_elements, i, charset_info);
+    return set_string_field<T>(field, static_cast<T *>(buff->buffer),
+                               buff->fixed_size_elements, i, charset_info);
   }
   return set_string_field<T>(
       field, buff->offset_buffer, buff->offset_buffer_size,

@@ -1422,15 +1422,15 @@ bool tile::mytile::valid_pushed_ranges() {
   if (this->pushdown_ranges.empty())
     return false;
 
-  // Check all ranges and makes sure that atleast one is non empty and non null
+  // Check all dimensions and makes sure that atleast one is non empty and non
+  // null
   bool one_valid_range = false;
-  for (auto &range : this->pushdown_ranges) {
+  for (const auto &range : this->pushdown_ranges) {
     if (!range.empty()) {
-      for (auto &range_ptr : range) {
-        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
-                                     range_ptr->upper_value != nullptr)) {
-          one_valid_range = true;
-        }
+      const auto &range_ptr = range[0];
+      if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
+                                   range_ptr->upper_value != nullptr)) {
+        return true;
       }
     }
   }
@@ -1442,15 +1442,15 @@ bool tile::mytile::valid_pushed_in_ranges() {
   if (this->pushdown_in_ranges.empty())
     return false;
 
-  // Check all ranges and makes sure that atleast one is non empty and non null
+  // Check all dimensions and makes sure that atleast one is non empty and non
+  // null
   bool one_valid_range = false;
-  for (auto &range : this->pushdown_in_ranges) {
+  for (const auto &range : this->pushdown_in_ranges) {
     if (!range.empty()) {
-      for (auto &range_ptr : range) {
-        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
-                                     range_ptr->upper_value != nullptr)) {
-          one_valid_range = true;
-        }
+      const auto &range_ptr = range[0];
+      if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
+                                   range_ptr->upper_value != nullptr)) {
+        return true;
       }
     }
   }

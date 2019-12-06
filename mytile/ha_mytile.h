@@ -140,7 +140,7 @@ public:
    * Read next Row
    * @return
    */
-  int rnd_row(TABLE *table);
+  int scan_rnd_row(TABLE *table);
 
   /**
    * Read next row
@@ -379,6 +379,9 @@ public:
    */
   int index_end() override;
 
+  int index_read_scan(const uchar *key, uint key_len,
+                      enum ha_rkey_function find_flag);
+
   /**
    * Read "first" row
    * @param buf
@@ -516,8 +519,6 @@ private:
                               enum ha_rkey_function find_flag);
 
   int build_mrr_ranges();
-
-  std::queue<KEY_MULTI_RANGE> mrr_key_ranges;
 
   bool query_complete();
 };

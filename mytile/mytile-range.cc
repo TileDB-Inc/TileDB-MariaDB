@@ -34,7 +34,7 @@
 #include "mytile-range.h"
 
 std::shared_ptr<tile::range>
-tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges,
+tile::merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
                    tiledb_datatype_t datatype) {
   if (ranges.empty() || ranges[0] == nullptr) {
     return nullptr;
@@ -80,6 +80,60 @@ tile::merge_ranges(std::vector<std::shared_ptr<tile::range>> &ranges,
     my_printf_error(
         ER_UNKNOWN_ERROR,
         "Unknown or unsupported tiledb data type in merge_ranges: %s",
+        ME_ERROR_LOG | ME_FATAL, datatype_str);
+  }
+  }
+
+  return nullptr;
+}
+
+std::shared_ptr<tile::range> tile::merge_ranges_to_super(
+    const std::vector<std::shared_ptr<tile::range>> &ranges,
+    tiledb_datatype_t datatype) {
+  if (ranges.empty() || ranges[0] == nullptr) {
+    return nullptr;
+  }
+
+  switch (datatype) {
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return merge_ranges_to_super<double>(ranges);
+
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return merge_ranges_to_super<float>(ranges);
+
+  case tiledb_datatype_t::TILEDB_INT8:
+    return merge_ranges_to_super<int8_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return merge_ranges_to_super<uint8_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_INT16:
+    return merge_ranges_to_super<int16_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return merge_ranges_to_super<uint16_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_INT32:
+    return merge_ranges_to_super<int32_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return merge_ranges_to_super<uint32_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    return merge_ranges_to_super<int64_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return merge_ranges_to_super<uint64_t>(ranges);
+
+  default: {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unknown or unsupported tiledb data type in merge_ranges_to_super: %s",
         ME_ERROR_LOG | ME_FATAL, datatype_str);
   }
   }
@@ -391,4 +445,119 @@ tile::build_ranges_from_key(const uchar *key, uint length,
   }
   }
   return {};
+}
+
+void tile::update_range_from_key_for_super_range(
+    std::shared_ptr<tile::range> &range, key_range key,
+    uint64_t dimension_index, tiledb_datatype_t datatype) {
+  // Length shouldn't be zero here but better safe then segfault!
+  if (key.length == 0)
+    return;
+
+  switch (datatype) {
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return update_range_from_key_for_super_range<double>(range, key,
+                                                         dimension_index);
+
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return update_range_from_key_for_super_range<float>(range, key,
+                                                        dimension_index);
+
+  case tiledb_datatype_t::TILEDB_INT8:
+    return update_range_from_key_for_super_range<int8_t>(range, key,
+                                                         dimension_index);
+
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return update_range_from_key_for_super_range<uint8_t>(range, key,
+                                                          dimension_index);
+
+  case tiledb_datatype_t::TILEDB_INT16:
+    return update_range_from_key_for_super_range<int16_t>(range, key,
+                                                          dimension_index);
+
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return update_range_from_key_for_super_range<uint16_t>(range, key,
+                                                           dimension_index);
+
+  case tiledb_datatype_t::TILEDB_INT32:
+    return update_range_from_key_for_super_range<int32_t>(range, key,
+                                                          dimension_index);
+
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return update_range_from_key_for_super_range<uint32_t>(range, key,
+                                                           dimension_index);
+
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    return update_range_from_key_for_super_range<int64_t>(range, key,
+                                                          dimension_index);
+
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return update_range_from_key_for_super_range<uint64_t>(range, key,
+                                                           dimension_index);
+
+  default: {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unknown or unsupported tiledb data type in "
+                    "update_range_from_key_for_super_range: %s",
+                    ME_ERROR_LOG | ME_FATAL, datatype_str);
+  }
+  }
+}
+
+int8_t tile::compare_typed_buffers(const void *lhs, const void *rhs,
+                                   uint64_t size, tiledb_datatype_t datatype) {
+  // Length shouldn't be zero here but better safe then segfault!
+  if (size == 0)
+    return 0;
+
+  switch (datatype) {
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return compare_typed_buffers<double>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return compare_typed_buffers<float>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_INT8:
+    return compare_typed_buffers<int8_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return compare_typed_buffers<uint8_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_INT16:
+    return compare_typed_buffers<int16_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return compare_typed_buffers<uint16_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_INT32:
+    return compare_typed_buffers<int32_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return compare_typed_buffers<uint32_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    return compare_typed_buffers<int64_t>(lhs, rhs, size);
+
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return compare_typed_buffers<uint64_t>(lhs, rhs, size);
+
+  default: {
+    const char *datatype_str;
+    tiledb_datatype_to_str(datatype, &datatype_str);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unknown or unsupported tiledb data type in "
+                    "compare_typed_buffers: %s",
+                    ME_ERROR_LOG | ME_FATAL, datatype_str);
+  }
+  }
+
+  return 0;
 }

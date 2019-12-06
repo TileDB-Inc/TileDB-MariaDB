@@ -432,11 +432,11 @@ int tile::mytile::init_scan(
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         // This ranges vector and the ranges it contains will be manipulated in
         // merge ranges
-        auto &ranges = this->pushdown_ranges[dim_idx];
+        const auto &ranges = this->pushdown_ranges[dim_idx];
 
         // If there is valid ranges from IN clause, first we must see if they
         // are contained inside the merged super range we have
-        auto &in_ranges = this->pushdown_in_ranges[dim_idx];
+        const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
 
         // get start of non empty domain
         void *lower = static_cast<char *>(subarray.get()) +
@@ -533,8 +533,8 @@ bool tile::mytile::query_complete() {
   DBUG_RETURN(false);
 }
 
-int tile::mytile::rnd_row(TABLE *table) {
-  DBUG_ENTER("tile::mytile::rnd_row");
+int tile::mytile::scan_rnd_row(TABLE *table) {
+  DBUG_ENTER("tile::mytile::scan_rnd_row");
   int rc = 0;
   const char *query_status;
   // We must set the bitmap for debug purpose, it is "write_set" because we use
@@ -582,12 +582,12 @@ int tile::mytile::rnd_row(TABLE *table) {
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
+    my_printf_error(ER_UNKNOWN_ERROR, "[scan_rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -121;
   } catch (const std::exception &e) {
     // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_row] error for table %s : %s",
+    my_printf_error(ER_UNKNOWN_ERROR, "[scan_rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -122;
   }
@@ -599,7 +599,7 @@ int tile::mytile::rnd_row(TABLE *table) {
 
 int tile::mytile::rnd_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::rnd_next");
-  DBUG_RETURN(rnd_row(table));
+  DBUG_RETURN(scan_rnd_row(table));
 }
 
 int tile::mytile::rnd_end() {
@@ -607,7 +607,6 @@ int tile::mytile::rnd_end() {
   dealloc_buffers();
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
-  std::queue<KEY_MULTI_RANGE>().swap(this->mrr_key_ranges);
   // Reset indicators
   this->record_index = 0;
   this->records = 0;
@@ -1493,19 +1492,143 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
     if (rc)
       DBUG_RETURN(rc);
   }
-  DBUG_RETURN(rnd_row(table));
+  DBUG_RETURN(index_read_scan(key, key_len, find_flag));
 }
 
 int tile::mytile::index_first(uchar *buf) {
   DBUG_ENTER("tile::mytile::index_first");
   // Treat just as normal row read
-  DBUG_RETURN(rnd_row(table));
+  DBUG_RETURN(scan_rnd_row(table));
 }
 
 int tile::mytile::index_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::index_next");
   // Treat just as normal row read
-  DBUG_RETURN(rnd_row(table));
+  DBUG_RETURN(scan_rnd_row(table));
+}
+
+int tile::mytile::index_read_scan(const uchar *key, uint key_len,
+                                  enum ha_rkey_function find_flag) {
+  DBUG_ENTER("tile::mytile::index_read_scan");
+  int rc = 0;
+  const char *query_status;
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  my_bitmap_map *original_bitmap =
+      dbug_tmp_use_all_columns(table, table->write_set);
+  tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
+                             &query_status);
+
+  if (this->query_complete()) {
+    // Reset bitmap to original
+    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  try {
+    // If the cursor has passed the number of records from the previous query
+    // (or if this is the first time), (re)submit the query->
+    if (static_cast<int64_t>(this->record_index) >= this->records) {
+      do {
+        this->status = query->submit();
+
+        // Compute the number of cells (records) that were returned by the query
+        this->records = this->coord_buffer->buffer_size / this->ndim /
+                        tiledb_datatype_size(this->coord_buffer->type);
+
+        // Increase the buffer allocation and resubmit if necessary.
+        if (this->status == tiledb::Query::Status::INCOMPLETE &&
+            this->records == 0) { // VERY IMPORTANT!!
+          this->read_buffer_size = this->read_buffer_size * 2;
+          dealloc_buffers();
+          alloc_read_buffers(read_buffer_size);
+        } else if (records > 0) {
+          this->record_index = 0;
+          // Break out of resubmit loop as we have some results.
+          break;
+        }
+      } while (status == tiledb::Query::Status::INCOMPLETE);
+    }
+
+    // Compare keys to see if we are in the proper position
+    uint64_t size = tiledb_datatype_size(this->coord_buffer->type);
+
+    do {
+      int key_cmp = tile::compare_typed_buffers(
+          key,
+          static_cast<char *>(this->coord_buffer->buffer) +
+              (this->coord_buffer->fixed_size_elements * size *
+               this->record_index),
+          key_len, this->coord_buffer->type);
+      // If the current index coordinates matches the key we are looking for we
+      // must set the fields
+      if ((key_cmp == 0 &&
+           (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+          (key_cmp < 0 &&
+           (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+          (key_cmp > 0 &&
+           (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+        tileToFields(record_index, false, table);
+        this->record_index++;
+        this->records_read++;
+        break;
+        // If we have passed the record we must start back at the top of the
+        // current incomplete batch
+      } else if (key_cmp < 0) {
+
+        // First lets make sure the "start" record of this (potentially
+        // incomplete) query buffers is before what we are looking for If the
+        // key we are looking for is before the first record it means we've
+        // missed the key and the request can not be resolved
+        if (tile::compare_typed_buffers(key, this->coord_buffer->buffer,
+                                        key_len,
+                                        this->coord_buffer->type) < 0) {
+          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+        }
+
+        // As an optimization instead of going back to the top let's scan in
+        // reverse. Often MariaDB will call index_next to see if the next record
+        // is of the same key or not This causes use to move forward one and we
+        // end up past the key by the time we get to this function So instead of
+        // starting at the top let's just go in reverse and maybe we'll only
+        // have to reverse one position
+        this->records_read--;
+        this->record_index--;
+
+        // If we are not yet to the record we must continue scanning.
+      } else if (key_cmp > 0) {
+        this->record_index++;
+        this->records_read++;
+      }
+
+      // If we have run out of records but the index isn't found lets report
+      // record not found
+      if (static_cast<int64_t>(this->record_index) >= this->records) {
+        DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+      }
+    } while (static_cast<int64_t>(this->record_index) < this->records);
+
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[index_read_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -131;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[index_read_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = -132;
+  }
+
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  DBUG_RETURN(rc);
 }
 
 int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
@@ -1531,7 +1654,7 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
 
-  DBUG_RETURN(rnd_row(table));
+  DBUG_RETURN(index_read_scan(key, key_len, find_flag));
 }
 
 ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
@@ -1572,49 +1695,82 @@ int tile::mytile::build_mrr_ranges() {
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
 
+  std::vector<std::vector<std::shared_ptr<tile::range>>> tmp_ranges;
   for (uint64_t i = 0; i < this->ndim; i++) {
     this->pushdown_ranges.emplace_back();
     this->pushdown_in_ranges.emplace_back();
+    tmp_ranges.emplace_back();
   }
 
-  while (!mrr_key_ranges.empty()) {
+  tiledb_datatype_t datatype = this->array_schema->domain().type();
+  uint64_t datatype_size = tiledb_datatype_size(datatype);
 
-    const KEY_MULTI_RANGE range = mrr_key_ranges.front();
+  std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
+  std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
+  // get first key
+  mrr_funcs.next(mrr_iter, &mrr_cur_range);
+  if (mrr_cur_range.start_key.key != nullptr) {
+    ranges_from_key_start = tile::build_ranges_from_key(
+        mrr_cur_range.start_key.key, mrr_cur_range.start_key.length,
+        HA_READ_KEY_OR_NEXT, this->array_schema->domain().type());
+  }
+  if (mrr_cur_range.end_key.key != nullptr) {
+    ranges_from_key_end = tile::build_ranges_from_key(
+        mrr_cur_range.end_key.key, mrr_cur_range.end_key.length,
+        HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
+  }
 
-    bool break_ranges = false;
-    if (this->valid_pushed_in_ranges()) {
-      tiledb_datatype_t datatype = this->array_schema->domain().type();
-      uint64_t datatype_size = tiledb_datatype_size(datatype);
+  for (uint64_t i = 0; i < ranges_from_key_start.size(); i++) {
+    std::vector<std::shared_ptr<tile::range>> combined_ranges_for_dimension = {
+        ranges_from_key_start[i]};
+    if (ranges_from_key_end.size() > i) {
+      combined_ranges_for_dimension.push_back(ranges_from_key_end[i]);
+    }
 
-      // Check all by last dimension for equality, if the key has moved to
-      // another range except the last dimension we need to stop and split
-      // because the multi-range cross product is no longer valid for expected
-      // mariadb results.
-      for (uint64_t i = 0; i < this->ndim - 1; i++) {
-        if (std::memcmp(range.start_key.key + (datatype_size * i),
-                        this->pushdown_in_ranges[i][0]->lower_value.get(),
-                        datatype_size) != 0) {
-          break_ranges = true;
-          break;
-        }
+    auto merged_range = merge_ranges(combined_ranges_for_dimension,
+                                     this->array_schema->domain().type());
+    //        merged_range->operation_type = Item_func::BETWEEN;
+    tmp_ranges[i].push_back(merged_range);
+  }
+
+  // Loop over all keys
+  while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
+
+    if (mrr_cur_range.start_key.key != nullptr) {
+      for (uint64_t i = 0; i < mrr_cur_range.start_key.length / datatype_size;
+           i++) {
+        auto &range = tmp_ranges[i][0];
+        update_range_from_key_for_super_range(range, mrr_cur_range.start_key, i,
+                                              datatype);
       }
     }
 
-    if (break_ranges) {
-      break;
+    // If the end key is not the same as the start key we need to also build the
+    // range from it
+    if (mrr_cur_range.end_key.key != nullptr &&
+        (mrr_cur_range.start_key.length != mrr_cur_range.end_key.length ||
+         memcmp(mrr_cur_range.start_key.key, mrr_cur_range.end_key.key,
+                mrr_cur_range.start_key.length) != 0)) {
+      for (uint64_t i = 0; i < mrr_cur_range.end_key.length / datatype_size;
+           i++) {
+        auto range = tmp_ranges[i][0];
+        update_range_from_key_for_super_range(range, mrr_cur_range.start_key, i,
+                                              datatype);
+      }
     }
 
+    /*// Build list of rages from start/end key
     std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
     std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
-    if (range.start_key.key != nullptr) {
+    if (mrr_cur_range.start_key.key != nullptr) {
       ranges_from_key_start = tile::build_ranges_from_key(
-          range.start_key.key, range.start_key.length, HA_READ_KEY_OR_NEXT,
-          this->array_schema->domain().type());
+          mrr_cur_range.start_key.key, mrr_cur_range.start_key.length,
+          HA_READ_KEY_OR_NEXT, this->array_schema->domain().type());
     }
-    if (range.end_key.key != nullptr) {
+    if (mrr_cur_range.end_key.key != nullptr) {
       ranges_from_key_end = tile::build_ranges_from_key(
-          range.end_key.key, range.end_key.length, HA_READ_KEY_OR_PREV,
-          this->array_schema->domain().type());
+          mrr_cur_range.end_key.key, mrr_cur_range.end_key.length,
+          HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
     }
 
     if (!ranges_from_key_start.empty() || !ranges_from_key_end.empty()) {
@@ -1629,12 +1785,20 @@ int tile::mytile::build_mrr_ranges() {
 
         auto merged_range = merge_ranges(combined_ranges_for_dimension,
                                          this->array_schema->domain().type());
-        this->pushdown_in_ranges[i].push_back(merged_range);
+        //        merged_range->operation_type = Item_func::BETWEEN;
+        tmp_ranges[i].push_back(merged_range);
       }
-    }
+    }*/
+  }
 
-    // If we are here pop the queue
-    mrr_key_ranges.pop();
+  // Now that we have all ranges, let's build them into super ranges
+  for (size_t i = 0; i < tmp_ranges.size(); i++) {
+    const auto ranges = tmp_ranges[i];
+    auto merged_range =
+        merge_ranges_to_super(ranges, this->array_schema->domain().type());
+    if (merged_range != nullptr) {
+      this->pushdown_ranges[i].push_back(std::move(merged_range));
+    }
   }
 
   int rc = init_scan(
@@ -1655,10 +1819,6 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
   mrr_iter = seq->init(seq_init_param, n_ranges, mode);
   mrr_funcs = *seq;
 
-  while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
-    mrr_key_ranges.push(mrr_cur_range);
-  }
-
   build_mrr_ranges();
 
   // Never use default implementation also use sort key access
@@ -1669,11 +1829,6 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
 
 int tile::mytile::multi_range_read_next(range_id_t *range_info) {
   DBUG_ENTER("tile::mytile::multi_range_read_next");
-  // If we have run out of records check to see if there is another range in
-  // batch expected
-  if (this->query_complete()) {
-    build_mrr_ranges();
-  }
   int res = ds_mrr.dsmrr_next(range_info);
   DBUG_RETURN(res);
 }

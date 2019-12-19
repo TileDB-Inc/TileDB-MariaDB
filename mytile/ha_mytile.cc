@@ -1483,7 +1483,8 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
   DBUG_ENTER("tile::mytile::index_read_map");
   // If no conditions or index have been pushed, use key scan info to push a
   // range down
-  if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) {
+  if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
+      this->query_complete()) {
     this->reset_pushdowns_for_key(key, key_len, find_flag);
     int rc = init_scan(
         this->ha_thd(),

@@ -329,6 +329,7 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag) {
   case HA_READ_MBR_WITHIN:
   case HA_READ_MBR_DISJOINT:
   case HA_READ_MBR_EQUAL:
+  default:
     my_printf_error(ER_UNKNOWN_ERROR, "Unsupported ha_rkey_function",
                     ME_ERROR_LOG | ME_FATAL);
   }

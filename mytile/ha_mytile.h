@@ -95,13 +95,17 @@ public:
 
   /**
    * Drop a table
+   * note: we implement drop_table not delete_table because in drop_table the
+   * table is open
    * @param name
    * @return
    */
   void drop_table(const char *name) override;
 
   /**
-   * Delete a table
+   * Drop a table by rm'ing the tiledb directory if mytile_delete_arrays=1 is
+   * set. If mytile_delete_arrays is not set we just deregister the table
+   *
    * @param name
    * @return
    */
@@ -151,9 +155,9 @@ public:
   int rnd_end() override;
 
   /**
-   * Read position
-   * @param buf
-   * @param pos
+   * Read position based on cordinates stored in pos buffer
+   * @param buf ignored
+   * @param pos coordinate
    * @return
    */
   int rnd_pos(uchar *buf, uchar *pos) override;
@@ -205,7 +209,7 @@ public:
   const COND *cond_push_cond(Item_cond *cond_item);
 
   /**
-   *  Handle func conditoin pushdowns
+   *  Handle function condition pushdowns
    * @param func_item
    * @return
    */
@@ -235,6 +239,13 @@ public:
 */
   const COND *cond_push(const COND *cond) override;
 
+  /**
+   * Handle the actual pushdown, this is a common function for cond_push and
+   * indx_cond_push
+   *
+   * @param cond condition being pushed
+   * @return condition stack which could not be pushed
+   */
   const COND *cond_push_local(const COND *cond);
 
   /**
@@ -243,6 +254,13 @@ public:
   */
   void cond_pop() override;
 
+  /**
+   *
+   * @param idx
+   * @param part
+   * @param all_parts
+   * @return
+   */
   ulong index_flags(uint idx, uint part, bool all_parts) const override;
 
   /**
@@ -251,8 +269,13 @@ public:
    */
   uint max_supported_keys() const override { return MAX_INDEXES; }
 
-  /*
-   * Store lock
+  /**
+   * Mytile doesn't need locks, so we just ignore the store_lock request by
+   * returning the original lock data
+   * @param thd
+   * @param to
+   * @param lock_type
+   * @return the original lock, to
    */
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type) override;
@@ -280,9 +303,11 @@ public:
 
   /**
    *
-   * @param item
+   * Converts a tiledb record to mysql buffer using mysql fields
+   * @param record_position
    * @param dimensions_only
-   * @return
+   * @param TABLE
+   * @return status
    */
   int tileToFields(uint64_t record_position, bool dimensions_only,
                    TABLE *table);
@@ -293,19 +318,64 @@ public:
    */
   int info(uint) override;
 
+  /**
+   * Index read will optional push a key down to tiledb if no existing pushdown
+   * has already happened
+   *
+   * This will then initiate a table scan
+   *
+   * @param buf unused mysql buffer
+   * @param key key to pushdown
+   * @param key_len length of key
+   * @param find_flag operation (lt, le, eq, ge, gt)
+   * @return status
+   */
   int index_read(uchar *buf, const uchar *key, uint key_len,
                  enum ha_rkey_function find_flag) override;
 
+  /**
+   * Fetch a single row based on a single key
+   *
+   * This will then initiate a table scan
+   *
+   * @param buf unused mysql buffer
+   * @param idx index number (mytile only support 1 primary key currently)
+   * @param key key to pushdown
+   * @param keypart_map bitmap of parts of key which are included
+   * @param find_flag operation (lt, le, eq, ge, gt)
+   * @return status
+   */
   int index_read_idx_map(uchar *buf, uint idx, const uchar *key,
                          key_part_map keypart_map,
                          enum ha_rkey_function find_flag) override;
 
+  /**
+   * Is the primary key clustered
+   * @return false to workaround mariadb assuming sequential index scans are
+   * faster than pushdown
+   */
   bool primary_key_is_clustered() override { return FALSE; }
 
+  /**
+   * Pushdown an index condition
+   * @param keyno key number
+   * @param idx_cond Condition
+   * @return Left over conditions not pushdown
+   */
   Item *idx_cond_push(uint keyno, Item *idx_cond) override;
 
+  /**
+   * Prepare for index usage, treated here similar to rnd_init
+   * @param idx key number to use
+   * @param sorted unused
+   * @return
+   */
   int index_init(uint idx, bool sorted) override;
 
+  /**
+   * Treated like rnd_end
+   * @return
+   */
   int index_end() override;
 
   /**

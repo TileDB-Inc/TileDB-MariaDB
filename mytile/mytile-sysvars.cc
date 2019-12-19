@@ -109,6 +109,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(delete_arrays),
     MYSQL_SYSVAR(tiledb_config),
     MYSQL_SYSVAR(reopen_for_every_query),
+    MYSQL_SYSVAR(read_query_layout),
     MYSQL_SYSVAR(dimensions_are_primary_keys),
     MYSQL_SYSVAR(enable_pushdown),
     MYSQL_SYSVAR(compute_table_records),

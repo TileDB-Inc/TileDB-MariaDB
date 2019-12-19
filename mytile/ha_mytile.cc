@@ -72,12 +72,6 @@ ha_create_table_option mytile_field_option_list[] = {
     HA_FOPTION_STRING("upper_bound", upper_bound),
     HA_FOPTION_STRING("tile_extent", tile_extent), HA_FOPTION_END};
 
-/**
- * build config parameters from server or session settings
- * This is duplicated
- * @param thd
- * @return tiledb config
- */
 tiledb::Config tile::build_config(THD *thd) {
   tiledb::Config cfg = tiledb::Config();
 
@@ -154,46 +148,20 @@ static int mytile_init_func(void *p) {
 struct st_mysql_storage_engine mytile_storage_engine = {
     MYSQL_HANDLERTON_INTERFACE_VERSION};
 
-/**
- * Mytile doesn't need locks, so we just ignore the store_lock request by
- * returning the original lock data
- * @param thd
- * @param to
- * @param lock_type
- * @return
- */
 THR_LOCK_DATA **tile::mytile::store_lock(THD *thd, THR_LOCK_DATA **to,
                                          enum thr_lock_type lock_type) {
   DBUG_ENTER("tile::mytile::store_lock");
   DBUG_RETURN(to);
 };
 
-/**
- * Not implemented until transaction support added
- * @param thd
- * @param lock_type
- * @return
- */
 int tile::mytile::external_lock(THD *thd, int lock_type) {
   DBUG_ENTER("tile::mytile::external_lock");
   DBUG_RETURN(0);
 }
 
-/**
- * Main handler
- * @param hton
- * @param table_arg
- */
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg){};
 
-/**
- * Create a table structure and TileDB array schema
- * @param name
- * @param table_arg
- * @param create_info
- * @return
- */
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
   DBUG_ENTER("tile::mytile::create");
@@ -207,13 +175,6 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
   DBUG_RETURN(create_array(name, table_arg, create_info, this->ctx));
 }
 
-/**
- * Open array
- * @param name
- * @param mode
- * @param test_if_locked
- * @return
- */
 int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   DBUG_ENTER("tile::mytile::open");
 
@@ -274,10 +235,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   DBUG_RETURN(0);
 }
 
-/**
- * Close array
- * @return
- */
 int tile::mytile::close(void) {
   DBUG_ENTER("tile::mytile::close");
   try {
@@ -305,14 +262,6 @@ int tile::mytile::close(void) {
   DBUG_RETURN(0);
 }
 
-/**
- * Creates the actual tiledb array
- * @param name
- * @param table_arg
- * @param create_info
- * @param context
- * @return
- */
 int tile::mytile::create_array(const char *name, TABLE *table_arg,
                                HA_CREATE_INFO *create_info,
                                tiledb::Context context) {
@@ -553,7 +502,6 @@ int tile::mytile::init_scan(
   DBUG_RETURN(rc);
 }
 
-/* Table Scanning */
 int tile::mytile::rnd_init(bool scan) {
   DBUG_ENTER("tile::mytile::rnd_init");
   DBUG_RETURN(init_scan(
@@ -637,20 +585,11 @@ int tile::mytile::rnd_row(TABLE *table) {
   DBUG_RETURN(rc);
 }
 
-/**
- * Read next row
- * @param buf
- * @return
- */
 int tile::mytile::rnd_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::rnd_next");
   DBUG_RETURN(rnd_row(table));
 }
 
-/**
- * End read
- * @return
- */
 int tile::mytile::rnd_end() {
   DBUG_ENTER("tile::mytile::rnd_end");
   dealloc_buffers();
@@ -666,14 +605,6 @@ int tile::mytile::rnd_end() {
   DBUG_RETURN(close());
 };
 
-/**
- * Read position
- * Will this ever be interleaved with table scans? I am not sure, need to ask
- * MariaDB We assume it wont :/
- * @param buf
- * @param pos
- * @return
- */
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
   auto domain = this->array_schema->domain();
@@ -689,10 +620,6 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_RETURN(rnd_next(buf));
 }
 
-/**
- * Get current record coordinates and save to allow for later lookup
- * @param record
- */
 void tile::mytile::position(const uchar *record) {
   DBUG_ENTER("tile::mytile::position");
   // copy the position
@@ -774,11 +701,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   }
   DBUG_RETURN(nullptr);
 }
-/**
- *  Handle func condition pushdowns
- * @param func_item
- * @return
- */
+
 const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
@@ -916,28 +839,6 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   DBUG_RETURN(nullptr);
 }
 
-/**
-  Push condition down to the table handler.
-
-  @param  cond   Condition to be pushed. The condition tree must not be
-                 modified by the by the caller.
-
-  @return
-    The 'remainder' condition that caller must use to filter out records.
-    NULL means the handler will not return rows that do not match the
-    passed condition.
-
-  @note
-  The pushed conditions form a stack (from which one can remove the
-  last pushed condition using cond_pop).
-  The table handler filters out rows using (pushed_cond1 AND pushed_cond2
-  AND ... AND pushed_condN)
-  or less restrictive condition, depending on handler's capabilities.
-
-  handler->ha_reset() call empties the condition stack.
-  Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
-  condition stack.
-*/
 const COND *tile::mytile::cond_push(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push");
   // NOTE: This is called one or more times by handle interface. Once for each
@@ -986,11 +887,6 @@ const COND *tile::mytile::cond_push_local(const COND *cond) {
   DBUG_RETURN(cond);
 }
 
-/**
-  Pop the top condition from the condition stack of the storage engine
-  for each partition.
-*/
-
 void tile::mytile::cond_pop() {
   DBUG_ENTER("tile::mytile::cond_pop");
 
@@ -1003,27 +899,12 @@ Item *tile::mytile::idx_cond_push(uint keyno, Item *idx_cond) {
   DBUG_RETURN(const_cast<Item *>(ret));
 }
 
-/**
- * Drop a table by rm'ing the tiledb directory
- *
- * note: we implement drop_table not delete_table because in drop_table the
- * table is open
- * @param name
- * @return
- */
 void tile::mytile::drop_table(const char *name) {
   DBUG_ENTER("tile::mytile::drop_table");
   delete_table(name);
   DBUG_VOID_RETURN;
 }
 
-/**
- * Drop a table by rm'ing the tiledb directory
- *
- * note: drop_table isn't called so we implement delete_table also`
- * @param name
- * @return
- */
 int tile::mytile::delete_table(const char *name) {
   DBUG_ENTER("tile::mytile::delete_table");
   if (!tile::sysvars::delete_arrays(ha_thd())) {
@@ -1055,11 +936,6 @@ int tile::mytile::delete_table(const char *name) {
   DBUG_RETURN(0);
 }
 
-/**
- * This should return relevant stats of the underlying tiledb map,
- * currently just sets row count to 2, to avoid 0/1 row optimizations
- * @return
- */
 int tile::mytile::info(uint) {
   DBUG_ENTER("tile::mytile::info");
   // Need records to be greater than 1 to avoid 0/1 row optimizations by query
@@ -1068,10 +944,6 @@ int tile::mytile::info(uint) {
   DBUG_RETURN(0);
 };
 
-/**
- * Flags for table features supported
- * @return
- */
 ulonglong tile::mytile::table_flags(void) const {
   DBUG_ENTER("tile::mytile::table_flags");
   DBUG_RETURN(HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
@@ -1180,11 +1052,6 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
   }
 }
 
-/**
- * Converts a tiledb record to mysql buffer using mysql fields
- * @param index
- * @return
- */
 int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
                                TABLE *table) {
   DBUG_ENTER("tile::mytile::tileToFields");
@@ -1265,9 +1132,6 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   DBUG_RETURN(error);
 }
 
-/**
- * Helper to handle common setup tasks for writes
- */
 void tile::mytile::setup_write() {
   DBUG_ENTER("tile::mytile::setup_write");
 
@@ -1404,11 +1268,6 @@ int tile::mytile::flush_write() {
   DBUG_RETURN(rc);
 }
 
-/**
- * Write row
- * @param buf
- * @return
- */
 int tile::mytile::write_row(const uchar *buf) {
   DBUG_ENTER("tile::mytile::write_row");
   int rc = 0;
@@ -1452,13 +1311,6 @@ int tile::mytile::write_row(const uchar *buf) {
   DBUG_RETURN(rc);
 }
 
-/**
- *
- * @param idx
- * @param part
- * @param all_parts
- * @return
- */
 ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
   DBUG_ENTER("tile::mytile::index_flags");
   DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
@@ -1613,14 +1465,6 @@ int tile::mytile::index_end() {
   DBUG_RETURN(rnd_end());
 }
 
-/**
- * This calls index_read_idx_map to find a row based on a key
- * @param buf
- * @param key
- * @param keypart_map
- * @param find_flag
- * @return
- */
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read_map");
@@ -1650,15 +1494,6 @@ int tile::mytile::index_next(uchar *buf) {
   DBUG_RETURN(rnd_row(table));
 }
 
-/**
- * Find a row based on a given key, currently only primary keys are supported
- * @param buf
- * @param idx
- * @param key
- * @param keypart_map
- * @param find_flag
- * @return
- */
 int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
                                      key_part_map keypart_map,
                                      enum ha_rkey_function find_flag) {

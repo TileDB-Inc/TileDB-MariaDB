@@ -113,6 +113,7 @@ There are three parameters currently supported for MyTile.
 | delete_arrays | global or session | boolean | False | Controls if a `delete table` statement causes the array to be deleted on disk or just deregistered from mariadb. True value causes actual deletions of data |
 | tiledb_config* | global or session | string | "" | Set TileDB configuration parameters, this is in csv form of `key1=value1,key2=value2`. Example: `set mytile_tiledb_config = 'vfs.s3.aws_access_key_id=abc,vfs.s3.aws_secret_access_key=123';` |
 | reopen_for_every_query | global or session | boolean | True | Closes and reopen the array for every query, this allows tiledb_config parameters to take effect without forcing a table flush but any tiledb caching is removed. |
+| ready_query_layout | global or session | string | "unordered" | set layout for ready queries, valid values are "row-major", "col-major", "unordered" or "global-order" |
 
 \* If reopen_for_every_query is disabled you must `FLUSH TABLES` before any new parameters set on `tiledb_config`
 will take effect on an open array (recently access arrays are not closed by MariaDB immediately).

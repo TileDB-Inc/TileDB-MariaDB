@@ -56,9 +56,13 @@ handlerton *mytile_hton;
 
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
-    MYSQL_SYSVAR(read_buffer_size),       MYSQL_SYSVAR(write_buffer_size),
-    MYSQL_SYSVAR(delete_arrays),          MYSQL_SYSVAR(tiledb_config),
-    MYSQL_SYSVAR(reopen_for_every_query), NULL};
+    MYSQL_SYSVAR(read_buffer_size),
+    MYSQL_SYSVAR(write_buffer_size),
+    MYSQL_SYSVAR(delete_arrays),
+    MYSQL_SYSVAR(tiledb_config),
+    MYSQL_SYSVAR(reopen_for_every_query),
+    MYSQL_SYSVAR(read_query_layout),
+    NULL};
 
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
@@ -1470,11 +1474,23 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     }
   }
 
+  // Fetch user set read layout
+  uint64_t layout = THDVAR(thd, read_query_layout);
+
+  const char *layout_str = query_layout_names[layout];
+
+  tiledb_layout_t query_layout;
+  tiledb_layout_from_str(layout_str, &query_layout);
+
   // Set layout
-  if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE)
-    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
-  else
-    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  this->query->set_layout(query_layout);
+  // If the layout is unordered by the the array type is dense we will set it to
+  // the tile order instead Currently multi-range queries do not support dense
+  // unordered reads
+  if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_DENSE &&
+      query_layout == tiledb_layout_t::TILEDB_UNORDERED) {
+    this->query->set_layout(this->array_schema->tile_order());
+  }
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {
@@ -1522,7 +1538,8 @@ bool tile::mytile::valid_pushed_ranges() {
   for (auto &range : this->pushdown_ranges) {
     if (!range.empty()) {
       for (auto &range_ptr : range) {
-        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr || range_ptr->upper_value != nullptr)) {
+        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
+                                     range_ptr->upper_value != nullptr)) {
           one_valid_range = true;
         }
       }
@@ -1541,7 +1558,8 @@ bool tile::mytile::valid_pushed_in_ranges() {
   for (auto &range : this->pushdown_in_ranges) {
     if (!range.empty()) {
       for (auto &range_ptr : range) {
-        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr || range_ptr->upper_value != nullptr)) {
+        if (range_ptr != nullptr && (range_ptr->lower_value != nullptr ||
+                                     range_ptr->upper_value != nullptr)) {
           one_valid_range = true;
         }
       }

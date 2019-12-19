@@ -16,7 +16,7 @@ FLUSH TABLES;
 --echo # Test with mytile_reopen_for_every_query=1
 set mytile_reopen_for_every_query = 1;
 INSERT INTO quickstart_dense_2 (`rows`, `cols`, `a`) SELECT `rows`, `cols`, `a` FROM  (select * from quickstart_dense) q1;
-select * from quickstart_dense_2;
+select * from quickstart_dense_2 order by `rows`, `cols`;
 
 --echo # Close all tables between queries
 FLUSH TABLES;
@@ -24,7 +24,7 @@ FLUSH TABLES;
 --echo # Test with mytile_reopen_for_every_query=0
 set mytile_reopen_for_every_query = 0;
 INSERT INTO quickstart_dense_2 (`rows`, `cols`, `a`) SELECT `rows`, `cols`, `a` FROM  (select * from quickstart_dense) q1;
-select * from quickstart_dense_2;
+select * from quickstart_dense_2 order by `rows`, `cols`;
 
 --echo # Cleanup
 DROP TABLE quickstart_dense_2;

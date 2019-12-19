@@ -43,6 +43,7 @@
 #include <log.h>
 #include <tiledb/tiledb>
 #include <unordered_set>
+#include "utils.h"
 
 namespace tile {
 /**
@@ -59,7 +60,7 @@ typedef struct range_struct {
 int set_range_from_item_consts(Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
-                               std::shared_ptr<range> &range);
+                               std::shared_ptr<tile::range> &range);
 /**
  * Take a range, and will set the lower/upper bound as appropriate if it is
  * missing and takes into account the mariadb operations.
@@ -79,15 +80,17 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
  * {lower_value = 11, upper_value=non_empty_domain[1],
  * operation_type=Item_func::GT_FUNC, datatype=TILEDB_INT32}
  *
+ * @param thd
  * @param range
  * @param non_empty_domain
  * @param dimension
  */
-void setup_range(const std::shared_ptr<range> &range, void *non_empty_domain,
-                 tiledb::Dimension dimension);
+void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
+                 void *non_empty_domain, tiledb::Dimension dimension);
 
 template <typename T>
-void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
+void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
+                 T *non_empty_domain) {
   T final_lower_value;
   T final_upper_value;
   switch (range->operation_type) {
@@ -190,52 +193,186 @@ void setup_range(const std::shared_ptr<range> &range, T *non_empty_domain) {
   }        // endswitch functype
 
   // log conditions for debug
-  sql_print_information(
-      "pushed conditions: [%s, %s]",
+  log_debug(
+      thd, "pushed conditions: [%s, %s]",
       std::to_string(*static_cast<T *>(range->lower_value.get())).c_str(),
       std::to_string(*static_cast<T *>(range->upper_value.get())).c_str());
 }
 
-std::shared_ptr<range> merge_ranges(std::vector<std::shared_ptr<range>> &ranges,
-                                    tiledb_datatype_t datatype);
+/**
+ * Merge ranges to remove overlap, and produce the most constrained ranges.
+ * This is used mostly for condition pushdown to narrow ranges which are dim0 >
+ * X and dim0 < Y and dim0 < Y-1 to have a range of [X, Y-1]
+ * @param ranges ranges to merge
+ * @param datatype
+ * @return
+ */
+std::shared_ptr<tile::range>
+merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
+             tiledb_datatype_t datatype);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param ranges
+ * @return
+ */
 template <typename T>
-std::shared_ptr<range>
-merge_ranges(std::vector<std::shared_ptr<range>> &ranges) {
-  std::shared_ptr<range> merged_range;
+std::shared_ptr<tile::range>
+merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
+  std::shared_ptr<tile::range> merged_range =
+      std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
 
   if (ranges.empty())
     return nullptr;
 
-  // Set the last element as the default for the merged range, this gives us
+  // Set the first element as the default for the merged range, this gives us
   // some initial values to compare against
-  merged_range = std::move(ranges[ranges.size() - 1]);
-  // Remove last element since its now set as initial range
-  ranges.pop_back();
+  merged_range->operation_type = ranges[0]->operation_type;
+  merged_range->datatype = ranges[0]->datatype;
+
+  if (ranges[0]->lower_value != nullptr) {
+    merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(T)), &std::free);
+    memcpy(merged_range->lower_value.get(), ranges[0]->lower_value.get(),
+           sizeof(T));
+  }
+
+  if (ranges[0]->upper_value != nullptr) {
+    merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(T)), &std::free);
+    memcpy(merged_range->upper_value.get(), ranges[0]->upper_value.get(),
+           sizeof(T));
+  }
 
   // loop through ranges and set upper/lower maxima/minima
   for (auto &range : ranges) {
     if (range->lower_value != nullptr) {
       if (merged_range->lower_value == nullptr) {
-        merged_range->lower_value = std::move(range->lower_value);
+        merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(sizeof(T)), &std::free);
+        memcpy(merged_range->lower_value.get(), range->lower_value.get(),
+               sizeof(T));
         // See if the current range has a higher low value than the "merged"
         // range, if so set the new low value, since the current range has a
         // more restrictive condition
       } else if (*(static_cast<T *>(merged_range->lower_value.get())) <
                  *(static_cast<T *>(range->lower_value.get()))) {
-        merged_range->lower_value = std::move(range->lower_value);
+        memcpy(merged_range->lower_value.get(), range->lower_value.get(),
+               sizeof(T));
       }
     }
 
     if (range->upper_value != nullptr) {
       if (merged_range->upper_value == nullptr) {
-        merged_range->upper_value = std::move(range->upper_value);
+        merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(sizeof(T)), &std::free);
+        memcpy(merged_range->upper_value.get(), range->upper_value.get(),
+               sizeof(T));
         // See if the current range has a lower upper value than the "merged"
         // range, if so set the new upper value since the current range has a
         // more restrictive condition
       } else if (*(static_cast<T *>(merged_range->upper_value.get())) >
                  *(static_cast<T *>(range->upper_value.get()))) {
-        merged_range->upper_value = std::move(range->upper_value);
+        memcpy(merged_range->upper_value.get(), range->upper_value.get(),
+               sizeof(T));
+      }
+    }
+  }
+
+  // If we have set the upper and lower let's make it a between.
+  if (merged_range != nullptr && merged_range->upper_value != nullptr &&
+      merged_range->lower_value != nullptr) {
+    merged_range->operation_type = Item_func::BETWEEN;
+  }
+
+  return merged_range;
+}
+
+/**
+ * Merge ranges into larger super ranges, this is used mostly for key scans and
+ * MRR
+ * @param ranges ranges to merge
+ * @param datatype
+ * @return single range which is the merged super range
+ */
+std::shared_ptr<tile::range>
+merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges,
+                      tiledb_datatype_t datatype);
+
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param ranges
+ * @return
+ */
+template <typename T>
+std::shared_ptr<tile::range>
+merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
+  std::shared_ptr<tile::range> merged_range =
+      std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
+
+  if (ranges.empty())
+    return nullptr;
+
+  // Set the first element as the default for the merged range, this gives us
+  // some initial values to compare against
+  merged_range->operation_type = ranges[0]->operation_type;
+  merged_range->datatype = ranges[0]->datatype;
+
+  if (ranges[0]->lower_value != nullptr) {
+    merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(T)), &std::free);
+    memcpy(merged_range->lower_value.get(), ranges[0]->lower_value.get(),
+           sizeof(T));
+  }
+
+  if (ranges[0]->upper_value != nullptr) {
+    merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(T)), &std::free);
+    memcpy(merged_range->upper_value.get(), ranges[0]->upper_value.get(),
+           sizeof(T));
+  }
+
+  // loop through ranges and set upper/lower maxima/minima
+  for (auto &range : ranges) {
+    if (range->lower_value != nullptr) {
+      if (merged_range->lower_value == nullptr) {
+        merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(sizeof(T)), &std::free);
+        memcpy(merged_range->lower_value.get(), range->lower_value.get(),
+               sizeof(T));
+        // See if the current range has a lower low value than the "merged"
+        // range, if so set the new low value, since the current range includes
+        // additional data
+      } else if (*(static_cast<T *>(merged_range->lower_value.get())) >
+                 *(static_cast<T *>(range->lower_value.get()))) {
+        //        merged_range->lower_value = std::move(range->lower_value);
+        memcpy(merged_range->lower_value.get(), range->lower_value.get(),
+               sizeof(T));
+      }
+    }
+
+    if (range->upper_value != nullptr) {
+      if (merged_range->upper_value == nullptr) {
+        merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(sizeof(T)), &std::free);
+        memcpy(merged_range->upper_value.get(), range->upper_value.get(),
+               sizeof(T));
+        // See if the current range has a higher upper value than the "merged"
+        // range, if so set the new upper value since the current range includes
+        // additional data
+      } else if (*(static_cast<T *>(merged_range->upper_value.get())) <
+                 *(static_cast<T *>(range->upper_value.get()))) {
+        //        merged_range->upper_value = std::move(range->upper_value);
+        memcpy(merged_range->upper_value.get(), range->upper_value.get(),
+               sizeof(T));
       }
     }
   }
@@ -257,19 +394,27 @@ merge_ranges(std::vector<std::shared_ptr<range>> &ranges) {
  * @param main_range
  * @return
  */
-std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
-    const std::vector<std::shared_ptr<range>> &in_ranges,
-    const std::shared_ptr<range> &main_range);
+std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
+    const std::vector<std::shared_ptr<tile::range>> &in_ranges,
+    const std::shared_ptr<tile::range> &main_range);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param in_ranges
+ * @param main_range
+ * @return
+ */
 template <typename T>
-std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
-    const std::vector<std::shared_ptr<range>> &in_ranges,
-    const std::shared_ptr<range> &main_range) {
+std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
+    const std::vector<std::shared_ptr<tile::range>> &in_ranges,
+    const std::shared_ptr<tile::range> &main_range) {
 
   // Return unique non contained ranges
-  std::vector<std::shared_ptr<range>> ret;
+  std::vector<std::shared_ptr<tile::range>> ret;
 
-  std::unordered_set<T> unique_values;
+  std::unordered_set<T> unique_values_set;
+  std::vector<T> unique_values_vec;
 
   // get datatype
   tiledb_datatype_t datatype;
@@ -302,16 +447,20 @@ std::vector<std::shared_ptr<range>> get_unique_non_contained_in_ranges(
     }
 
     // Add value to set
-    unique_values.insert(range_lower_value);
+    if (unique_values_set.count(range_lower_value) == 0) {
+      unique_values_set.insert(range_lower_value);
+      unique_values_vec.push_back(range_lower_value);
+    }
   }
 
   // from unique values build final ranges
-  for (T val : unique_values) {
+  for (T val : unique_values_vec) {
     // Build range pointer
-    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        Item_func::EQ_FUNC, datatype});
+    std::shared_ptr<tile::range> range =
+        std::make_shared<tile::range>(tile::range{
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            Item_func::EQ_FUNC, datatype});
 
     // Allocate memory for lower value
     range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
@@ -463,5 +612,178 @@ build_ranges_from_key(const uchar *key, uint length,
   ranges.push_back(std::move(last_dimension_range));
 
   return ranges;
+}
+/**
+ * Update a range struct with a new key value. This will expand the super range
+ * if needed
+ * @param range range to modify
+ * @param key key to add/include in super range
+ * @param dimension_index dimension index of range
+ * @param datatype
+ */
+void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
+                                           key_range key,
+                                           uint64_t dimension_index,
+                                           tiledb_datatype_t datatype);
+/**
+ * See non-templated version for description
+ * @tparam T
+ * @param range
+ * @param key
+ * @param dimension_index
+ */
+template <typename T>
+void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
+                                           key_range key,
+                                           uint64_t dimension_index) {
+  const T *typed_key = reinterpret_cast<const T *>(key.key);
+
+  T key_value = typed_key[dimension_index];
+
+  auto operation_type = find_flag_to_func(key.flag);
+  switch (operation_type) {
+  // If we have greater than, lets make it greater than or equal
+  // TileDB ranges are inclusive
+  case Item_func::GT_FUNC: {
+    if (std::is_floating_point<T>()) {
+      key_value = std::nextafter(key_value, static_cast<T>(1.0f));
+    } else {
+      key_value += 1;
+    }
+
+    // If the lower is null, set it
+    if (range->lower_value == nullptr) {
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+    // If the current lower_value is greater than the key set the new lower
+    // value
+    else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+    break;
+  }
+  case Item_func::GE_FUNC: {
+    // If the lower is null, set it
+    if (range->lower_value == nullptr) {
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+    // If the current lower_value is greater than the key set the new lower
+    // value
+    else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+    break;
+  }
+  case Item_func::LT_FUNC: {
+    // If we have less than, lets make it less than or equal
+    // TileDB ranges are inclusive
+    range->operation_type = Item_func::LE_FUNC;
+    if (std::is_floating_point<T>()) {
+      key_value = std::nextafter(key_value, static_cast<T>(-1.0f));
+    } else {
+      key_value -= 1;
+    }
+
+    // If the upper is null, set it
+    if (range->upper_value == nullptr) {
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+    // If the current upper_value is less than the key set the new upper value
+    else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+
+    break;
+  }
+  case Item_func::LE_FUNC: {
+    // If the upper is null, set it
+    if (range->upper_value == nullptr) {
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+    // If the current upper_value is less than the key set the new upper value
+    else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+
+    break;
+  }
+  case Item_func::EQ_FUNC: {
+
+    // If the lower is null, set it
+    if (range->lower_value == nullptr) {
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+    // If the current lower_value is greater than the key set the new lower
+    // value
+    else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
+      memcpy(range->lower_value.get(), &key_value, sizeof(T));
+    }
+
+    // If the upper is null, set it
+    if (range->upper_value == nullptr) {
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+    // If the current upper_value is less than the key set the new upper value
+    else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
+      memcpy(range->upper_value.get(), &key_value, sizeof(T));
+    }
+
+    break;
+  }
+  default:
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unsupported Item_func::functype in "
+                    "update_range_from_key_for_super_range",
+                    ME_ERROR_LOG | ME_FATAL);
+    break;
+  }
+}
+
+/**
+ * Compares two buffers of a type datatype numerically
+ * @param lhs
+ * @param rhs
+ * @param size
+ * @param datatype
+ * @return -1 if lhs is less than rhs, 0 if equal 1 if lhs is greater than rhs
+ */
+int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size,
+                             tiledb_datatype_t datatype);
+
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param lhs
+ * @param rhs
+ * @param size
+ * @return
+ */
+template <typename T>
+int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
+  const T *lhs_typed = reinterpret_cast<const T *>(lhs);
+  const T *rhs_typed = reinterpret_cast<const T *>(rhs);
+
+  for (uint64_t i = 0; i < size / sizeof(T); i++) {
+    if (lhs_typed[i] > rhs_typed[i]) {
+      return 1;
+    } else if (lhs_typed[i] < rhs_typed[i]) {
+      return -1;
+    }
+  }
+
+  // If we are here then all lhs parts are equal
+  return 0;
 }
 } // namespace tile

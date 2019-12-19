@@ -1,0 +1,28 @@
+--echo #
+--echo # The purpose of this test is to validate the MRR functionality
+--echo #
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+--echo # Block Nested Loop Join Explain
+explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+--echo # Batch Key Access Join Explain
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=6;
+explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+# Run join
+select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+--echo # Batch Key Access Hash Join Explain
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=8;
+explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+# Run join
+select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+set mytile_delete_arrays=0;
+drop table `quickstart_dense`;

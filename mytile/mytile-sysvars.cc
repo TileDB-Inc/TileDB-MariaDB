@@ -102,6 +102,14 @@ static MYSQL_THDVAR_BOOL(compute_table_records,
                          "compute size of table (record count) on opening",
                          NULL, NULL, false);
 
+const char *log_level_names[] = {"error", "warning", "info", "debug", NullS};
+
+TYPELIB log_level_typelib = {array_elements(log_level_names) - 1,
+                             "log_level_typelib", log_level_names, NULL};
+
+static MYSQL_THDVAR_ENUM(log_level, PLUGIN_VAR_OPCMDARG, "log level for mytile",
+                         NULL, NULL, 1, &log_level_typelib);
+
 // system variables
 struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(read_buffer_size),
@@ -113,6 +121,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(dimensions_are_primary_keys),
     MYSQL_SYSVAR(enable_pushdown),
     MYSQL_SYSVAR(compute_table_records),
+    MYSQL_SYSVAR(log_level),
     NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
@@ -141,5 +150,7 @@ my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
 my_bool compute_table_records(THD *thd) {
   return THDVAR(thd, compute_table_records);
 }
+
+LOG_LEVEL log_level(THD *thd) { return LOG_LEVEL(THDVAR(thd, log_level)); }
 } // namespace sysvars
 } // namespace tile

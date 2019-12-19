@@ -42,6 +42,8 @@
 
 namespace tile {
 namespace sysvars {
+enum class LOG_LEVEL { ERROR = 0, WARNING = 1, INFORMATION = 2, DEBUG = 3 };
+
 // list of system parameters
 extern struct st_mysql_sys_var *mytile_system_variables[];
 
@@ -62,6 +64,8 @@ my_bool dimensions_are_primary_keys(THD *thd);
 my_bool enable_pushdown(THD *thd);
 
 my_bool compute_table_records(THD *thd);
+
+LOG_LEVEL log_level(THD *thd);
 } // namespace sysvars
 } // namespace tile
 

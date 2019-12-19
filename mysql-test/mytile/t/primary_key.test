@@ -1,0 +1,31 @@
+--echo #
+--echo # The purpose of this test is to test primary key toggling
+--echo #
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+show create table quickstart_dense;
+
+--echo # Disable pushdown to force index scan
+SET mytile_enable_pushdown=0;
+explain SELECT * FROM quickstart_dense WHERE `rows` = 1 AND `cols` = 1 ORDER BY `rows`, `cols`;
+
+SET mytile_enable_pushdown=1;
+SET mytile_delete_arrays=0;
+DROP TABLE `quickstart_dense`;
+
+SET mytile_dimensions_are_primary_keys=0;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+show create table quickstart_dense;
+
+explain SELECT * FROM quickstart_dense WHERE `rows` = 1 AND `cols` = 1 ORDER BY `rows`, `cols`;
+
+DROP TABLE `quickstart_dense`;
+
+set mytile_delete_arrays=1;
+SET mytile_dimensions_are_primary_keys=1;

@@ -1,0 +1,16 @@
+--echo #
+--echo # The purpose of this test is to validate  mytile_compute_table_records
+--echo #
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+
+explain select * from `quickstart_dense` ORDER BY `rows` asc, cols asc;
+
+set mytile_compute_table_records=1;
+FLUSH TABLES;
+
+explain select * from `quickstart_dense` ORDER BY `rows` asc, cols asc;
+
+set mytile_delete_arrays=0;
+DROP TABLE quickstart_dense;

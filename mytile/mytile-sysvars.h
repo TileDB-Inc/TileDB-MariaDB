@@ -35,54 +35,34 @@
 #ifndef MYTILE_SYSVARS_H
 #define MYTILE_SYSVARS_H
 
+#define MYSQL_SERVER 1 // required for THD class
+
 #include <handler.h>
 #include <my_global.h>
 
+namespace tile {
+namespace sysvars {
 // list of system parameters
 extern struct st_mysql_sys_var *mytile_system_variables[];
 
-// Read buffer size
-static MYSQL_THDVAR_ULONGLONG(
-    read_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Read buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
+ulonglong read_buffer_size(THD *thd);
 
-// Write buffer size
-static MYSQL_THDVAR_ULONGLONG(
-    write_buffer_size, PLUGIN_VAR_OPCMDARG,
-    "Write buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
+ulonglong write_buffer_size(THD *thd);
 
-// Physically delete arrays
-static MYSQL_THDVAR_BOOL(delete_arrays, PLUGIN_VAR_OPCMDARG,
-                         "Should drop table delete TileDB arrays", NULL, NULL,
-                         false);
+my_bool delete_arrays(THD *thd);
 
-// Set TileDB Configuration parameters
-static MYSQL_THDVAR_STR(tiledb_config,
-                        PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_MEMALLOC,
-                        "TileDB configuration parameters, comma separated",
-                        NULL, NULL, "");
+char *tiledb_config(THD *thd);
 
-// Should arrays force to be reopened? This allows for new TileDB Configuration
-// parameters to always take effect
-static MYSQL_THDVAR_BOOL(
-    reopen_for_every_query, PLUGIN_VAR_OPCMDARG,
-    "Force reopen TileDB array for every query, this allows for tiledb_config "
-    "paraneters to always take effect",
-    NULL, NULL, true);
+my_bool reopen_for_every_query(THD *thd);
 
-const char *query_layout_names[] = {"row-major", "col-major", "unordered",
-                                    "global-order", NullS};
+const char *read_query_layout(THD *thd);
 
-TYPELIB query_layout_typelib = {array_elements(query_layout_names) - 1,
-                                "query_layout_typelib", query_layout_names,
-                                NULL};
+my_bool dimensions_are_primary_keys(THD *thd);
 
-static MYSQL_THDVAR_ENUM(read_query_layout, PLUGIN_VAR_OPCMDARG,
-                         "TileDB query layout, valid layouts are row-major, "
-                         "col-major, unordered, global-order",
-                         NULL, NULL,
-                         2, // default to unordered
-                         &query_layout_typelib);
+my_bool enable_pushdown(THD *thd);
+
+my_bool compute_table_records(THD *thd);
+} // namespace sysvars
+} // namespace tile
+
 #endif // MYTILE_SYSVARS_H

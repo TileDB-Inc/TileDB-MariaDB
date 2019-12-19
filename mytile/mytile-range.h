@@ -199,10 +199,24 @@ void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
       std::to_string(*static_cast<T *>(range->upper_value.get())).c_str());
 }
 
+/**
+ * Merge ranges to remove overlap, and produce the most constrained ranges.
+ * This is used mostly for condition pushdown to narrow ranges which are dim0 >
+ * X and dim0 < Y and dim0 < Y-1 to have a range of [X, Y-1]
+ * @param ranges ranges to merge
+ * @param datatype
+ * @return
+ */
 std::shared_ptr<tile::range>
 merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
              tiledb_datatype_t datatype);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param ranges
+ * @return
+ */
 template <typename T>
 std::shared_ptr<tile::range>
 merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
@@ -242,7 +256,6 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
             std::malloc(sizeof(T)), &std::free);
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
                sizeof(T));
-        //        merged_range->lower_value = std::move(range->lower_value);
         // See if the current range has a higher low value than the "merged"
         // range, if so set the new low value, since the current range has a
         // more restrictive condition
@@ -250,7 +263,6 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
                  *(static_cast<T *>(range->lower_value.get()))) {
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
                sizeof(T));
-        //        merged_range->lower_value = std::move(range->lower_value);
       }
     }
 
@@ -260,7 +272,6 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
             std::malloc(sizeof(T)), &std::free);
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
                sizeof(T));
-        //        merged_range->upper_value = std::move(range->upper_value);
         // See if the current range has a lower upper value than the "merged"
         // range, if so set the new upper value since the current range has a
         // more restrictive condition
@@ -268,7 +279,6 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
                  *(static_cast<T *>(range->upper_value.get()))) {
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
                sizeof(T));
-        //        merged_range->upper_value = std::move(range->upper_value);
       }
     }
   }
@@ -282,10 +292,23 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
   return merged_range;
 }
 
+/**
+ * Merge ranges into larger super ranges, this is used mostly for key scans and
+ * MRR
+ * @param ranges ranges to merge
+ * @param datatype
+ * @return single range which is the merged super range
+ */
 std::shared_ptr<tile::range>
 merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges,
                       tiledb_datatype_t datatype);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param ranges
+ * @return
+ */
 template <typename T>
 std::shared_ptr<tile::range>
 merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
@@ -375,6 +398,13 @@ std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
     const std::vector<std::shared_ptr<tile::range>> &in_ranges,
     const std::shared_ptr<tile::range> &main_range);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param in_ranges
+ * @param main_range
+ * @return
+ */
 template <typename T>
 std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
     const std::vector<std::shared_ptr<tile::range>> &in_ranges,
@@ -583,12 +613,25 @@ build_ranges_from_key(const uchar *key, uint length,
 
   return ranges;
 }
-
+/**
+ * Update a range struct with a new key value. This will expand the super range
+ * if needed
+ * @param range range to modify
+ * @param key key to add/include in super range
+ * @param dimension_index dimension index of range
+ * @param datatype
+ */
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key,
                                            uint64_t dimension_index,
                                            tiledb_datatype_t datatype);
-
+/**
+ * See non-templated version for description
+ * @tparam T
+ * @param range
+ * @param key
+ * @param dimension_index
+ */
 template <typename T>
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key,
@@ -719,6 +762,14 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
 int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size,
                              tiledb_datatype_t datatype);
 
+/**
+ * See non-templated function for description
+ * @tparam T
+ * @param lhs
+ * @param rhs
+ * @param size
+ * @return
+ */
 template <typename T>
 int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
   const T *lhs_typed = reinterpret_cast<const T *>(lhs);

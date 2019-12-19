@@ -867,14 +867,14 @@ const COND *tile::mytile::cond_push(const COND *cond) {
 const COND *tile::mytile::cond_push_local(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push_local");
   // Make sure pushdown ranges is not empty
-  if (this->pushdown_ranges.empty())
-    for (uint64_t i = 0; i < this->ndim; i++)
-      this->pushdown_ranges.emplace_back();
+  if (this->pushdown_ranges.empty()) {
+    this->pushdown_ranges.resize(this->ndim);
+  }
 
   // Make sure pushdown in ranges is not empty
-  if (this->pushdown_in_ranges.empty())
-    for (uint64_t i = 0; i < this->ndim; i++)
-      this->pushdown_in_ranges.emplace_back();
+  if (this->pushdown_in_ranges.empty()) {
+    this->pushdown_in_ranges.resize(this->ndim);
+  }
 
   switch (cond->type()) {
   case Item::COND_ITEM: {
@@ -1674,10 +1674,8 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
     this->pushdown_ranges.clear();
     this->pushdown_in_ranges.clear();
 
-    for (uint64_t i = 0; i < this->ndim; i++) {
-      this->pushdown_ranges.emplace_back();
-      this->pushdown_in_ranges.emplace_back();
-    }
+    this->pushdown_ranges.resize(this->ndim);
+    this->pushdown_in_ranges.resize(this->ndim);
 
     // Copy shared pointer to main range pushdown
     for (uint64_t i = 0; i < ranges_from_keys.size(); i++) {
@@ -1688,7 +1686,7 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
 }
 
 /****************************************************************************
- * Maria MRR implementation: use DS-MRR
+ * MRR implementation: use DS-MRR
  ***************************************************************************/
 
 int tile::mytile::build_mrr_ranges() {
@@ -1697,11 +1695,9 @@ int tile::mytile::build_mrr_ranges() {
   this->pushdown_in_ranges.clear();
 
   std::vector<std::vector<std::shared_ptr<tile::range>>> tmp_ranges;
-  for (uint64_t i = 0; i < this->ndim; i++) {
-    this->pushdown_ranges.emplace_back();
-    this->pushdown_in_ranges.emplace_back();
-    tmp_ranges.emplace_back();
-  }
+  this->pushdown_ranges.resize(this->ndim);
+  this->pushdown_in_ranges.resize(this->ndim);
+  tmp_ranges.resize(this->ndim);
 
   tiledb_datatype_t datatype = this->array_schema->domain().type();
   uint64_t datatype_size = tiledb_datatype_size(datatype);
@@ -1730,7 +1726,6 @@ int tile::mytile::build_mrr_ranges() {
 
     auto merged_range = merge_ranges(combined_ranges_for_dimension,
                                      this->array_schema->domain().type());
-    //        merged_range->operation_type = Item_func::BETWEEN;
     tmp_ranges[i].push_back(merged_range);
   }
 
@@ -1759,42 +1754,11 @@ int tile::mytile::build_mrr_ranges() {
                                               datatype);
       }
     }
-
-    /*// Build list of rages from start/end key
-    std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
-    std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
-    if (mrr_cur_range.start_key.key != nullptr) {
-      ranges_from_key_start = tile::build_ranges_from_key(
-          mrr_cur_range.start_key.key, mrr_cur_range.start_key.length,
-          HA_READ_KEY_OR_NEXT, this->array_schema->domain().type());
-    }
-    if (mrr_cur_range.end_key.key != nullptr) {
-      ranges_from_key_end = tile::build_ranges_from_key(
-          mrr_cur_range.end_key.key, mrr_cur_range.end_key.length,
-          HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
-    }
-
-    if (!ranges_from_key_start.empty() || !ranges_from_key_end.empty()) {
-
-      // Copy shared pointer to main range pushdown
-      for (uint64_t i = 0; i < ranges_from_key_start.size(); i++) {
-        std::vector<std::shared_ptr<tile::range>>
-            combined_ranges_for_dimension = {ranges_from_key_start[i]};
-        if (ranges_from_key_end.size() > i) {
-          combined_ranges_for_dimension.push_back(ranges_from_key_end[i]);
-        }
-
-        auto merged_range = merge_ranges(combined_ranges_for_dimension,
-                                         this->array_schema->domain().type());
-        //        merged_range->operation_type = Item_func::BETWEEN;
-        tmp_ranges[i].push_back(merged_range);
-      }
-    }*/
   }
 
   // Now that we have all ranges, let's build them into super ranges
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
-    const auto ranges = tmp_ranges[i];
+    const auto &ranges = tmp_ranges[i];
     auto merged_range =
         merge_ranges_to_super(ranges, this->array_schema->domain().type());
     if (merged_range != nullptr) {
@@ -1883,7 +1847,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0001,                     /* version number (0.1) */
+    0x0003,                     /* version number (0.3) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     NULL,                                   /* config options */
@@ -1900,9 +1864,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0001,                     /* version number (0.1) */
+    0x0003,                     /* version number (0.3) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
-    "0.1",                                  /* string version */
+    "0.3",                                  /* string version */
     MariaDB_PLUGIN_MATURITY_EXPERIMENTAL    /* maturity */
 } maria_declare_plugin_end;

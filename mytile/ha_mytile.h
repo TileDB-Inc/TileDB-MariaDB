@@ -43,7 +43,6 @@
 #include <handler.h>
 #include <memory>
 #include <tiledb/tiledb>
-#include <queue>
 
 #include "handler.h"   /* handler */
 #include "my_base.h"   /* ha_rows */
@@ -352,8 +351,7 @@ public:
 
   /**
    * Is the primary key clustered
-   * @return false to workaround mariadb assuming sequential index scans are
-   * faster than pushdown
+   * @return true because tiledb data is storted based on dimensions and layout
    */
   bool primary_key_is_clustered() override { return TRUE; }
 
@@ -379,6 +377,15 @@ public:
    */
   int index_end() override;
 
+  /**
+   * Perform a scan over query results to find the specified key
+   * This performs a sequence scan to find a key. It is used for index scans or
+   * MRR
+   * @param key key to find
+   * @param key_len length of key indicating the key parts
+   * @param find_flag
+   * @return
+   */
   int index_read_scan(const uchar *key, uint key_len,
                       enum ha_rkey_function find_flag);
 
@@ -518,8 +525,16 @@ private:
   int reset_pushdowns_for_key(const uchar *key, uint key_len,
                               enum ha_rkey_function find_flag);
 
+  /**
+   * Build MRR ranges from current handle mrr details
+   * @return
+   */
   int build_mrr_ranges();
 
+  /**
+   * Check if a query is complete or not
+   * @return true if query is complete, false otherwise
+   */
   bool query_complete();
 };
 } // namespace tile

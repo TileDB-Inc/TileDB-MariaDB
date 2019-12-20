@@ -32,6 +32,7 @@
 
 #include <my_global.h> // ulonglong
 #include <handler.h>
+#include <tiledb/tiledb.h>
 #include "mytile-sysvars.h"
 
 namespace tile {
@@ -136,9 +137,13 @@ my_bool reopen_for_every_query(THD *thd) {
   return THDVAR(thd, reopen_for_every_query);
 }
 
-const char *read_query_layout(THD *thd) {
+tiledb_layout_t read_query_layout(THD *thd) {
   uint64_t layout = THDVAR(thd, read_query_layout);
-  return query_layout_names[layout];
+  const char *layout_str = query_layout_names[layout];
+
+  tiledb_layout_t query_layout;
+  tiledb_layout_from_str(layout_str, &query_layout);
+  return query_layout;
 }
 
 my_bool dimensions_are_primary_keys(THD *thd) {

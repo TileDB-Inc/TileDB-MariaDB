@@ -70,7 +70,7 @@ RUN apt-get update && apt-get install -y \
   libcurl4-openssl-dev \
   && rm -rf /var/lib/apt/lists/*
 
-ENV MARIADB_VERSION="mariadb-10.4.8"
+ENV MARIADB_VERSION="mariadb-10.4.11"
 
 ADD . /tmp/mytile
 

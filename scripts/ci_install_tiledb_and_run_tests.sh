@@ -3,17 +3,17 @@
 set -v -e -x
 
 original_dir=$PWD
-export MARIADB_VERSION="mariadb-10.4.8"
+export MARIADB_VERSION="mariadb-10.4.11"
 mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp
 # Download mariadb, this has a habit of failing so let's do it first
-#wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz
-git clone https://github.com/Shelnutt2/server.git -b MDEV-20767-10.4 ${MARIADB_VERSION}
+wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz
+tar xf ${MARIADB_VERSION}.tar.gz
 
-# Install tiledb using 1.6 release
+# Install tiledb using 1.7.2 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.0 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.2 && cd TileDB \
 && mkdir -p build && cd build
 
 # Configure and build TileDB
@@ -22,7 +22,6 @@ cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD
 && sudo make -C tiledb install \
 && cd $original_dir
 
-#tar xf ${MARIADB_VERSION}.tar.gz \
 mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd ${MARIADB_VERSION} \
 && mkdir builddir \

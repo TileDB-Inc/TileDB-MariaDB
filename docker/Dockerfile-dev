@@ -57,7 +57,7 @@ RUN git config --global user.email "you@example.com" \
 
 # Install tiledb using 1.7 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.0 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.2 && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \
@@ -70,7 +70,7 @@ RUN apt-get update && apt-get install -y \
   libcurl4-openssl-dev \
   && rm -rf /var/lib/apt/lists/*
 
-ENV MARIADB_VERSION="mariadb-10.4.8"
+ENV MARIADB_VERSION="mariadb-10.4.11"
 
 ADD . /tmp/mytile
 

@@ -18,6 +18,7 @@ struct ha_table_option_struct {
   uint array_type;
   ulonglong cell_order;
   ulonglong tile_order;
+  ulonglong open_at;
 };
 
 /** Field options */

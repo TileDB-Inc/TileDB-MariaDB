@@ -148,6 +148,20 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
+    // Check for open_at
+
+    ulonglong open_at = UINT64_MAX;
+    if (info != nullptr && info->option_struct != nullptr) {
+      open_at = info->option_struct->open_at;
+    }
+    if (open_at == UINT64_MAX && ts != nullptr &&
+        ts->option_struct != nullptr) {
+      open_at = ts->option_struct->open_at;
+    }
+    if (open_at != UINT64_MAX) {
+      table_options << " open_at=" << open_at;
+    }
+
     for (const auto &dim : schema->domain().dimensions()) {
       std::string domain_str = dim.domain_to_str();
       domain_str = domain_str.substr(1, domain_str.size() - 2);

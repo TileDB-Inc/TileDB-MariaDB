@@ -63,6 +63,7 @@ ha_create_table_option mytile_table_option_list[] = {
                     TILEDB_ROW_MAJOR),
     HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
                     TILEDB_ROW_MAJOR),
+    HA_TOPTION_NUMBER("open_at", open_at, UINT64_MAX, 0, UINT64_MAX, 1),
     HA_TOPTION_END};
 
 // Structure for specific field options
@@ -577,6 +578,11 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
           this->record_index = 0;
           // Break out of resubmit loop as we have some results.
           break;
+        } else if (this->records == 0 &&
+                   this->status == tiledb::Query::Status::COMPLETE) {
+          // Reset bitmap to original
+          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          DBUG_RETURN(rc);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
     }
@@ -1351,8 +1357,14 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }
-    this->array =
-        std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_READ);
+    if (this->table->s->option_struct->open_at != UINT64_MAX) {
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ,
+          this->table->s->option_struct->open_at);
+    } else {
+      this->array =
+          std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_READ);
+    }
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
     // Else lets try to open reopen and use existing contexts
@@ -1362,7 +1374,11 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       if (this->array->is_open())
         this->array->close();
 
-      this->array->open(TILEDB_READ);
+      if (this->table->s->option_struct->open_at != UINT64_MAX) {
+        this->array->open(TILEDB_READ, this->table->s->option_struct->open_at);
+      } else {
+        this->array->open(TILEDB_READ);
+      }
     }
 
     if (this->query == nullptr || this->query->query_type() != TILEDB_READ) {

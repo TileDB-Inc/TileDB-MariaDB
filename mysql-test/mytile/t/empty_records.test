@@ -1,0 +1,11 @@
+--echo #
+--echo # The purpose of this test is to validate empty arrays return 0 records instead of errors
+--echo #
+
+--echo # INTEGER
+CREATE TABLE t1 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 integer
+) ENGINE=mytile;
+select * FROM t1;
+DROP TABLE t1;

@@ -536,5 +536,9 @@ private:
    * @return true if query is complete, false otherwise
    */
   bool query_complete();
+
+  // Indicator for when non_empty_domain is empty and reads will return empty
+  // dataset
+  int empty_read = 0;
 };
 } // namespace tile

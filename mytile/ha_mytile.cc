@@ -211,12 +211,11 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
           tiledb_datatype_size(domain.type()) * this->ndim * 2;
       auto subarray = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(subarray_size), &std::free);
-      int empty;
 
       // Get the non empty domain
       this->ctx.handle_error(tiledb_array_get_non_empty_domain(
           this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
-          &empty));
+          &this->empty_read));
 
       this->records_upper_bound = computeRecordsUB(this->array, subarray.get());
     }
@@ -404,18 +403,17 @@ int tile::mytile::init_scan(
       subarray = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(subarray_size), &std::free);
     }
-    int empty;
 
     // Get the non empty domain
     this->ctx.handle_error(tiledb_array_get_non_empty_domain(
         this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
-        &empty));
+        &this->empty_read));
 
     this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
     if (!this->valid_pushed_ranges() &&
         !this->valid_pushed_in_ranges()) { // No pushdown
-      if (empty)
-        DBUG_RETURN(HA_ERR_END_OF_FILE);
+      if (this->empty_read)
+        DBUG_RETURN(rc);
 
       log_debug(thd, "no pushdowns possible for query on table %s",
                 this->table->s->table_name.str);
@@ -537,6 +535,14 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
   DBUG_ENTER("tile::mytile::scan_rnd_row");
   int rc = 0;
   const char *query_status;
+
+  // If the query is empty, we should abort early
+  // We have to check this here and not in rnd_init because
+  // only rnd_next can return empty
+  if (this->empty_read) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
   // We must set the bitmap for debug purpose, it is "write_set" because we use
   // Field->store
   my_bitmap_map *original_bitmap =
@@ -1513,6 +1519,14 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
   DBUG_ENTER("tile::mytile::index_read_scan");
   int rc = 0;
   const char *query_status;
+
+  // If the query is empty, we should abort early
+  // We have to check this here and not in rnd_init because
+  // only index_read_scan can return empty
+  if (this->empty_read) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
   // We must set the bitmap for debug purpose, it is "write_set" because we use
   // Field->store
   my_bitmap_map *original_bitmap =

@@ -43,16 +43,15 @@ int tile::mytile_discover_table_structure(handlerton *hton, THD *thd,
                                           TABLE_SHARE *share,
                                           HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::mytile_discover_table_structure");
-  DBUG_RETURN(discover_array(hton, thd, share, info));
+  DBUG_RETURN(discover_array(thd, share, info));
 }
 
 int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
   DBUG_ENTER("tile::mytile_discover_table");
-  DBUG_RETURN(discover_array(hton, thd, ts, nullptr));
+  DBUG_RETURN(discover_array(thd, ts, nullptr));
 }
 
-int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
-                         HA_CREATE_INFO *info) {
+int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
   tiledb::Config config = build_config(thd);
@@ -63,12 +62,24 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
   bool dimensions_are_primary_keys =
       tile::sysvars::dimensions_are_primary_keys(thd);
 
+  std::string encryption_key;
+  if (info != nullptr && info->option_struct != nullptr &&
+      info->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(info->option_struct->encryption_key);
+  } else if (ts != nullptr && ts->option_struct != nullptr &&
+             ts->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(ts->option_struct->encryption_key);
+  }
+
   // First try if the array_uri option is set
   if (info != nullptr && info->option_struct != nullptr &&
       info->option_struct->array_uri != nullptr) {
     try {
       array_uri = info->option_struct->array_uri;
-      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+      schema = std::make_unique<tiledb::ArraySchema>(
+          ctx, array_uri,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
     } catch (tiledb::TileDBError &e) {
       DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
     }
@@ -77,7 +88,10 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
              ts->option_struct->array_uri != nullptr) {
     try {
       array_uri = ts->option_struct->array_uri;
-      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+      schema = std::make_unique<tiledb::ArraySchema>(
+          ctx, array_uri,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
     } catch (tiledb::TileDBError &e) {
       DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
     }
@@ -85,7 +99,10 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
   } else {
     try {
       array_uri = ts->table_name.str;
-      schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+      schema = std::make_unique<tiledb::ArraySchema>(
+          ctx, array_uri,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
     } catch (tiledb::TileDBError &e) {
       // If the name isn't a URI perhaps the array was created like a normal
       // table and the proper location is under <db>/<table_name> like normal
@@ -93,7 +110,10 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
       try {
         array_uri =
             std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
-        schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+        schema = std::make_unique<tiledb::ArraySchema>(
+            ctx, array_uri,
+            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+            encryption_key);
       } catch (tiledb::TileDBError &e) {
         // We've tried everything, array can't be found
         DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
@@ -149,7 +169,6 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
     }
 
     // Check for open_at
-
     ulonglong open_at = UINT64_MAX;
     if (info != nullptr && info->option_struct != nullptr) {
       open_at = info->option_struct->open_at;
@@ -160,6 +179,10 @@ int tile::discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
     }
     if (open_at != UINT64_MAX) {
       table_options << " open_at=" << open_at;
+    }
+
+    if (!encryption_key.empty()) {
+      table_options << " encryption_key=" << encryption_key;
     }
 
     for (const auto &dim : schema->domain().dimensions()) {

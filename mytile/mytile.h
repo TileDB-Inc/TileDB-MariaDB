@@ -19,6 +19,7 @@ struct ha_table_option_struct {
   ulonglong cell_order;
   ulonglong tile_order;
   ulonglong open_at;
+  const char *encryption_key;
 };
 
 /** Field options */

@@ -1,0 +1,57 @@
+--echo #
+--echo # The purpose of this test is to validate flush writes for TileDB queries with small buffers
+--echo #
+
+set mytile_read_buffer_size=2;
+set mytile_write_buffer_size=4;
+
+CREATE TABLE t1 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 integer
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1,0);
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,2);
+INSERT INTO t1 VALUES (4,3);
+INSERT INTO t1 VALUES (5,4);
+INSERT INTO t1 VALUES (6,5);
+INSERT INTO t1 VALUES (7,6);
+INSERT INTO t1 VALUES (8,7);
+INSERT INTO t1 VALUES (9,8);
+INSERT INTO t1 VALUES (10,9);
+INSERT INTO t1 VALUES (11,10);
+INSERT INTO t1 VALUES (12,11);
+INSERT INTO t1 VALUES (13,12);
+INSERT INTO t1 VALUES (14,13);
+INSERT INTO t1 VALUES (15,14);
+INSERT INTO t1 VALUES (16,15);
+INSERT INTO t1 VALUES (17,16);
+INSERT INTO t1 VALUES (18,17);
+select * FROM t1;
+
+CREATE TABLE t2 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 integer
+) ENGINE=mytile;
+
+--echo # Bulk insert from t1 to t2 using smaller read buffer than write
+INSERT INTO t2 (dim1, attr1) select dim1, attr1 from t1;
+select * from t2;
+
+FLUSH TABLES;
+
+CREATE TABLE t3 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 integer
+) ENGINE=mytile;
+
+set mytile_read_buffer_size=2;
+set mytile_write_buffer_size=4;
+
+--echo # Bulk insert from t1 to t3 using smaller write buffer than read
+INSERT INTO t3 (dim1, attr1) select dim1, attr1 from t1;
+select * from t3;
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;

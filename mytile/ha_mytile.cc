@@ -64,6 +64,7 @@ ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
                     TILEDB_ROW_MAJOR),
     HA_TOPTION_NUMBER("open_at", open_at, UINT64_MAX, 0, UINT64_MAX, 1),
+    HA_TOPTION_STRING("encryption_key", encryption_key),
     HA_TOPTION_END};
 
 // Structure for specific field options
@@ -189,12 +190,23 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
   // Open TileDB Array
   try {
+    std::string encryption_key;
+    if (this->table->s->option_struct->encryption_key != nullptr) {
+      encryption_key =
+          std::string(this->table->s->option_struct->encryption_key);
+    } else if (this->table_share->option_struct->encryption_key != nullptr) {
+      encryption_key =
+          std::string(this->table_share->option_struct->encryption_key);
+    }
     uri = name;
     if (this->table->s->option_struct->array_uri != nullptr)
       uri = this->table->s->option_struct->array_uri;
 
-    this->array_schema = std::unique_ptr<tiledb::ArraySchema>(
-        new tiledb::ArraySchema(this->ctx, this->uri));
+    this->array_schema =
+        std::unique_ptr<tiledb::ArraySchema>(new tiledb::ArraySchema(
+            this->ctx, this->uri,
+            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+            encryption_key));
     auto domain = this->array_schema->domain();
     this->ndim = domain.ndim();
 
@@ -359,9 +371,17 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   }
 
   try {
+    std::string encryption_key;
+    if (create_info->option_struct->encryption_key != nullptr) {
+      encryption_key = std::string(create_info->option_struct->encryption_key);
+    }
     // Create the array on storage
-    tiledb::Array::create(create_uri, *schema);
-
+    tiledb::Array::create(create_uri, *schema,
+                          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                                 : TILEDB_AES_256_GCM,
+                          encryption_key);
+    // Next we write the frm file to persist the newly created table
+    table_arg->s->write_frm_image();
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());
@@ -1346,6 +1366,10 @@ ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
 void tile::mytile::open_array_for_reads(THD *thd) {
 
   bool reopen_for_every_query = tile::sysvars::reopen_for_every_query(thd);
+  std::string encryption_key;
+  if (this->table->s->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(this->table->s->option_struct->encryption_key);
+  }
 
   // If we want to reopen for every query then we'll build a new context and do
   // it
@@ -1360,10 +1384,13 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     if (this->table->s->option_struct->open_at != UINT64_MAX) {
       this->array = std::make_shared<tiledb::Array>(
           this->ctx, this->uri, TILEDB_READ,
-          this->table->s->option_struct->open_at);
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key, this->table->s->option_struct->open_at);
     } else {
-      this->array =
-          std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_READ);
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
     }
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
@@ -1375,9 +1402,15 @@ void tile::mytile::open_array_for_reads(THD *thd) {
         this->array->close();
 
       if (this->table->s->option_struct->open_at != UINT64_MAX) {
-        this->array->open(TILEDB_READ, this->table->s->option_struct->open_at);
+        this->array->open(
+            TILEDB_READ,
+            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+            encryption_key, this->table->s->option_struct->open_at);
       } else {
-        this->array->open(TILEDB_READ);
+        this->array->open(TILEDB_READ,
+                          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                                 : TILEDB_AES_256_GCM,
+                          encryption_key);
       }
     }
 
@@ -1403,6 +1436,10 @@ void tile::mytile::open_array_for_reads(THD *thd) {
 
 void tile::mytile::open_array_for_writes(THD *thd) {
   bool reopen_for_every_query = tile::sysvars::reopen_for_every_query(thd);
+  std::string encryption_key;
+  if (this->table->s->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(this->table->s->option_struct->encryption_key);
+  }
 
   // If we want to reopen for every query then we'll build a new context and do
   // it
@@ -1414,8 +1451,10 @@ void tile::mytile::open_array_for_writes(THD *thd) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }
-    this->array =
-        std::make_shared<tiledb::Array>(this->ctx, this->uri, TILEDB_WRITE);
+    this->array = std::make_shared<tiledb::Array>(
+        this->ctx, this->uri, TILEDB_WRITE,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key);
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
     // Else lets try to open reopen and use existing contexts
@@ -1426,7 +1465,10 @@ void tile::mytile::open_array_for_writes(THD *thd) {
       if (this->array->is_open())
         this->array->close();
 
-      this->array->open(TILEDB_WRITE);
+      this->array->open(TILEDB_WRITE,
+                        encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                               : TILEDB_AES_256_GCM,
+                        encryption_key);
     }
     if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
       this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array,

@@ -39,14 +39,12 @@
 namespace tile {
 /**
  * Helper function to do actual array discovery
- * @param hton
  * @param thd
  * @param ts
  * @param info
  * @return status
  */
-int discover_array(handlerton *hton, THD *thd, TABLE_SHARE *ts,
-                   HA_CREATE_INFO *info);
+int discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info);
 
 /**
  *

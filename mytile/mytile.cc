@@ -2,6 +2,7 @@
 ** Licensed under the GNU Lesser General Public License v3 or later
 */
 #include "mytile.h"
+#include "utils.h"
 #include <log.h>
 #include <my_global.h>
 #include <mysqld_error.h>
@@ -295,7 +296,7 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
 
 tiledb::Attribute
 tile::create_field_attribute(tiledb::Context &ctx, Field *field,
-                             const tiledb::FilterList &filterList) {
+                             const tiledb::FilterList &filter_list) {
 
   tiledb_datatype_t datatype =
       tile::mysqlTypeToTileDBType(field->type(), false);
@@ -312,6 +313,10 @@ tile::create_field_attribute(tiledb::Context &ctx, Field *field,
     const char *datatype_str;
     tiledb_datatype_to_str(datatype, &datatype_str);
     attr.set_cell_val_num(TILEDB_VAR_NUM);
+  }
+
+  if (filter_list.nfilters() > 0) {
+    attr.set_filter_list(filter_list);
   }
 
   return attr;
@@ -566,11 +571,6 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
 int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
                              uint64_t second_part,
                              enum_mysql_timestamp_type type) {
-  //  MYSQL_TIME local_epoch = epoch;
-  //
-  //  date_add_interval(thd, &local_epoch, interval_type, interval);
-  //  adjust_time_range_with_warn(thd, &local_epoch, TIME_SECOND_PART_DIGITS);
-
   MYSQL_TIME to;
   if (type != MYSQL_TIMESTAMP_DATE) {
     thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
@@ -938,4 +938,96 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   }
   }
   return 0;
+}
+
+tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
+                                           const char *filter_csv) {
+  std::vector<std::string> filters = split(filter_csv, ',');
+
+  tiledb::FilterList filter_list(ctx);
+
+  for (auto &filter_str : filters) {
+    std::vector<std::string> f = split(filter_str, '=');
+    tiledb_filter_type_t filter_type = TILEDB_FILTER_NONE;
+    int err = tiledb_filter_type_from_str(f[0].c_str(), &filter_type);
+    if (err != TILEDB_OK) {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Unknown or unsupported filter type: %s",
+                      ME_ERROR_LOG | ME_FATAL, f[0].c_str());
+    }
+
+    tiledb::Filter filter(ctx, filter_type);
+    if (f.size() > 1) {
+      switch (filter_type) {
+      case TILEDB_FILTER_BIT_WIDTH_REDUCTION: {
+        auto value = parse_value<uint32_t>(f[1]);
+        sql_print_information("TILEDB_BIT_WIDTH_MAX_WINDOW=%d", value);
+        filter.set_option(TILEDB_BIT_WIDTH_MAX_WINDOW, value);
+        break;
+      }
+      case TILEDB_FILTER_POSITIVE_DELTA: {
+        auto value = parse_value<uint32_t>(f[1]);
+        sql_print_information("TILEDB_POSITIVE_DELTA_MAX_WINDOW=%d", value);
+        filter.set_option(TILEDB_POSITIVE_DELTA_MAX_WINDOW, value);
+        break;
+      }
+      // The following have no filter options
+      case TILEDB_FILTER_NONE:
+      case TILEDB_FILTER_RLE:
+      case TILEDB_FILTER_BITSHUFFLE:
+      case TILEDB_FILTER_BYTESHUFFLE:
+      case TILEDB_FILTER_DOUBLE_DELTA:
+        break;
+      // Handle all compressions with default
+      default: {
+        auto value = parse_value<int32_t>(f[1]);
+        filter.set_option(TILEDB_COMPRESSION_LEVEL, value);
+        break;
+      }
+      }
+    }
+    filter_list.add_filter(filter);
+  }
+  return filter_list;
+}
+
+std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
+  std::stringstream str;
+  for (uint64_t i = 0; i < filter_list.nfilters(); i++) {
+    tiledb::Filter filter = filter_list.filter(i);
+    std::string filter_str = tiledb::Filter::to_str(filter.filter_type());
+    str << filter_str;
+    // NONE has no filter options
+    switch (filter.filter_type()) {
+    case TILEDB_FILTER_BIT_WIDTH_REDUCTION: {
+      uint32_t value;
+      filter.get_option<uint32_t>(TILEDB_BIT_WIDTH_MAX_WINDOW, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    case TILEDB_FILTER_POSITIVE_DELTA: {
+      uint32_t value;
+      filter.get_option<uint32_t>(TILEDB_POSITIVE_DELTA_MAX_WINDOW, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    // The following have no filter options
+    case TILEDB_FILTER_NONE:
+    case TILEDB_FILTER_RLE:
+    case TILEDB_FILTER_BITSHUFFLE:
+    case TILEDB_FILTER_BYTESHUFFLE:
+    case TILEDB_FILTER_DOUBLE_DELTA:
+      break;
+    // Handle all compressions with default
+    default: {
+      int32_t value;
+      filter.get_option<int32_t>(TILEDB_COMPRESSION_LEVEL, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    }
+  }
+  std::string final = str.str();
+  final.pop_back();
+  return final;
 }

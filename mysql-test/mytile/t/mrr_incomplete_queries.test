@@ -1,6 +1,8 @@
 --echo #
---echo # The purpose of this test is to validate the MRR functionality
+--echo # The purpose of this test is to validate the MRR functionality with incomplete TileDB queries
 --echo #
+
+set mytile_read_buffer_size=16;
 
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
@@ -22,10 +24,10 @@ select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols
 --echo # Batch Key Access (Unsorted) Join
 set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
 set join_cache_level=6;
-explain select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 
 # Run join
-select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 
 --echo # Batch Key Access Hash (Sorted) Join
 set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
@@ -35,6 +37,15 @@ explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows
 # Run join
 select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 
+--echo # Batch Key Access (Unsorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
+set join_cache_level=6;
+explain select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+# Run join
+select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
+
+set mytile_log_level='debug';
 --echo # Batch Key Access Hash (Unsorted) Join
 set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
 set join_cache_level=8;

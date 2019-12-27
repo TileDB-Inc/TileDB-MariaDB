@@ -1372,9 +1372,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
   }
 
   // Fetch user set read layout
-  const char *layout_str = tile::sysvars::read_query_layout(thd);
-  tiledb_layout_t query_layout;
-  tiledb_layout_from_str(layout_str, &query_layout);
+  tiledb_layout_t query_layout = tile::sysvars::read_query_layout(thd);
 
   // Set layout
   this->query->set_layout(query_layout);
@@ -1498,6 +1496,9 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
 
     if (rc)
       DBUG_RETURN(rc);
+
+    // Index scans are expected in row major order
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   }
   DBUG_RETURN(index_read_scan(key, key_len, find_flag));
 }
@@ -1534,6 +1535,8 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
 
+  bool restarted_scan = false;
+begin:
   if (this->query_complete()) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(table->write_set, original_bitmap);
@@ -1542,7 +1545,7 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
 
   try {
     // If the cursor has passed the number of records from the previous query
-    // (or if this is the first time), (re)submit the query->
+    // (or if this is the first time), (re)submit the query
     if (static_cast<int64_t>(this->record_index) >= this->records) {
       do {
         this->status = query->submit();
@@ -1561,6 +1564,12 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
           this->record_index = 0;
           // Break out of resubmit loop as we have some results.
           break;
+          // Handle when the query doesn't return results by exiting early
+        } else if (this->records == 0 &&
+                   status == tiledb::Query::Status::COMPLETE) {
+          // Reset bitmap to original
+          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
     }
@@ -1602,7 +1611,32 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
         if (tile::compare_typed_buffers(key, this->coord_buffer->buffer,
                                         key_len,
                                         this->coord_buffer->type) < 0) {
-          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+
+          // If we are at the start of the query this means this key doesn't
+          // exist in the query
+          if (this->records_read == this->record_index) {
+            // Reset bitmap to original
+            dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+          }
+
+          // If we have already tried rerunning the query from the start then
+          // the request can not be satisifed we need to return key not found to
+          // prevent a infinit loop
+          if (restarted_scan) {
+            // Reset bitmap to original
+            dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+          }
+
+          // rerunning incomplete query from the beginning
+          rc = init_scan(
+              this->ha_thd(),
+              std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+          // Index scans are expected in row major order
+          this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+          restarted_scan = true;
+          goto begin;
         }
 
         // As an optimization instead of going back to the top let's scan in
@@ -1614,16 +1648,34 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
         this->records_read--;
         this->record_index--;
 
+        // Now that we have moved back one we need to do a quick check to make
+        // sure that the new position is not before the record. This covers the
+        // case where a key does not exist in the result set but we might get
+        // stuck in a loop bouncing between two coordinates which are before and
+        // after the non-existent key.
+        if (tile::compare_typed_buffers(
+                key,
+                static_cast<char *>(this->coord_buffer->buffer) +
+                    (this->coord_buffer->fixed_size_elements * size *
+                     this->record_index),
+                key_len, this->coord_buffer->type) > 0) {
+          // Reset bitmap to original
+          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+        }
+
         // If we are not yet to the record we must continue scanning.
       } else if (key_cmp > 0) {
         this->record_index++;
         this->records_read++;
       }
 
-      // If we have run out of records but the index isn't found lets report
-      // record not found
+      // If we have run out of records but the index isn't found, move to the
+      // next incomplete batch We do this by going back to the start of the
+      // function so we trigger the next batch call We can't use recursion
+      // because DEBUG_ENTER has a limit to the depth in which it can be called
       if (static_cast<int64_t>(this->record_index) >= this->records) {
-        DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+        goto begin;
       }
     } while (static_cast<int64_t>(this->record_index) < this->records);
 

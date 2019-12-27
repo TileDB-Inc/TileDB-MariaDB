@@ -71,54 +71,63 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     encryption_key = std::string(ts->option_struct->encryption_key);
   }
 
-  // First try if the array_uri option is set
-  if (info != nullptr && info->option_struct != nullptr &&
-      info->option_struct->array_uri != nullptr) {
-    try {
+  tiledb::VFS vfs(ctx);
+
+  bool array_found = false;
+  try {
+    // First try if the array_uri option is set
+    if (info != nullptr && info->option_struct != nullptr &&
+        info->option_struct->array_uri != nullptr) {
       array_uri = info->option_struct->array_uri;
-      schema = std::make_unique<tiledb::ArraySchema>(
-          ctx, array_uri,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key);
-    } catch (tiledb::TileDBError &e) {
-      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-    }
-    // Next try the table share if it is non-null
-  } else if (ts != nullptr && ts->option_struct != nullptr &&
-             ts->option_struct->array_uri != nullptr) {
-    try {
+
+      if (vfs.is_dir(array_uri)) {
+        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+        if (obj.type() == tiledb::Object::Type::Array) {
+          array_found = true;
+        }
+      }
+      // Next try the table share if it is non-null
+    } else if (ts != nullptr && ts->option_struct != nullptr &&
+               ts->option_struct->array_uri != nullptr) {
       array_uri = ts->option_struct->array_uri;
-      schema = std::make_unique<tiledb::ArraySchema>(
-          ctx, array_uri,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key);
-    } catch (tiledb::TileDBError &e) {
-      DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
-    }
-    // Lastly try accessing the name directly, the name might be a uri
-  } else {
-    try {
+      if (vfs.is_dir(array_uri)) {
+        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+        if (obj.type() == tiledb::Object::Type::Array) {
+          array_found = true;
+        }
+      }
+      // Lastly try accessing the name directly, the name might be a uri
+    } else if (ts != nullptr) {
       array_uri = ts->table_name.str;
-      schema = std::make_unique<tiledb::ArraySchema>(
-          ctx, array_uri,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key);
-    } catch (tiledb::TileDBError &e) {
+      if (vfs.is_dir(array_uri)) {
+        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+        if (obj.type() == tiledb::Object::Type::Array) {
+          array_found = true;
+        }
+      }
       // If the name isn't a URI perhaps the array was created like a normal
       // table and the proper location is under <db>/<table_name> like normal
       // tables.
-      try {
-        array_uri =
-            std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
-        schema = std::make_unique<tiledb::ArraySchema>(
-            ctx, array_uri,
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key);
-      } catch (tiledb::TileDBError &e) {
-        // We've tried everything, array can't be found
-        DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+      array_uri = std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
+      if (vfs.is_dir(array_uri)) {
+        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+        if (obj.type() == tiledb::Object::Type::Array) {
+          array_found = true;
+        }
       }
     }
+  } catch (tiledb::TileDBError &e) {
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+  }
+
+  // If we found the array, load the schema
+  if (array_found) {
+    schema = std::make_unique<tiledb::ArraySchema>(
+        ctx, array_uri,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key);
+  } else {
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 
   // Catch incase we don't properly return above in the event the schema wasn't

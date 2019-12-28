@@ -20,6 +20,8 @@ struct ha_table_option_struct {
   ulonglong tile_order;
   ulonglong open_at;
   const char *encryption_key;
+  const char *coordinate_filters;
+  const char *offset_filters;
 };
 
 /** Field options */
@@ -28,6 +30,7 @@ struct ha_field_option_struct {
   const char *lower_bound;
   const char *upper_bound;
   const char *tile_extent;
+  const char *filters;
 };
 
 namespace tile {
@@ -354,6 +357,10 @@ int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
 
 int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                           uint64_t i, THD *thd);
+
+tiledb::FilterList parse_filter_list(tiledb::Context &ctx,
+                                     const char *filter_csv);
+std::string filter_list_to_str(const tiledb::FilterList &filter_list);
 // -- end helpers --
 
 } // namespace tile

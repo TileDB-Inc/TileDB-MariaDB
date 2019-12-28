@@ -65,6 +65,8 @@ ha_create_table_option mytile_table_option_list[] = {
                     TILEDB_ROW_MAJOR),
     HA_TOPTION_NUMBER("open_at", open_at, UINT64_MAX, 0, UINT64_MAX, 1),
     HA_TOPTION_STRING("encryption_key", encryption_key),
+    HA_TOPTION_STRING("coordinate_filters", coordinate_filters),
+    HA_TOPTION_STRING("offset_filters", offset_filters),
     HA_TOPTION_END};
 
 // Structure for specific field options
@@ -72,7 +74,9 @@ ha_create_table_option mytile_field_option_list[] = {
     HA_FOPTION_BOOL("dimension", dimension, false),
     HA_FOPTION_STRING("lower_bound", lower_bound),
     HA_FOPTION_STRING("upper_bound", upper_bound),
-    HA_FOPTION_STRING("tile_extent", tile_extent), HA_FOPTION_END};
+    HA_FOPTION_STRING("tile_extent", tile_extent),
+    HA_FOPTION_STRING("filters", filters),
+    HA_FOPTION_END};
 
 tiledb::Config tile::build_config(THD *thd) {
   tiledb::Config cfg = tiledb::Config();
@@ -327,14 +331,27 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       }
       domain.add_dimension(create_field_dimension(context, field));
     } else { // Else this is treated as a dimension
-      // Currently hard code the filter list to zstd compression
-      tiledb::FilterList filterList(context);
-      tiledb::Filter filter(context, TILEDB_FILTER_ZSTD);
-      filterList.add_filter(filter);
+      tiledb::FilterList filter_list(context);
+      if (field->option_struct->filters != nullptr) {
+        filter_list =
+            tile::parse_filter_list(context, field->option_struct->filters);
+      }
       tiledb::Attribute attr =
-          create_field_attribute(context, field, filterList);
+          create_field_attribute(context, field, filter_list);
       schema->add_attribute(attr);
     };
+  }
+
+  if (create_info->option_struct->coordinate_filters != nullptr) {
+    tiledb::FilterList filter_list = tile::parse_filter_list(
+        context, create_info->option_struct->coordinate_filters);
+    schema->set_coords_filter_list(filter_list);
+  }
+
+  if (create_info->option_struct->offset_filters != nullptr) {
+    tiledb::FilterList filter_list = tile::parse_filter_list(
+        context, create_info->option_struct->offset_filters);
+    schema->set_offsets_filter_list(filter_list);
   }
 
   schema->set_domain(domain);

@@ -68,4 +68,21 @@ int mytile_discover_table_structure(handlerton *hton, THD *thd,
  */
 int mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts);
 
+/**
+ *
+ * If the user is trying to querying the array metadata this function is used in
+ * order to provide MariaDB with an alternative schema that represents the
+ * metadata instead of the typical array schema
+ *
+ * @param thd
+ * @param ts
+ * @param info
+ * @param array_uri
+ * @param schema
+ * @return
+ */
+int discover_array_metadata(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info,
+                            const std::string &array_uri,
+                            std::unique_ptr<tiledb::ArraySchema> schema,
+                            const std::string &encryption_key);
 } // namespace tile

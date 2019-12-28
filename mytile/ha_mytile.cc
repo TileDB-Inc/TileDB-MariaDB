@@ -41,6 +41,7 @@
 #include "ha_mytile.h"
 #include "mytile-discovery.h"
 #include "mytile-sysvars.h"
+#include "mytile-metadata.h"
 #include "mytile.h"
 #include "utils.h"
 #include <cstring>
@@ -205,6 +206,15 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     uri = name;
     if (this->table->s->option_struct->array_uri != nullptr)
       uri = this->table->s->option_struct->array_uri;
+
+    // Check if @metadata is ending of uri, if so the user is trying to query
+    // the metadata we need to remove the keyword for checking if the array
+    // exists
+    this->metadata_query = false;
+    if (tile::has_ending(uri, METADATA_ENDING)) {
+      uri = uri.substr(0, uri.length() - METADATA_ENDING.length());
+      metadata_query = true;
+    }
 
     this->array_schema =
         std::unique_ptr<tiledb::ArraySchema>(new tiledb::ArraySchema(
@@ -543,8 +553,30 @@ int tile::mytile::init_scan(
   DBUG_RETURN(rc);
 }
 
+int tile::mytile::load_metadata() {
+  DBUG_ENTER("tile::mytile::load_metadata");
+  int rc = 0;
+
+  open_array_for_reads(ha_thd());
+  uint64_t longest_key = 0;
+  this->metadata_map =
+      tile::build_metadata_map(ha_thd(), this->array, &longest_key);
+
+  if (longest_key > this->ref_length) {
+    this->ref_length = longest_key + 1;
+  }
+
+  DBUG_RETURN(rc);
+}
+
 int tile::mytile::rnd_init(bool scan) {
   DBUG_ENTER("tile::mytile::rnd_init");
+  // Handle metadata queries
+  if (metadata_query) {
+    int rc = this->load_metadata();
+    this->metadata_map_iterator = this->metadata_map.begin();
+    DBUG_RETURN(rc);
+  }
   DBUG_RETURN(init_scan(
       this->ha_thd(),
       std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
@@ -648,7 +680,55 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
 
 int tile::mytile::rnd_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::rnd_next");
+  if (this->metadata_query) {
+    DBUG_RETURN(metadata_next());
+  }
   DBUG_RETURN(scan_rnd_row(table));
+}
+
+int tile::mytile::metadata_to_fields(
+    const std::pair<std::string, std::string> &metadata) {
+  DBUG_ENTER("tile::mytile::metadata_to_fields");
+  int rc = 0;
+  // We must set the bitmap for debug purpose, it is "write_set" because we use
+  // Field->store
+  my_bitmap_map *original_bitmap =
+      dbug_tmp_use_all_columns(table, table->write_set);
+
+  for (Field **ffield = this->table->field; *ffield; ffield++) {
+    Field *field = (*ffield);
+    field->set_notnull();
+    if (std::strcmp(field->field_name.str, "key") == 0) {
+      rc = field->store(metadata.first.c_str(), metadata.first.length(),
+                        &my_charset_latin1);
+    } else if (std::strcmp(field->field_name.str, "value") == 0) {
+      rc = field->store(metadata.second.c_str(), metadata.second.length(),
+                        &my_charset_latin1);
+    }
+  }
+
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  DBUG_RETURN(rc);
+}
+
+int tile::mytile::metadata_next() {
+  DBUG_ENTER("'tile::mytile::metadata_next");
+  int rc = 0;
+
+  // Check if we are out of metadata
+  if (this->metadata_map_iterator == this->metadata_map.end()) {
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  this->metadata_last_value = *this->metadata_map_iterator;
+
+  rc = metadata_to_fields(this->metadata_last_value);
+
+  // Move to next iterator
+  ++this->metadata_map_iterator;
+
+  DBUG_RETURN(rc);
 }
 
 int tile::mytile::rnd_end() {
@@ -669,6 +749,18 @@ int tile::mytile::rnd_end() {
 
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
+
+  // Handle metadata queries
+  if (this->metadata_query) {
+    std::string key(reinterpret_cast<char *>(pos));
+    auto it = this->metadata_map.find(key);
+    if (it == this->metadata_map.end()) {
+      DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+    }
+
+    DBUG_RETURN(metadata_to_fields(*it));
+  }
+
   auto domain = this->array_schema->domain();
   this->ctx.handle_error(tiledb_query_set_subarray(
       this->ctx.ptr().get(), this->query->ptr().get(), pos));
@@ -684,6 +776,14 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
 
 void tile::mytile::position(const uchar *record) {
   DBUG_ENTER("tile::mytile::position");
+
+  // Handle metadata queries
+  if (this->metadata_query) {
+    memcpy(this->ref, this->metadata_last_value.first.c_str(),
+           this->metadata_last_value.first.length() + 1);
+    DBUG_VOID_RETURN;
+  }
+
   // copy the position
   uint64_t datatype_size = tiledb_datatype_size(this->coord_buffer->type);
   // The index offset for coordinates is computed based on the number of

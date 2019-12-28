@@ -48,6 +48,8 @@ const char PATH_SEPARATOR =
     '/';
 #endif
 
+const std::string METADATA_ENDING = "@metadata";
+
 // trim from start (in place)
 static inline void ltrim(std::string &s) {
   s.erase(s.begin(), std::find_if(s.begin(), s.end(),
@@ -136,4 +138,13 @@ void log_info(THD *thd, const char *msg, ...);
  * @param ... formatting parameters for message
  */
 void log_debug(THD *thd, const char *msg, ...);
+
+/**
+ *
+ * Inspired by https://stackoverflow.com/a/874160
+ * @param s string to check against
+ * @param ending ending to check for
+ * @return true if s has the ending
+ */
+bool has_ending(std::string const &s, std::string const &ending);
 } // namespace tile

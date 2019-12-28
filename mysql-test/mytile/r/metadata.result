@@ -1,0 +1,17 @@
+#
+# The purpose of this test is to validate querying metadata
+#
+CREATE TABLE quickstart_dense_metadata ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense@metadata';;
+SELECT * FROM quickstart_dense_metadata ORDER BY `key`;
+key	value
+CREATE TABLE metadata_test ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.7/metadata_array@metadata';;
+SELECT * FROM metadata_test ORDER BY `key`;
+key	value
+key1	25
+key2	25,26,27,28
+key3	25.1
+key4	25.1,26.2,27.3,28.4
+key5	This is TileDb array metadata
+SET mytile_delete_arrays=0;
+DROP TABLE quickstart_dense_metadata;
+DROP TABLE metadata_test;

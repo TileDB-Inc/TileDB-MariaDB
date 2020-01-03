@@ -119,3 +119,12 @@ void tile::log_debug(THD *thd, const char *msg, ...) {
   error_log_print(INFORMATION_LEVEL, msg, args);
   va_end(args);
 }
+
+bool tile::has_ending(std::string const &s, std::string const &ending) {
+  if (s.length() >= ending.length()) {
+    return (0 ==
+            s.compare(s.length() - ending.length(), ending.length(), ending));
+  } else {
+    return false;
+  }
+}

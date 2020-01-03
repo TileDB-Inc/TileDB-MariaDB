@@ -74,11 +74,21 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   tiledb::VFS vfs(ctx);
 
   bool array_found = false;
+  bool metadata_query = false;
   try {
     // First try if the array_uri option is set
     if (info != nullptr && info->option_struct != nullptr &&
         info->option_struct->array_uri != nullptr) {
       array_uri = info->option_struct->array_uri;
+
+      // Check if @metadata is ending of uri, if so the user is trying to query
+      // the metadata we need to remove the keyword for checking if the array
+      // exists
+      if (tile::has_ending(array_uri, METADATA_ENDING)) {
+        array_uri =
+            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+        metadata_query = true;
+      }
 
       if (vfs.is_dir(array_uri)) {
         tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
@@ -90,6 +100,16 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     } else if (ts != nullptr && ts->option_struct != nullptr &&
                ts->option_struct->array_uri != nullptr) {
       array_uri = ts->option_struct->array_uri;
+
+      // Check if @metadata is ending of uri, if so the user is trying to query
+      // the metadata we need to remove the keyword for checking if the array
+      // exists
+      if (tile::has_ending(array_uri, METADATA_ENDING)) {
+        array_uri =
+            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+        metadata_query = true;
+      }
+
       if (vfs.is_dir(array_uri)) {
         tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
         if (obj.type() == tiledb::Object::Type::Array) {
@@ -99,20 +119,37 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       // Lastly try accessing the name directly, the name might be a uri
     } else if (ts != nullptr) {
       array_uri = ts->table_name.str;
+
+      // Check if @metadata is ending of uri, if so the user is trying to query
+      // the metadata we need to remove the keyword for checking if the array
+      // exists
+      if (tile::has_ending(array_uri, METADATA_ENDING)) {
+        array_uri =
+            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+        metadata_query = true;
+      }
+
       if (vfs.is_dir(array_uri)) {
         tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
         if (obj.type() == tiledb::Object::Type::Array) {
           array_found = true;
         }
       }
-      // If the name isn't a URI perhaps the array was created like a normal
-      // table and the proper location is under <db>/<table_name> like normal
-      // tables.
-      array_uri = std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
-      if (vfs.is_dir(array_uri)) {
-        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
-        if (obj.type() == tiledb::Object::Type::Array) {
-          array_found = true;
+
+      if (!array_found) {
+        // If the name isn't a URI perhaps the array was created like a normal
+        // table and the proper location is under <db>/<table_name> like normal
+        // tables.
+        // We don't check for metadata here because in this case it isn't
+        // supported, since the user is accessing by table name not uri they
+        // can't give us the metadata keyword
+        array_uri =
+            std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
+        if (vfs.is_dir(array_uri)) {
+          tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+          if (obj.type() == tiledb::Object::Type::Array) {
+            array_found = true;
+          }
         }
       }
     }
@@ -134,6 +171,11 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   // actually opened
   if (schema == nullptr) {
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+  }
+
+  if (metadata_query) {
+    DBUG_RETURN(discover_array_metadata(thd, ts, info, array_uri,
+                                        std::move(schema), encryption_key));
   }
 
   try {
@@ -162,7 +204,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->cell_order(), &layout);
-      throw std::runtime_error(
+      throw tiledb::TileDBError(
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
@@ -173,7 +215,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->tile_order(), &layout);
-      throw std::runtime_error(
+      throw tiledb::TileDBError(
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
@@ -284,6 +326,104 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     sql_string << std::endl << ") ENGINE=MyTile ";
 
     sql_string << table_options.str();
+  } catch (tiledb::TileDBError &e) {
+    my_printf_error(ER_UNKNOWN_ERROR, "Error in table discovery: %s",
+                    ME_ERROR_LOG, e.what());
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+  }
+
+  std::string sql_statement = sql_string.str();
+  int res = ts->init_from_sql_statement_string(
+      thd, info != nullptr, sql_statement.c_str(), sql_statement.length());
+
+  // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
+  DBUG_RETURN(res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res);
+}
+
+int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
+                                  HA_CREATE_INFO *info,
+                                  const std::string &array_uri,
+                                  std::unique_ptr<tiledb::ArraySchema> schema,
+                                  const std::string &encryption_key) {
+  DBUG_ENTER("tile::discover_array_metadata");
+  std::stringstream sql_string;
+  try {
+    // Now that we have the schema opened we need to build the create table
+    // statement Its easier to build the create table query string than to try
+    // to create the fmt data.
+    std::stringstream table_options;
+
+    sql_string << "create table `" << ts->table_name.str << "` (";
+
+    table_options << "uri='" << array_uri << METADATA_ENDING << "'";
+
+    if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
+      table_options << " array_type='SPARSE'";
+    } else {
+      table_options << " array_type='DENSE'";
+    }
+    if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
+      table_options << " capacity=" << schema->capacity();
+    }
+
+    if (schema->cell_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+      table_options << " cell_order=ROW_MAJOR";
+    } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+      table_options << " cell_order=COL_MAJOR";
+    } else {
+      const char *layout;
+      tiledb_layout_to_str(schema->cell_order(), &layout);
+      throw tiledb::TileDBError(
+          std::string("Unknown or Unsupported cell order %s") + layout);
+    }
+
+    if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+      table_options << " tile_order=ROW_MAJOR";
+    } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+      table_options << " tile_order=COL_MAJOR";
+    } else {
+      const char *layout;
+      tiledb_layout_to_str(schema->tile_order(), &layout);
+      throw tiledb::TileDBError(
+          std::string("Unknown or Unsupported cell order %s") + layout);
+    }
+
+    // Check for open_at
+    ulonglong open_at = UINT64_MAX;
+    if (info != nullptr && info->option_struct != nullptr) {
+      open_at = info->option_struct->open_at;
+    }
+    if (open_at == UINT64_MAX && ts != nullptr &&
+        ts->option_struct != nullptr) {
+      open_at = ts->option_struct->open_at;
+    }
+    if (open_at != UINT64_MAX) {
+      table_options << " open_at=" << open_at;
+    }
+
+    if (!encryption_key.empty()) {
+      table_options << " encryption_key=" << encryption_key;
+    }
+
+    // Check for coordinate filters
+    tiledb::FilterList coordinate_filters = schema->coords_filter_list();
+    if (coordinate_filters.nfilters() > 0) {
+      table_options << " coordinate_filters='"
+                    << filter_list_to_str(coordinate_filters) << "'";
+    }
+
+    // Check for offset filters
+    tiledb::FilterList offset_filters = schema->offsets_filter_list();
+    if (offset_filters.nfilters() > 0) {
+      table_options << " offset_filters='" << filter_list_to_str(offset_filters)
+                    << "'";
+    }
+
+    sql_string << "`key` varchar(8000)," << std::endl;
+    sql_string << "`value` longtext" << std::endl;
+    sql_string << ") ENGINE=MyTile ";
+    sql_string << table_options.str();
+
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in table discovery: %s",
                     ME_ERROR_LOG, e.what());

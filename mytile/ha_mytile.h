@@ -540,5 +540,36 @@ private:
   // Indicator for when non_empty_domain is empty and reads will return empty
   // dataset
   int empty_read = 0;
+
+  // Indicates that a user is querying metadata only
+  bool metadata_query;
+
+  // map for holding array metadata
+  std::unordered_map<std::string, std::string> metadata_map;
+
+  // Metadata iterator
+  std::unordered_map<std::string, std::string>::iterator metadata_map_iterator;
+
+  // Last metadata value accessed
+  std::pair<std::string, std::string> metadata_last_value;
+
+  /**
+   * Load metadata into unordered_map
+   * @return int status
+   */
+  int load_metadata();
+
+  /**
+   *
+   * @return int status
+   */
+  int metadata_next();
+
+  /**
+   * Convert metadata pair to fields
+   * @param metadata to convert to fields
+   * @return int status
+   */
+  int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
 };
 } // namespace tile

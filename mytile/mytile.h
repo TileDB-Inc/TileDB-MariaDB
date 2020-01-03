@@ -170,15 +170,6 @@ uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
 }
 
 /**
- * Set datetime field
- * @param thd
- * @param field
- * @param interval
- */
-// int set_datetime_field(THD *thd, Field *field, INTERVAL interval,
-// interval_type interval_type);
-
-/**
  *
  * @param thd
  * @param field

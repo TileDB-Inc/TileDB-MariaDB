@@ -566,8 +566,6 @@ uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
   return 0;
 }
 
-// int tile::set_datetime_field(THD *thd, Field *field, INTERVAL interval,
-// interval_type interval_type) {
 int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
                              uint64_t second_part,
                              enum_mysql_timestamp_type type) {

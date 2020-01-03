@@ -1,0 +1,17 @@
+--echo #
+--echo # The purpose of this test is to validate querying metadata
+--echo #
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense_metadata ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense@metadata';
+
+SELECT * FROM quickstart_dense_metadata ORDER BY `key`;
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE metadata_test ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.7/metadata_array@metadata';
+
+SELECT * FROM metadata_test ORDER BY `key`;
+
+SET mytile_delete_arrays=0;
+DROP TABLE quickstart_dense_metadata;
+DROP TABLE metadata_test;

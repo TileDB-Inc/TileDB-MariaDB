@@ -85,4 +85,32 @@ int discover_array_metadata(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info,
                             const std::string &array_uri,
                             std::unique_ptr<tiledb::ArraySchema> schema,
                             const std::string &encryption_key);
+
+/**
+ * Check if an array exists
+ * @param vfs vfs object to use
+ * @param ctx context, only used if rest array
+ * @param array_uri uri to check if array exists
+ * @param encryption_key encryption key to use for rest array
+ * @param array_schema unique pointer where array schema will be stored if rest
+ * array
+ * @return true if array exists
+ */
+bool check_array_exists(const tiledb::VFS &vfs, const tiledb::Context &ctx,
+                        const std::string &array_uri,
+                        const std::string &encryption_key,
+                        std::unique_ptr<tiledb::ArraySchema> &array_schema);
+
+/**
+ * Check if an array exists with a tiledb:// uri
+ * @param ctx context
+ * @param array_uri uri to check if array exists
+ * @param encryption_key optional encryption key
+ * @param array_schema unique pointer where array schema will be stored
+ * @return true if array exists
+ */
+bool check_cloud_array_exists(
+    const tiledb::Context &ctx, const std::string &array_uri,
+    const std::string &encryption_key,
+    std::unique_ptr<tiledb::ArraySchema> &array_schema);
 } // namespace tile

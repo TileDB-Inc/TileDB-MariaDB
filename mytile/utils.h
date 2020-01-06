@@ -147,4 +147,12 @@ void log_debug(THD *thd, const char *msg, ...);
  * @return true if s has the ending
  */
 bool has_ending(std::string const &s, std::string const &ending);
+
+/**
+ *
+ * @param s string to check against
+ * @param prefix prefix to check for
+ * @return true if s has prefix
+ */
+bool has_prefix(std::string const &s, std::string const &prefix);
 } // namespace tile

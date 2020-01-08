@@ -90,12 +90,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         metadata_query = true;
       }
 
-      if (vfs.is_dir(array_uri)) {
-        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
-        if (obj.type() == tiledb::Object::Type::Array) {
-          array_found = true;
-        }
-      }
+      array_found =
+          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
       // Next try the table share if it is non-null
     } else if (ts != nullptr && ts->option_struct != nullptr &&
                ts->option_struct->array_uri != nullptr) {
@@ -110,12 +106,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         metadata_query = true;
       }
 
-      if (vfs.is_dir(array_uri)) {
-        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
-        if (obj.type() == tiledb::Object::Type::Array) {
-          array_found = true;
-        }
-      }
+      array_found =
+          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
       // Lastly try accessing the name directly, the name might be a uri
     } else if (ts != nullptr) {
       array_uri = ts->table_name.str;
@@ -129,12 +121,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         metadata_query = true;
       }
 
-      if (vfs.is_dir(array_uri)) {
-        tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
-        if (obj.type() == tiledb::Object::Type::Array) {
-          array_found = true;
-        }
-      }
+      array_found =
+          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
 
       if (!array_found) {
         // If the name isn't a URI perhaps the array was created like a normal
@@ -145,12 +133,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         // can't give us the metadata keyword
         array_uri =
             std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
-        if (vfs.is_dir(array_uri)) {
-          tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
-          if (obj.type() == tiledb::Object::Type::Array) {
-            array_found = true;
-          }
-        }
+        array_found =
+            check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
       }
     }
   } catch (tiledb::TileDBError &e) {
@@ -159,10 +143,12 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
 
   // If we found the array, load the schema
   if (array_found) {
-    schema = std::make_unique<tiledb::ArraySchema>(
-        ctx, array_uri,
-        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        encryption_key);
+    if (schema == nullptr) {
+      schema = std::make_unique<tiledb::ArraySchema>(
+          ctx, array_uri,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
+    }
   } else {
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
@@ -436,4 +422,42 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
 
   // discover_table should returns HA_ERR_NO_SUCH_TABLE for "not exists"
   DBUG_RETURN(res == ENOENT ? HA_ERR_NO_SUCH_TABLE : res);
+}
+
+bool tile::check_array_exists(
+    const tiledb::VFS &vfs, const tiledb::Context &ctx,
+    const std::string &array_uri, const std::string &encryption_key,
+    std::unique_ptr<tiledb::ArraySchema> &array_schema) {
+
+  if (tile::has_prefix(array_uri, "tiledb://")) {
+    return check_cloud_array_exists(ctx, array_uri, encryption_key,
+                                    array_schema);
+  }
+
+  if (vfs.is_dir(array_uri)) {
+    tiledb::Object obj = tiledb::Object::object(ctx, array_uri);
+    if (obj.type() == tiledb::Object::Type::Array) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool tile::check_cloud_array_exists(
+    const tiledb::Context &ctx, const std::string &array_uri,
+    const std::string &encryption_key,
+    std::unique_ptr<tiledb::ArraySchema> &array_schema) {
+  try {
+    // check to see if we can load the schema
+    array_schema = std::make_unique<tiledb::ArraySchema>(
+        ctx, array_uri,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key);
+    return true;
+  } catch (tiledb::TileDBError &e) {
+    return false;
+  }
+
+  return true;
 }

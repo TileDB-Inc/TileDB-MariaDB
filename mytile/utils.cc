@@ -128,3 +128,11 @@ bool tile::has_ending(std::string const &s, std::string const &ending) {
     return false;
   }
 }
+
+bool tile::has_prefix(std::string const &s, std::string const &prefix) {
+  if (s.length() >= prefix.length()) {
+    return (0 == s.compare(0, prefix.length(), prefix));
+  } else {
+    return false;
+  }
+}

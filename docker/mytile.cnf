@@ -23,3 +23,4 @@ language=/opt/server/share/english
 
 plugin_dir=/opt/server/lib/plugin
 plugin-maturity=experimental
+bind-address = 0.0.0.0

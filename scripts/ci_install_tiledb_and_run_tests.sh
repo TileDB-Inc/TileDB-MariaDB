@@ -11,9 +11,9 @@ mv !(tmp) tmp # Move everything but tmp
 wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz
 tar xf ${MARIADB_VERSION}.tar.gz
 
-# Install tiledb using 1.7.2 release
+# Install tiledb using 1.7.6 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.2 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b 1.7.6 && cd TileDB \
 && mkdir -p build && cd build
 
 # Configure and build TileDB

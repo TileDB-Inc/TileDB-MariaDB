@@ -1015,6 +1015,7 @@ std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
     case TILEDB_FILTER_BITSHUFFLE:
     case TILEDB_FILTER_BYTESHUFFLE:
     case TILEDB_FILTER_DOUBLE_DELTA:
+      str << ",";
       break;
     // Handle all compressions with default
     default: {

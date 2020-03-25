@@ -186,7 +186,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     if (schema->cell_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " cell_order=ROW_MAJOR";
     } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " cell_order=COL_MAJOR";
+      table_options << " cell_order=COLUMN_MAJOR";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->cell_order(), &layout);
@@ -197,7 +197,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " tile_order=ROW_MAJOR";
     } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " tile_order=COL_MAJOR";
+      table_options << " tile_order=COLUMN_MAJOR";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->tile_order(), &layout);
@@ -355,7 +355,7 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
     if (schema->cell_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " cell_order=ROW_MAJOR";
     } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " cell_order=COL_MAJOR";
+      table_options << " cell_order=COLUMN_MAJOR";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->cell_order(), &layout);
@@ -366,7 +366,7 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
     if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
       table_options << " tile_order=ROW_MAJOR";
     } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " tile_order=COL_MAJOR";
+      table_options << " tile_order=COLUMN_MAJOR";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->tile_order(), &layout);

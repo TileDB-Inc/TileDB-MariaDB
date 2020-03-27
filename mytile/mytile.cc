@@ -975,6 +975,8 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
       case TILEDB_FILTER_BITSHUFFLE:
       case TILEDB_FILTER_BYTESHUFFLE:
       case TILEDB_FILTER_DOUBLE_DELTA:
+      case TILEDB_FILTER_CHECKSUM_MD5:
+      case TILEDB_FILTER_CHECKSUM_SHA256:
         break;
       // Handle all compressions with default
       default: {
@@ -1015,6 +1017,9 @@ std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
     case TILEDB_FILTER_BITSHUFFLE:
     case TILEDB_FILTER_BYTESHUFFLE:
     case TILEDB_FILTER_DOUBLE_DELTA:
+    case TILEDB_FILTER_CHECKSUM_MD5:
+    case TILEDB_FILTER_CHECKSUM_SHA256:
+      str << ",";
       break;
     // Handle all compressions with default
     default: {

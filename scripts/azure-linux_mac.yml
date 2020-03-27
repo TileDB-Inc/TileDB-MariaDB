@@ -10,6 +10,13 @@ steps:
   displayName: 'Print env'
 
 - bash: |
+    set -e pipefail
+    open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
+    sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
+  condition: eq(variables['Agent.OS'], 'Darwin')
+  displayName: 'Install system headers (OSX only)'
+
+- bash: |
     set -e
     # DELETEME work-around for https://github.com/microsoft/azure-pipelines-image-generation/issues/969
     if [[ "$AGENT_OS" == "Linux" ]]; then
@@ -38,8 +45,6 @@ steps:
 
     if [[ "$AGENT_OS" == "Darwin" ]]; then
       brew install cmake jemalloc traildb/judy/judy openssl boost gnutls
-      #open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
-      #sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
       export OSX_FLAGS_NEEDED="-Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error"
       export CXXFLAGS="${CXXFLAGS} ${OSX_FLAGS_NEEDED}"
       export CFLAGS="${CFLAGS} ${OSX_FLAGS_NEEDED}"

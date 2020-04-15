@@ -61,7 +61,7 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_SET: {
-    return tiledb_datatype_t::TILEDB_CHAR;
+    return tiledb_datatype_t::TILEDB_STRING_ASCII;
   }
 
   case MYSQL_TYPE_GEOMETRY:
@@ -459,8 +459,6 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
     return alloc_buffer<uint64_t>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_CHAR:
-    return alloc_buffer<char>(rounded_size);
-
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return alloc_buffer<char>(rounded_size);
 
@@ -624,9 +622,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 
   /** Character */
   case TILEDB_CHAR:
-    return set_string_field<char>(field, buff, i, &my_charset_latin1);
-
-  /** ASCII string */
+    /** ASCII string */
   case TILEDB_STRING_ASCII:
     return set_string_field<char>(field, buff, i, &my_charset_latin1);
 
@@ -767,16 +763,10 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   case TILEDB_FLOAT64:
     return set_buffer_from_field<double>(field->val_real(), buff, i);
 
-    /** Character */
-  case TILEDB_CHAR:
-    if (buff->offset_buffer != nullptr)
-      return set_string_buffer_from_field<char>(field, buff, i);
-
-    return set_fixed_string_buffer_from_field<char>(field, buff, i);
-
-    // Only char is supported for now
     /** ASCII string */
   case TILEDB_STRING_ASCII:
+    /** Character */
+  case TILEDB_CHAR:
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<char>(field, buff, i);
 

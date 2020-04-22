@@ -60,7 +60,8 @@ typedef struct range_struct {
 int set_range_from_item_consts(Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
-                               std::shared_ptr<tile::range> &range);
+                               std::shared_ptr<tile::range> &range,
+                               tiledb_datatype_t datatype);
 /**
  * Take a range, and will set the lower/upper bound as appropriate if it is
  * missing and takes into account the mariadb operations.
@@ -102,30 +103,17 @@ void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
     // When we are dealing with equality, all we need to do is to convert the
     // value from the mysql types (double/longlong) to the actual datatypes
     // TileDB is expecting
-    if (std::is_floating_point<T>()) {
-      double lower_value = *(static_cast<double *>(range->lower_value.get()));
-      // cast to proper tiledb datatype
-      final_lower_value = static_cast<T>(lower_value);
-    } else { // assume its a long
-      longlong lower_value =
-          *(static_cast<longlong *>(range->lower_value.get()));
-      // cast to proper tiledb datatype
-      final_lower_value = static_cast<T>(lower_value);
-    }
+
+    // cast to proper tiledb datatype
+    final_lower_value = *(static_cast<T *>(range->lower_value.get()));
+
     range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->lower_value.get(), &final_lower_value, sizeof(T));
 
-    if (std::is_floating_point<T>()) {
-      double upper_value = *(static_cast<double *>(range->upper_value.get()));
-      // cast to proper tiledb datatype
-      final_upper_value = static_cast<T>(upper_value);
-    } else { // assume its a long
-      longlong upper_value =
-          *(static_cast<longlong *>(range->upper_value.get()));
-      // cast to proper tiledb datatype
-      final_upper_value = static_cast<T>(upper_value);
-    }
+    // cast to proper tiledb datatype
+    final_upper_value = *(static_cast<T *>(range->upper_value.get()));
+
     range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->upper_value.get(), &final_upper_value, sizeof(T));
@@ -143,16 +131,9 @@ void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->lower_value.get(), non_empty_domain, sizeof(T));
 
-    if (std::is_floating_point<T>()) {
-      double upper_value = *(static_cast<double *>(range->upper_value.get()));
-      // cast to proper tiledb datatype
-      final_upper_value = static_cast<T>(upper_value);
-    } else { // assume its a long
-      longlong upper_value =
-          *(static_cast<longlong *>(range->upper_value.get()));
-      // cast to proper tiledb datatype
-      final_upper_value = static_cast<T>(upper_value);
-    }
+    // cast to proper tiledb datatype
+    final_upper_value = *(static_cast<T *>(range->upper_value.get()));
+
     range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->upper_value.get(), &final_upper_value, sizeof(T));
@@ -164,16 +145,9 @@ void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->upper_value.get(), &non_empty_domain[1], sizeof(T));
 
-    if (std::is_floating_point<T>()) {
-      double lower_value = *(static_cast<double *>(range->lower_value.get()));
-      // cast to proper tiledb datatype
-      final_lower_value = static_cast<T>(lower_value);
-    } else { // assume its a long
-      longlong lower_value =
-          *(static_cast<longlong *>(range->lower_value.get()));
-      // cast to proper tiledb datatype
-      final_lower_value = static_cast<T>(lower_value);
-    }
+    // cast to proper tiledb datatype
+    final_lower_value = *(static_cast<T *>(range->lower_value.get()));
+
     range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
         std::malloc(sizeof(T)), &std::free);
     memcpy(range->lower_value.get(), &final_lower_value, sizeof(T));
@@ -566,7 +540,7 @@ build_ranges_from_key(const uchar *key, uint length,
   case Item_func::GT_FUNC: {
     last_dimension_range->operation_type = Item_func::GE_FUNC;
     if (std::is_floating_point<T>()) {
-      lower = std::nextafter(lower, static_cast<T>(1.0f));
+      lower = std::nextafter(lower, std::numeric_limits<T>::max());
     } else {
       lower += 1;
     }
@@ -584,7 +558,7 @@ build_ranges_from_key(const uchar *key, uint length,
     // TileDB ranges are inclusive
     last_dimension_range->operation_type = Item_func::LE_FUNC;
     if (std::is_floating_point<T>()) {
-      upper = std::nextafter(lower, static_cast<T>(-1.0f));
+      upper = std::nextafter(lower, std::numeric_limits<T>::min());
     } else {
       upper -= 1;
     }
@@ -646,7 +620,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
   // TileDB ranges are inclusive
   case Item_func::GT_FUNC: {
     if (std::is_floating_point<T>()) {
-      key_value = std::nextafter(key_value, static_cast<T>(1.0f));
+      key_value = std::nextafter(key_value, std::numeric_limits<T>::max());
     } else {
       key_value += 1;
     }
@@ -683,7 +657,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     // TileDB ranges are inclusive
     range->operation_type = Item_func::LE_FUNC;
     if (std::is_floating_point<T>()) {
-      key_value = std::nextafter(key_value, static_cast<T>(-1.0f));
+      key_value = std::nextafter(key_value, std::numeric_limits<T>::min());
     } else {
       key_value -= 1;
     }
@@ -786,4 +760,101 @@ int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
   // If we are here then all lhs parts are equal
   return 0;
 }
+
+template <typename T>
+int set_range_from_item_consts(Item_basic_constant *lower_const,
+                               Item_basic_constant *upper_const,
+                               Item_result cmp_type,
+                               std::shared_ptr<range> &range) {
+  DBUG_ENTER("<T> tile::set_range_from_item_costs");
+
+  switch (cmp_type) {
+    // TILED does not support string dimensions
+    //                        case STRING_RESULT:
+    //                            res= pval->val_str(&tmp);
+    //                            pp->Value= PlugSubAllocStr(g, NULL,
+    //                            res->ptr(), res->length()); pp->Type=
+    //                            (pp->Value) ? TYPE_STRING : TYPE_ERROR;
+    //                            break;
+  case INT_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_INT64;
+    if (lower_const != nullptr) {
+      longlong lower = lower_const->val_int();
+
+      // If we have greater than, lets make it greater than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::GT_FUNC) {
+        range->operation_type = Item_func::GE_FUNC;
+        lower += 1;
+      }
+
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->lower_value.get()) = static_cast<T>(lower);
+    }
+    if (upper_const != nullptr) {
+      longlong upper = upper_const->val_int();
+
+      // If we have less than, lets make it less than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::LT_FUNC) {
+        range->operation_type = Item_func::LE_FUNC;
+        upper -= 1;
+      }
+
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->upper_value.get()) = static_cast<T>(upper);
+    }
+    break;
+  }
+    // TODO: support time
+    //                        case TIME_RESULT:
+    //                            pp->Type= TYPE_DATE;
+    //                            pp->Value= PlugSubAlloc(g, NULL,
+    //                            sizeof(int));
+    //                            *((int*)pp->Value)= (int)
+    //                            Temporal_hybrid(pval).to_longlong(); break;
+  case REAL_RESULT:
+  case DECIMAL_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_FLOAT64;
+    if (lower_const != nullptr) {
+      double lower = lower_const->val_real();
+
+      T val = static_cast<T>(lower);
+      // If we have greater than, lets make it greater than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::GT_FUNC) {
+        range->operation_type = Item_func::GE_FUNC;
+        val = std::nextafter(val, std::numeric_limits<T>::max());
+      }
+
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->lower_value.get()) = val;
+    }
+
+    if (upper_const != nullptr) {
+      double upper = upper_const->val_real();
+
+      T val = static_cast<T>(upper);
+      // If we have less than, lets make it less than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::LT_FUNC) {
+        range->operation_type = Item_func::LE_FUNC;
+        val = std::nextafter(val, std::numeric_limits<T>::min());
+      }
+
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->upper_value.get()) = val;
+    }
+    break;
+  }
+  default:
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
+
 } // namespace tile

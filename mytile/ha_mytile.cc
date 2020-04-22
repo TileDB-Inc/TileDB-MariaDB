@@ -226,7 +226,10 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
     // Set ref length used for storing reference in position(), this is the size
     // of a subarray for querying
-    this->ref_length = (this->ndim * tiledb_datatype_size(domain.type()) * 2);
+    this->ref_length = 0;
+    for (const auto &dim : domain.dimensions()) {
+      this->ref_length += (tiledb_datatype_size(dim.type()) * 2);
+    }
 
     // If the user requests we will compute the table records on opening the
     // array
@@ -234,17 +237,32 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
       open_array_for_reads(ha_thd());
 
-      uint64_t subarray_size =
-          tiledb_datatype_size(domain.type()) * this->ndim * 2;
-      auto subarray = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(subarray_size), &std::free);
+      auto dims = domain.dimensions();
+      // For each dimension we calculate the non empty domain (equivalent to
+      // `select * from ...`, and the result is used to add a range)
+      for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+        tiledb::Dimension dimension = domain.dimension(dim_idx);
+        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(size), &std::free);
 
-      // Get the non empty domain
-      this->ctx.handle_error(tiledb_array_get_non_empty_domain(
-          this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
-          &this->empty_read));
+        this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
+            this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
+            nonEmptyDomain.get(), &this->empty_read));
 
-      this->records_upper_bound = computeRecordsUB(this->array, subarray.get());
+        void *lower = static_cast<char *>(nonEmptyDomain.get());
+        void *upper = static_cast<char *>(nonEmptyDomain.get()) +
+                      tiledb_datatype_size(dimension.type());
+
+        // set range
+        this->ctx.handle_error(tiledb_query_add_range(
+            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+            upper, nullptr));
+      }
+
+      // Since we added ranges, we calculate the total number of records the
+      // array contains
+      this->records_upper_bound = this->computeRecordsUB();
     }
 
   } catch (const tiledb::TileDBError &e) {
@@ -417,8 +435,43 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   DBUG_RETURN(rc);
 }
 
-int tile::mytile::init_scan(
-    THD *thd, std::unique_ptr<void, decltype(&std::free)> subarray) {
+uint64_t tile::mytile::computeRecordsUB() {
+  DBUG_ENTER("tile::mytile::computeRecordsUB");
+
+  std::string dimension_or_attribute_name = "";
+  uint64_t size_of_record = 0;
+  uint64_t max_size = std::numeric_limits<uint64_t>::min();
+
+  try {
+    tiledb::Domain domain = this->array_schema->domain();
+    for (size_t dim_index = 0; dim_index < domain.ndim(); dim_index++) {
+      auto dim = domain.dimension(dim_index);
+      tiledb_datatype_t datatype = dim.type();
+      size_of_record += tiledb_datatype_size(datatype);
+      dimension_or_attribute_name = dim.name();
+      uint64_t size = 0;
+      this->ctx.handle_error(tiledb_query_get_est_result_size(
+          this->ctx.ptr().get(), this->query->ptr().get(),
+          dimension_or_attribute_name.c_str(), &size));
+
+      if (size > max_size) {
+        max_size = size;
+        break;
+      }
+    }
+  } catch (tiledb::TileDBError &e) {
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Error in calculating upper bound for records %s",
+                    ME_ERROR_LOG | ME_FATAL, e.what());
+    DBUG_RETURN(-23);
+  }
+
+  uint64_t num_of_records = max_size / size_of_record;
+
+  DBUG_RETURN(num_of_records);
+}
+
+int tile::mytile::init_scan(THD *thd) {
   DBUG_ENTER("tile::mytile::init_scan");
   int rc = 0;
   // Reset indicators
@@ -444,20 +497,20 @@ int tile::mytile::init_scan(
     auto domain = this->array_schema->domain();
     auto dims = domain.dimensions();
 
-    // Create the subarray
-    uint64_t subarray_size =
-        tiledb_datatype_size(domain.type()) * dims.size() * 2;
-    if (subarray == nullptr) {
-      subarray = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(subarray_size), &std::free);
+    std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
+    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
+      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(size), &std::free);
+
+      this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
+          this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
+          nonEmptyDomain.get(), &this->empty_read));
+
+      nonEmptyDomains.push_back(std::move(nonEmptyDomain));
     }
 
-    // Get the non empty domain
-    this->ctx.handle_error(tiledb_array_get_non_empty_domain(
-        this->ctx.ptr().get(), this->array->ptr().get(), subarray.get(),
-        &this->empty_read));
-
-    this->total_num_records_UB = computeRecordsUB(this->array, subarray.get());
     if (!this->valid_pushed_ranges() &&
         !this->valid_pushed_in_ranges()) { // No pushdown
       if (this->empty_read)
@@ -466,9 +519,18 @@ int tile::mytile::init_scan(
       log_debug(thd, "no pushdowns possible for query on table %s",
                 this->table->s->table_name.str);
 
-      // Set subarray using capi
-      this->ctx.handle_error(tiledb_query_set_subarray(
-          this->ctx.ptr().get(), this->query->ptr().get(), subarray.get()));
+      for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+        tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+        void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
+                      tiledb_datatype_size(dimension.type());
+
+        // set range
+        this->ctx.handle_error(tiledb_query_add_range(
+            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+            upper, nullptr));
+      }
 
     } else {
       log_debug(thd, "pushdown of ranges for query on table %s",
@@ -476,6 +538,8 @@ int tile::mytile::init_scan(
 
       // Loop over dimensions and build rangers for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+        tiledb::Dimension dimension = domain.dimension(dim_idx);
+
         // This ranges vector and the ranges it contains will be manipulated in
         // merge ranges
         const auto &ranges = this->pushdown_ranges[dim_idx];
@@ -485,8 +549,7 @@ int tile::mytile::init_scan(
         const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
 
         // get start of non empty domain
-        void *lower = static_cast<char *>(subarray.get()) +
-                      (dim_idx * 2 * tiledb_datatype_size(domain.type()));
+        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
 
         // If the ranges for this dimension are not empty, we'll push it down
         // else non empty domain is used
@@ -531,8 +594,8 @@ int tile::mytile::init_scan(
           }
         } else { // If the range is empty we need to use the non-empty-domain
 
-          void *upper =
-              static_cast<char *>(lower) + tiledb_datatype_size(domain.type());
+          void *upper = static_cast<char *>(lower) +
+                        tiledb_datatype_size(dimension.type());
           this->ctx.handle_error(tiledb_query_add_range(
               this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
               upper, nullptr));
@@ -577,21 +640,11 @@ int tile::mytile::rnd_init(bool scan) {
     this->metadata_map_iterator = this->metadata_map.begin();
     DBUG_RETURN(rc);
   }
-  DBUG_RETURN(init_scan(
-      this->ha_thd(),
-      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free)));
+  DBUG_RETURN(init_scan(this->ha_thd()));
 };
 
 bool tile::mytile::query_complete() {
   DBUG_ENTER("tile::mytile::query_complete");
-  // If we have run out of records report EOF
-  // note the upper bound of records might be *more* than actual results, thus
-  // this check is not guaranteed see the next check were we look for complete
-  // query and row position
-  if (this->records_read >= this->total_num_records_UB) {
-    DBUG_RETURN(true);
-  }
-
   // If we are complete and there is no more records we report EOF
   if (this->status == tiledb::Query::Status::COMPLETE &&
       static_cast<int64_t>(this->record_index) >= this->records) {
@@ -634,8 +687,12 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
         this->status = query->submit();
 
         // Compute the number of cells (records) that were returned by the query
-        this->records = this->coord_buffer->buffer_size / this->ndim /
-                        tiledb_datatype_size(this->coord_buffer->type);
+        auto buff = this->buffers[0];
+        if (buff->offset_buffer != nullptr) {
+          this->records = buff->offset_buffer_size / sizeof(uint64_t);
+        } else {
+          this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
+        }
 
         // Increase the buffer allocation and resubmit if necessary.
         if (this->status == tiledb::Query::Status::INCOMPLETE &&
@@ -741,7 +798,6 @@ int tile::mytile::rnd_end() {
   this->records = 0;
   this->records_read = 0;
   this->status = tiledb::Query::Status::UNINITIALIZED;
-  this->total_num_records_UB = 0;
   this->query = nullptr;
   ds_mrr.dsmrr_close();
   DBUG_RETURN(close());
@@ -761,19 +817,56 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
     DBUG_RETURN(metadata_to_fields(*it));
   }
 
-  auto domain = this->array_schema->domain();
-  this->ctx.handle_error(tiledb_query_set_subarray(
-      this->ctx.ptr().get(), this->query->ptr().get(), pos));
-  this->total_num_records_UB = computeRecordsUB(this->array, pos);
+  try {
+    // Always reset query object so we make sure no ranges are left set
+    this->query = nullptr;
 
-  // Reset indicators
-  this->record_index = 0;
-  this->records = 0;
-  this->records_read = 0;
-  this->status = tiledb::Query::Status::UNINITIALIZED;
+    // Validate the array is open for reads
+    open_array_for_reads(ha_thd());
+
+    // Allocate user buffers
+    alloc_read_buffers(this->read_buffer_size);
+
+    auto domain = this->array_schema->domain();
+    int current_offset = 0;
+    // Reads dimensions in the same order as we wrote them
+    // to ref in tile::mytile::position
+    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+      // Get datatype size
+      int datatype_size = tiledb_datatype_size(dimension.type());
+      // Fetch the point
+      void *point = pos + current_offset;
+      // Move current offset for the next dimension's cordinate
+      current_offset += datatype_size;
+
+      // set range
+      this->ctx.handle_error(tiledb_query_add_range(
+          this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
+          point, nullptr));
+    }
+
+    // Reset indicators
+    this->record_index = 0;
+    this->records = 0;
+    this->records_read = 0;
+    this->status = tiledb::Query::Status::UNINITIALIZED;
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_pos] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    DBUG_RETURN(-113);
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[rnd_pos] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    DBUG_RETURN(-114);
+  }
   DBUG_RETURN(rnd_next(buf));
 }
 
+// Fetches each buffer coordinate and store coordinate.
 void tile::mytile::position(const uchar *record) {
   DBUG_ENTER("tile::mytile::position");
 
@@ -784,25 +877,29 @@ void tile::mytile::position(const uchar *record) {
     DBUG_VOID_RETURN;
   }
 
-  // copy the position
-  uint64_t datatype_size = tiledb_datatype_size(this->coord_buffer->type);
-  // The index offset for coordinates is computed based on the number of
-  // dimensions, the datatype size and the record index We must subtract one
-  // from the record index becuase position is called after the end of rnd_next
-  // which means we have already incremented the index position
-  uint64_t index_offset = (this->record_index - 1) * this->ndim *
-                          tiledb_datatype_size(this->coord_buffer->type);
-  // Helper variable to pointer of start for coordinates offsets
-  char *coord_start =
-      static_cast<char *>(this->coord_buffer->buffer) + index_offset;
+  auto domain = this->array_schema->domain();
+  int current_offset = 0;
+  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
 
-  // Loop through each dimension and copy the current coordinates to setup a new
-  // subarray
-  for (uint64_t i = 0; i < this->ndim; i++) {
-    memcpy(this->ref + (i * datatype_size * 2),
-           coord_start + (i * datatype_size), datatype_size);
-    memcpy(this->ref + ((i * datatype_size * 2) + datatype_size),
-           coord_start + (i * datatype_size), datatype_size);
+    for (auto &buff : this->buffers) {
+      if (buff->name != dimension.name()) {
+        continue;
+      } else { // the buffer is found
+        int datatype_size = tiledb_datatype_size(dimension.type());
+        // The index offset for coordinates is computed based on the number of
+        // dimensions, the datatype size and the record index We must subtract
+        // one from the record index because position is called after the end
+        // of rnd_next which means we have already incremented the index
+        // position Current dimension's value is the (record_index - 1) Order of
+        // dimensions is important
+        memcpy(this->ref + current_offset,
+               static_cast<char *>(buff->buffer) +
+                   ((this->record_index - 1) * datatype_size),
+               datatype_size);
+        current_offset += datatype_size;
+      }
+    }
   }
   DBUG_VOID_RETURN;
 }
@@ -815,23 +912,15 @@ void tile::mytile::dealloc_buffers() {
     if (buff == nullptr)
       continue;
 
-    if (!buff->dimension) {
-      if (buff->offset_buffer != nullptr) {
-        free(buff->offset_buffer);
-        buff->offset_buffer = nullptr;
-      }
-
-      if (buff->buffer != nullptr) {
-        free(buff->buffer);
-        buff->buffer = nullptr;
-      }
+    if (buff->offset_buffer != nullptr) {
+      free(buff->offset_buffer);
+      buff->offset_buffer = nullptr;
     }
-  }
 
-  if (this->coord_buffer != nullptr && this->coord_buffer->buffer != nullptr) {
-    free(this->coord_buffer->buffer);
-    this->coord_buffer->buffer = nullptr;
-    this->coord_buffer = nullptr;
+    if (buff->buffer != nullptr) {
+      free(buff->buffer);
+      buff->buffer = nullptr;
+    }
   }
 
   this->buffers.clear();
@@ -883,10 +972,14 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   }
 
   uint64_t dim_idx = 0;
+  tiledb_datatype_t dim_type = tiledb_datatype_t::TILEDB_ANY;
+
   auto dims = this->array_schema->domain().dimensions();
   for (uint64_t j = 0; j < this->ndim; j++) {
-    if (dims[j].name() == column_field->field_name.str)
+    if (dims[j].name() == column_field->field_name.str) {
       dim_idx = j;
+      dim_type = dims[j].type();
+    }
   }
 
   switch (func_item->functype()) {
@@ -912,8 +1005,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
 
-      int ret =
-          set_range_from_item_consts(lower_const, upper_const, cmp_type, range);
+      int ret = set_range_from_item_consts(lower_const, upper_const, cmp_type,
+                                           range, dim_type);
 
       if (ret)
         DBUG_RETURN(func_item);
@@ -935,7 +1028,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     int ret =
         set_range_from_item_consts(dynamic_cast<Item_basic_constant *>(args[1]),
                                    dynamic_cast<Item_basic_constant *>(args[1]),
-                                   args[1]->cmp_type(), range);
+                                   args[1]->cmp_type(), range, dim_type);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -983,8 +1076,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
 
-    int ret =
-        set_range_from_item_consts(lower_const, upper_const, cmp_type, range);
+    int ret = set_range_from_item_consts(lower_const, upper_const, cmp_type,
+                                         range, dim_type);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -1124,10 +1217,6 @@ void tile::mytile::alloc_buffers(uint64_t size) {
   const char *array_type;
   tiledb_array_type_to_str(this->array_schema->array_type(), &array_type);
 
-  // Set Coordinate Buffer
-  // We don't use set_coords to avoid needing to switch on datatype
-  auto coords_buffer = alloc_buffer(domain.type(), size);
-
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
       this->buffers.emplace_back();
@@ -1154,17 +1243,11 @@ void tile::mytile::alloc_buffers(uint64_t size) {
     buff->allocated_buffer_size = size;
 
     if (this->array_schema->domain().has_dimension(field_name)) {
-      buff->buffer = coords_buffer;
-      buff->type = domain.type();
+      auto dim = this->array_schema->domain().dimension(field_name);
+      auto data_buffer = alloc_buffer(dim.type(), size);
+      buff->buffer = data_buffer;
+      buff->type = dim.type();
       buff->dimension = true;
-      for (size_t i = 0; i < dims.size(); i++) {
-        if (dims[i].name() == field_name) {
-          buff->buffer_offset = i;
-          break;
-        }
-      }
-      buff->fixed_size_elements = domain.ndim();
-      this->coord_buffer = buff;
     } else { // attribute
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
       uint64_t *offset_buffer = nullptr;
@@ -1197,7 +1280,7 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
 
     if (domain.has_dimension(buff->name)) {
       this->ctx.handle_error(tiledb_query_set_buffer(
-          this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
+          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
           buff->buffer, &buff->buffer_size));
     } else {
       if (buff->offset_buffer != nullptr) {
@@ -1230,9 +1313,7 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
       uint64_t index = orignal_index;
       field->set_notnull();
 
-      if (buff->dimension) {
-        index = (index * ndim) + buff->buffer_offset;
-      } else if (dimensions_only) {
+      if (dimensions_only) {
         continue;
       }
 
@@ -1377,34 +1458,22 @@ int tile::mytile::flush_write() {
   // Set all buffers with proper size
   try {
 
-    // Handle case where flush was called but no data was written
-    if (coord_buffer->buffer_size != 0) {
-
-      uint64_t coord_size = 0;
-      for (auto &buff : this->buffers) {
-        if (this->array_schema->domain().has_dimension(buff->name)) {
-          coord_size = buff->buffer_size * buff->fixed_size_elements;
-          this->ctx.handle_error(tiledb_query_set_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(), tiledb_coords(),
-              buff->buffer, &coord_size));
-        } else {
-          if (buff->offset_buffer != nullptr) {
-            this->ctx.handle_error(tiledb_query_set_buffer_var(
-                this->ctx.ptr().get(), this->query->ptr().get(),
-                buff->name.c_str(), buff->offset_buffer,
-                &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
-          } else {
-            this->ctx.handle_error(tiledb_query_set_buffer(
-                this->ctx.ptr().get(), this->query->ptr().get(),
-                buff->name.c_str(), buff->buffer, &buff->buffer_size));
-          }
-        }
+    for (auto &buff : this->buffers) {
+      if (buff->offset_buffer != nullptr) {
+        this->ctx.handle_error(tiledb_query_set_buffer_var(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
+            &buff->buffer_size));
+      } else {
+        this->ctx.handle_error(tiledb_query_set_buffer(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->buffer, &buff->buffer_size));
       }
+    }
 
-      // Only submit the query if there is actual data, else just carry on
-      if (coord_size > 0) {
-        query->submit();
-      }
+    // Only submit the query if there is actual data, else just carry on
+    if (this->buffers[0]->buffer_size > 0) {
+      query->submit();
     }
 
     // After query submit reset buffer sizes
@@ -1640,9 +1709,7 @@ int tile::mytile::index_init(uint idx, bool sorted) {
   DBUG_ENTER("tile::mytile::index_init");
   // If we are doing an index scan we need to use row-major order to get the
   // results in the expected order
-  int rc = init_scan(
-      this->ha_thd(),
-      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  int rc = init_scan(this->ha_thd());
 
   if (rc)
     DBUG_RETURN(rc);
@@ -1665,9 +1732,7 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
   if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
       this->query_complete()) {
     this->reset_pushdowns_for_key(key, key_len, find_flag);
-    int rc = init_scan(
-        this->ha_thd(),
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+    int rc = init_scan(this->ha_thd());
 
     if (rc)
       DBUG_RETURN(rc);
@@ -1688,6 +1753,39 @@ int tile::mytile::index_next(uchar *buf) {
   DBUG_ENTER("tile::mytile::index_next");
   // Treat just as normal row read
   DBUG_RETURN(scan_rnd_row(table));
+}
+
+int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
+                                         uint64_t index) {
+  auto domain = this->array_schema->domain();
+  int key_position = 0;
+  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+    for (auto &dim_buffer : this->buffers) {
+      if (dim_buffer->name != dimension.name()) {
+        continue;
+      } else { // buffer for dimension was found
+        auto dim_byte_size = tiledb_datatype_size(dimension.type());
+        auto dim_comparison = memcmp(key + key_position,
+                                     static_cast<char *>(dim_buffer->buffer) +
+                                         (index * dim_byte_size),
+                                     dim_byte_size);
+
+        if (dim_comparison != 0) {
+          return dim_comparison;
+        }
+
+        key_position += dim_byte_size;
+      }
+      break; // skipping rest of buffers, proceed with next dimension
+    }
+
+    if (key_position >= (int)key_len) {
+      break;
+    }
+  }
+  return 0;
 }
 
 int tile::mytile::index_read_scan(const uchar *key, uint key_len,
@@ -1726,8 +1824,12 @@ begin:
         this->status = query->submit();
 
         // Compute the number of cells (records) that were returned by the query
-        this->records = this->coord_buffer->buffer_size / this->ndim /
-                        tiledb_datatype_size(this->coord_buffer->type);
+        auto buff = this->buffers[0];
+        if (buff->offset_buffer != nullptr) {
+          this->records = buff->offset_buffer_size / sizeof(uint64_t);
+        } else {
+          this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
+        }
 
         // Increase the buffer allocation and resubmit if necessary.
         if (this->status == tiledb::Query::Status::INCOMPLETE &&
@@ -1749,16 +1851,8 @@ begin:
       } while (status == tiledb::Query::Status::INCOMPLETE);
     }
 
-    // Compare keys to see if we are in the proper position
-    uint64_t size = tiledb_datatype_size(this->coord_buffer->type);
-
     do {
-      int key_cmp = tile::compare_typed_buffers(
-          key,
-          static_cast<char *>(this->coord_buffer->buffer) +
-              (this->coord_buffer->fixed_size_elements * size *
-               this->record_index),
-          key_len, this->coord_buffer->type);
+      int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
       // If the current index coordinates matches the key we are looking for we
       // must set the fields
       if ((key_cmp == 0 &&
@@ -1783,9 +1877,7 @@ begin:
         // incomplete) query buffers is before what we are looking for If the
         // key we are looking for is before the first record it means we've
         // missed the key and the request can not be resolved
-        if (tile::compare_typed_buffers(key, this->coord_buffer->buffer,
-                                        key_len,
-                                        this->coord_buffer->type) < 0) {
+        if (compare_key_to_dims(key, key_len, 0) < 0) {
 
           // If we are at the start of the query this means this key doesn't
           // exist in the query
@@ -1805,9 +1897,7 @@ begin:
           }
 
           // rerunning incomplete query from the beginning
-          rc = init_scan(
-              this->ha_thd(),
-              std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+          rc = init_scan(this->ha_thd());
           // Index scans are expected in row major order
           this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
           restarted_scan = true;
@@ -1828,12 +1918,7 @@ begin:
         // case where a key does not exist in the result set but we might get
         // stuck in a loop bouncing between two coordinates which are before and
         // after the non-existent key.
-        if (tile::compare_typed_buffers(
-                key,
-                static_cast<char *>(this->coord_buffer->buffer) +
-                    (this->coord_buffer->fixed_size_elements * size *
-                     this->record_index),
-                key_len, this->coord_buffer->type) > 0) {
+        if (compare_key_to_dims(key, key_len, this->record_index) > 0) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
@@ -1888,9 +1973,7 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
   // If we are doing an index scan we need to use row-major order to get the
   // results in the expected order
 
-  int rc = init_scan(
-      this->ha_thd(),
-      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  int rc = init_scan(this->ha_thd());
   if (rc)
     DBUG_RETURN(rc);
 
@@ -2007,9 +2090,7 @@ int tile::mytile::build_mrr_ranges() {
     }
   }
 
-  int rc = init_scan(
-      this->ha_thd(),
-      std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  int rc = init_scan(this->ha_thd());
   if (rc)
     DBUG_RETURN(rc);
 

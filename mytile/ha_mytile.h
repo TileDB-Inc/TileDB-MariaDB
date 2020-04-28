@@ -130,7 +130,7 @@ public:
    * Initialize table scanning
    * @return
    */
-  int init_scan(THD *thd, std::unique_ptr<void, decltype(&std::free)> subarray);
+  int init_scan(THD *thd);
 
   /* Table Scanning */
   int rnd_init(bool scan) override;
@@ -378,6 +378,24 @@ public:
   int index_end() override;
 
   /**
+   * Compares two buffers checking their bytes
+   * Iterates through dimension buffers
+   * First buffer is the key, second buffer is the dimension buffer
+   * @param key
+   * @param key_len
+   * @param index
+   * @return minus(<0) if key is less than buffer, 0 if equal, positive (>0) if
+   * buffer is greater than key
+   */
+  int8_t compare_key_to_dims(const uchar *key, uint key_len, uint64_t index);
+
+  /**
+   * Returns an estimation for number of records expected from the current query
+   * @return number of rows
+   */
+  uint64_t computeRecordsUB();
+
+  /**
    * Perform a scan over query results to find the specified key
    * This performs a sequence scan to find a key. It is used for index scans or
    * MRR
@@ -449,16 +467,12 @@ private:
 
   // Vector of buffers in field index order
   std::vector<std::shared_ptr<buffer>> buffers;
-  std::shared_ptr<buffer> coord_buffer;
 
   // Number of dimensions, this is used frequently so let's cache it
   uint64_t ndim = 0;
 
   // Array Schema
   std::unique_ptr<tiledb::ArraySchema> array_schema;
-
-  // Upper bound for number of records so we know stopping condition
-  uint64_t total_num_records_UB = 0;
 
   int64_t records = -2;
   uint64_t records_read = 0;

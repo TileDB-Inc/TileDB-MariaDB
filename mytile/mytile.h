@@ -152,23 +152,6 @@ template <typename T> T *alloc_buffer(uint64_t size) {
   return static_cast<T *>(malloc(size));
 }
 
-uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
-                          void *subarray);
-
-template <typename T>
-uint64_t computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
-                          void *subarray) {
-  T *s = static_cast<T *>(subarray);
-  size_t elements = array->schema().domain().ndim() * 2;
-  // Get max buffer sizes to build
-  const std::unordered_map<std::string, std::pair<uint64_t, uint64_t>> &
-      maxSizes = array->max_buffer_elements<T>(std::vector<T>(s, s + elements));
-
-  // Compute an upper bound on the number of results in the subarray.
-  return maxSizes.find(TILEDB_COORDS)->second.second /
-         array->schema().domain().ndim();
-}
-
 /**
  *
  * @param thd

@@ -502,69 +502,6 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   return 0;
 }
 
-uint64_t tile::computeRecordsUB(std::shared_ptr<tiledb::Array> &array,
-                                void *subarray) {
-  switch (array->schema().domain().type()) {
-  case tiledb_datatype_t::TILEDB_INT8: {
-    return computeRecordsUB<int8_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_UINT8: {
-    return computeRecordsUB<uint8_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_INT16: {
-    return computeRecordsUB<int16_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_UINT16: {
-    return computeRecordsUB<uint16_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_INT32: {
-    return computeRecordsUB<int32_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_UINT32: {
-    return computeRecordsUB<uint32_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_INT64: {
-    return computeRecordsUB<int64_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_UINT64: {
-    return computeRecordsUB<uint64_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_FLOAT32: {
-    return computeRecordsUB<float>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_FLOAT64: {
-    return computeRecordsUB<double>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
-  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
-  case tiledb_datatype_t::TILEDB_DATETIME_HR:
-  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
-  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
-  case tiledb_datatype_t::TILEDB_DATETIME_MS:
-  case tiledb_datatype_t::TILEDB_DATETIME_US:
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
-  case tiledb_datatype_t::TILEDB_DATETIME_PS:
-  case tiledb_datatype_t::TILEDB_DATETIME_FS:
-  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-    return computeRecordsUB<int64_t>(array, subarray);
-  }
-  case tiledb_datatype_t::TILEDB_CHAR:
-  case tiledb_datatype_t::TILEDB_STRING_ASCII:
-  case tiledb_datatype_t::TILEDB_STRING_UTF8:
-  case tiledb_datatype_t::TILEDB_STRING_UTF16:
-  case tiledb_datatype_t::TILEDB_STRING_UTF32:
-  case tiledb_datatype_t::TILEDB_STRING_UCS2:
-  case tiledb_datatype_t::TILEDB_STRING_UCS4:
-  case tiledb_datatype_t::TILEDB_ANY:
-    my_printf_error(ER_UNKNOWN_ERROR, "Unknown dimension type",
-                    ME_ERROR_LOG | ME_FATAL);
-    break;
-  }
-  return 0;
-}
-
 int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
                              uint64_t second_part,
                              enum_mysql_timestamp_type type) {

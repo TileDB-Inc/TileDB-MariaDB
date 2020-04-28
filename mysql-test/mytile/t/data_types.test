@@ -249,3 +249,12 @@ CREATE TABLE t1 (
 INSERT INTO t1 (column1, column2) VALUES ("test", 1);
 select column1, column2 FROM t1;
 DROP TABLE t1;
+
+--echo # VARCHAR Dimension
+CREATE TABLE t1 (
+  dim1 varchar(255) dimension=1,
+  attr1 integer
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("a", 1);
+select * FROM t1;
+DROP TABLE t1;

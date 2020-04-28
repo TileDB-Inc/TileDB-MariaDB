@@ -55,6 +55,8 @@ typedef struct range_struct {
   std::unique_ptr<void, decltype(&std::free)> upper_value;
   Item_func::Functype operation_type;
   tiledb_datatype_t datatype;
+  uint64_t lower_value_size;
+  uint64_t upper_value_size;
 } range;
 
 int set_range_from_item_consts(Item_basic_constant *lower_const,
@@ -87,13 +89,18 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
  * @param dimension
  */
 void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
-                 void *non_empty_domain, tiledb::Dimension dimension);
+                 void *non_empty_domain, const tiledb::Dimension &dimension);
+void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
+                 const std::pair<std::string, std::string> &non_empty_domain,
+                 const tiledb::Dimension &dimension);
 
 template <typename T>
 void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
                  T *non_empty_domain) {
   T final_lower_value;
   T final_upper_value;
+  range->lower_value_size = sizeof(T);
+  range->upper_value_size = sizeof(T);
   switch (range->operation_type) {
   case Item_func::IN_FUNC: /* IN is treated like equal */
   case Item_func::BETWEEN: /* BETWEEN Is treated like equal */
@@ -186,6 +193,14 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
              tiledb_datatype_t datatype);
 
 /**
+ * Support string range merges see merge_ranges
+ * @param ranges
+ * @return
+ */
+std::shared_ptr<tile::range>
+merge_ranges_str(const std::vector<std::shared_ptr<tile::range>> &ranges);
+
+/**
  * See non-templated function for description
  * @tparam T
  * @param ranges
@@ -198,7 +213,8 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
       std::make_shared<tile::range>(tile::range{
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY, sizeof(T),
+          sizeof(T)});
 
   if (ranges.empty())
     return nullptr;
@@ -210,16 +226,18 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
 
   if (ranges[0]->lower_value != nullptr) {
     merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-        std::malloc(sizeof(T)), &std::free);
+        std::malloc(ranges[0]->lower_value_size), &std::free);
     memcpy(merged_range->lower_value.get(), ranges[0]->lower_value.get(),
-           sizeof(T));
+           ranges[0]->lower_value_size);
+    merged_range->lower_value_size = ranges[0]->lower_value_size;
   }
 
   if (ranges[0]->upper_value != nullptr) {
     merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-        std::malloc(sizeof(T)), &std::free);
+        std::malloc(ranges[0]->upper_value_size), &std::free);
     memcpy(merged_range->upper_value.get(), ranges[0]->upper_value.get(),
-           sizeof(T));
+           ranges[0]->upper_value_size);
+    merged_range->upper_value_size = ranges[0]->upper_value_size;
   }
 
   // loop through ranges and set upper/lower maxima/minima
@@ -227,32 +245,36 @@ merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges) {
     if (range->lower_value != nullptr) {
       if (merged_range->lower_value == nullptr) {
         merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(sizeof(T)), &std::free);
+            std::malloc(range->lower_value_size), &std::free);
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
-               sizeof(T));
+               range->lower_value_size);
+        merged_range->lower_value_size = range->lower_value_size;
         // See if the current range has a higher low value than the "merged"
         // range, if so set the new low value, since the current range has a
         // more restrictive condition
       } else if (*(static_cast<T *>(merged_range->lower_value.get())) <
                  *(static_cast<T *>(range->lower_value.get()))) {
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
-               sizeof(T));
+               range->lower_value_size);
+        merged_range->lower_value_size = range->lower_value_size;
       }
     }
 
     if (range->upper_value != nullptr) {
       if (merged_range->upper_value == nullptr) {
         merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(sizeof(T)), &std::free);
+            std::malloc(range->upper_value_size), &std::free);
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
-               sizeof(T));
+               range->upper_value_size);
+        merged_range->upper_value_size = range->upper_value_size;
         // See if the current range has a lower upper value than the "merged"
         // range, if so set the new upper value since the current range has a
         // more restrictive condition
       } else if (*(static_cast<T *>(merged_range->upper_value.get())) >
                  *(static_cast<T *>(range->upper_value.get()))) {
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
-               sizeof(T));
+               range->upper_value_size);
+        merged_range->upper_value_size = range->upper_value_size;
       }
     }
   }
@@ -290,7 +312,7 @@ merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
       std::make_shared<tile::range>(tile::range{
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
   if (ranges.empty())
     return nullptr;
@@ -302,16 +324,18 @@ merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
 
   if (ranges[0]->lower_value != nullptr) {
     merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-        std::malloc(sizeof(T)), &std::free);
+        std::malloc(ranges[0]->lower_value_size), &std::free);
     memcpy(merged_range->lower_value.get(), ranges[0]->lower_value.get(),
-           sizeof(T));
+           ranges[0]->lower_value_size);
+    merged_range->lower_value_size = ranges[0]->lower_value_size;
   }
 
   if (ranges[0]->upper_value != nullptr) {
     merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-        std::malloc(sizeof(T)), &std::free);
+        std::malloc(ranges[0]->upper_value_size), &std::free);
     memcpy(merged_range->upper_value.get(), ranges[0]->upper_value.get(),
-           sizeof(T));
+           ranges[0]->upper_value_size);
+    merged_range->upper_value_size = ranges[0]->upper_value_size;
   }
 
   // loop through ranges and set upper/lower maxima/minima
@@ -319,34 +343,52 @@ merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
     if (range->lower_value != nullptr) {
       if (merged_range->lower_value == nullptr) {
         merged_range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(sizeof(T)), &std::free);
+            std::malloc(range->lower_value_size), &std::free);
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
-               sizeof(T));
+               range->lower_value_size);
+        merged_range->lower_value_size = range->lower_value_size;
         // See if the current range has a lower low value than the "merged"
         // range, if so set the new low value, since the current range includes
         // additional data
+      } else if (merged_range->datatype == TILEDB_STRING_ASCII) {
+        if (memcmp(merged_range->lower_value.get(), range->lower_value.get(),
+                   range->lower_value_size) == 1) {
+          merged_range->lower_value =
+              std::unique_ptr<void, decltype(&std::free)>(
+                  std::malloc(range->lower_value_size), &std::free);
+          memcpy(merged_range->lower_value.get(), range->lower_value.get(),
+                 range->lower_value_size);
+        }
       } else if (*(static_cast<T *>(merged_range->lower_value.get())) >
                  *(static_cast<T *>(range->lower_value.get()))) {
-        //        merged_range->lower_value = std::move(range->lower_value);
         memcpy(merged_range->lower_value.get(), range->lower_value.get(),
-               sizeof(T));
+               range->lower_value_size);
       }
     }
 
     if (range->upper_value != nullptr) {
       if (merged_range->upper_value == nullptr) {
         merged_range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(sizeof(T)), &std::free);
+            std::malloc(range->upper_value_size), &std::free);
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
-               sizeof(T));
+               range->upper_value_size);
+        merged_range->upper_value_size = range->upper_value_size;
         // See if the current range has a higher upper value than the "merged"
         // range, if so set the new upper value since the current range includes
         // additional data
+      } else if (merged_range->datatype == TILEDB_STRING_ASCII) {
+        if (memcmp(merged_range->upper_value.get(), range->upper_value.get(),
+                   range->upper_value_size) == 1) {
+          merged_range->upper_value =
+              std::unique_ptr<void, decltype(&std::free)>(
+                  std::malloc(range->upper_value_size), &std::free);
+          memcpy(merged_range->upper_value.get(), range->upper_value.get(),
+                 range->upper_value_size);
+        }
       } else if (*(static_cast<T *>(merged_range->upper_value.get())) <
                  *(static_cast<T *>(range->upper_value.get()))) {
-        //        merged_range->upper_value = std::move(range->upper_value);
         memcpy(merged_range->upper_value.get(), range->upper_value.get(),
-               sizeof(T));
+               range->upper_value_size);
       }
     }
   }
@@ -369,6 +411,19 @@ merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
  * @return
  */
 std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
+    const std::vector<std::shared_ptr<tile::range>> &in_ranges,
+    const std::shared_ptr<tile::range> &main_range);
+
+/**
+ * Takes a vector of ranges build from IN predicates and returns a unique vector
+ * of ranges which are not contained by the existing main super range (if non
+ * null) and are unique
+ * @param in_ranges
+ * @param main_range
+ * @return
+ */
+std::vector<std::shared_ptr<tile::range>>
+get_unique_non_contained_in_ranges_str(
     const std::vector<std::shared_ptr<tile::range>> &in_ranges,
     const std::shared_ptr<tile::range> &main_range);
 
@@ -434,7 +489,7 @@ std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
         std::make_shared<tile::range>(tile::range{
             std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
             std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-            Item_func::EQ_FUNC, datatype});
+            Item_func::EQ_FUNC, datatype, sizeof(T), sizeof(T)});
 
     // Allocate memory for lower value
     range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
@@ -473,7 +528,7 @@ Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag);
 std::vector<std::shared_ptr<tile::range>>
 build_ranges_from_key(const uchar *key, uint length,
                       enum ha_rkey_function find_flag,
-                      tiledb_datatype_t datatype);
+                      const tiledb::Domain &domain);
 
 /**
  * Takes a key and find_flag and converts to the a vector of ranges.
@@ -485,107 +540,104 @@ build_ranges_from_key(const uchar *key, uint length,
  * @return
  */
 template <typename T>
-std::vector<std::shared_ptr<tile::range>>
-build_ranges_from_key(const uchar *key, uint length,
-                      enum ha_rkey_function find_flag,
-                      tiledb_datatype_t datatype) {
+std::shared_ptr<tile::range>
+build_range_from_key(const uchar *key, uint length, bool last_key,
+                     enum ha_rkey_function find_flag,
+                     tiledb_datatype_t datatype, uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
 
-  uint dims_with_keys = length / sizeof(T);
-
-  std::vector<std::shared_ptr<tile::range>> ranges;
-
   // Cast key to array of type T
   const T *key_typed = reinterpret_cast<const T *>(key);
   // Handle all keys but the last one
-  for (size_t i = 0; i < dims_with_keys - 1; i++) {
+  if (!last_key) {
     // Initialize range
     std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
         tile::range{std::unique_ptr<void, decltype(&std::free)>(
-                        std::malloc(sizeof(T)), &std::free),
+                        std::malloc(size), &std::free),
                     std::unique_ptr<void, decltype(&std::free)>(
-                        std::malloc(sizeof(T)), &std::free),
-                    Item_func::EQ_FUNC, datatype});
+                        std::malloc(size), &std::free),
+                    Item_func::EQ_FUNC, datatype, size, size});
 
     // Copy value into range settings
     // We can set lower/upper to key value because enforces equality for all key
     // parts except the last that is set which is handled below
-    memcpy(range->lower_value.get(), &key_typed[i], sizeof(T));
-    memcpy(range->upper_value.get(), &key_typed[i], sizeof(T));
+    memcpy(range->lower_value.get(), key_typed, size);
+    memcpy(range->upper_value.get(), key_typed, size);
 
-    ranges.push_back(std::move(range));
-  }
+    return range;
+  } else {
 
-  // Handle the last dimension
-  std::shared_ptr<tile::range> last_dimension_range =
-      std::make_shared<tile::range>(tile::range{
-          std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(T)),
-                                                      &std::free),
-          std::unique_ptr<void, decltype(&std::free)>(std::malloc(sizeof(T)),
-                                                      &std::free),
-          find_flag_to_func(find_flag), datatype});
+    // Handle the last dimension
+    std::shared_ptr<tile::range> last_dimension_range =
+        std::make_shared<tile::range>(tile::range{
+            std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                        &std::free),
+            std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                        &std::free),
+            find_flag_to_func(find_flag), datatype, size, size});
 
-  T lower = key_typed[dims_with_keys - 1];
-  T upper = key_typed[dims_with_keys - 1];
+    T lower = *key_typed;
+    T upper = *key_typed;
 
-  // The last key part, is where a range operation might be specified
-  // So for this last dimension we must check to see if we need to set the lower
-  // or upper bound and if we need to convert from greater/less than to the
-  // greater/less than or equal to format.
-  switch (last_dimension_range->operation_type) {
-  // If we have greater than, lets make it greater than or equal
-  // TileDB ranges are inclusive
-  case Item_func::GT_FUNC: {
-    last_dimension_range->operation_type = Item_func::GE_FUNC;
-    if (std::is_floating_point<T>()) {
-      lower = std::nextafter(lower, std::numeric_limits<T>::max());
-    } else {
-      lower += 1;
-    }
-    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
-    last_dimension_range->upper_value = nullptr;
-    break;
-  }
-  case Item_func::GE_FUNC: {
-    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
-    last_dimension_range->upper_value = nullptr;
-    break;
-  }
-  case Item_func::LT_FUNC: {
-    // If we have less than, lets make it less than or equal
+    // The last key part, is where a range operation might be specified
+    // So for this last dimension we must check to see if we need to set the
+    // lower or upper bound and if we need to convert from greater/less than to
+    // the greater/less than or equal to format.
+    switch (last_dimension_range->operation_type) {
+    // If we have greater than, lets make it greater than or equal
     // TileDB ranges are inclusive
-    last_dimension_range->operation_type = Item_func::LE_FUNC;
-    if (std::is_floating_point<T>()) {
-      upper = std::nextafter(lower, std::numeric_limits<T>::min());
-    } else {
-      upper -= 1;
+    case Item_func::GT_FUNC: {
+      last_dimension_range->operation_type = Item_func::GE_FUNC;
+      if (std::is_floating_point<T>()) {
+        lower = std::nextafter(lower, std::numeric_limits<T>::max());
+      } else if (std::is_arithmetic<T>()) {
+        lower += 1;
+      }
+      memcpy(last_dimension_range->lower_value.get(), &lower, size);
+      last_dimension_range->upper_value = nullptr;
+      break;
     }
-    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
-    last_dimension_range->lower_value = nullptr;
-    break;
-  }
-  case Item_func::LE_FUNC: {
-    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
-    last_dimension_range->lower_value = nullptr;
-    break;
-  }
-  case Item_func::EQ_FUNC: {
-    memcpy(last_dimension_range->lower_value.get(), &lower, sizeof(T));
-    memcpy(last_dimension_range->upper_value.get(), &upper, sizeof(T));
-    break;
-  }
-  default:
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "Unsupported Item_func::functype in build_ranges_from_key",
-                    ME_ERROR_LOG | ME_FATAL);
-    break;
-  }
+    case Item_func::GE_FUNC: {
+      memcpy(last_dimension_range->lower_value.get(), &lower, size);
+      last_dimension_range->upper_value = nullptr;
+      break;
+    }
+    case Item_func::LT_FUNC: {
+      // If we have less than, lets make it less than or equal
+      // TileDB ranges are inclusive
+      last_dimension_range->operation_type = Item_func::LE_FUNC;
+      if (std::is_floating_point<T>()) {
+        upper = std::nextafter(lower, std::numeric_limits<T>::min());
+      } else if (std::is_arithmetic<T>()) {
+        upper -= 1;
+      }
+      memcpy(last_dimension_range->upper_value.get(), &upper, size);
+      last_dimension_range->lower_value = nullptr;
+      break;
+    }
+    case Item_func::LE_FUNC: {
+      memcpy(last_dimension_range->upper_value.get(), &upper, size);
+      last_dimension_range->lower_value = nullptr;
+      break;
+    }
+    case Item_func::EQ_FUNC: {
+      memcpy(last_dimension_range->lower_value.get(), &lower, size);
+      memcpy(last_dimension_range->upper_value.get(), &upper, size);
+      break;
+    }
+    default:
+      my_printf_error(
+          ER_UNKNOWN_ERROR,
+          "Unsupported Item_func::functype in build_ranges_from_key",
+          ME_ERROR_LOG | ME_FATAL);
+      break;
+    }
 
-  ranges.push_back(std::move(last_dimension_range));
-
-  return ranges;
+    return last_dimension_range;
+  }
+  return nullptr;
 }
 /**
  * Update a range struct with a new key value. This will expand the super range
@@ -599,6 +651,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key,
                                            uint64_t dimension_index,
                                            tiledb_datatype_t datatype);
+
 /**
  * See non-templated version for description
  * @tparam T
@@ -630,6 +683,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(sizeof(T)), &std::free);
       memcpy(range->lower_value.get(), &key_value, sizeof(T));
+      range->lower_value_size = sizeof(T);
     }
     // If the current lower_value is greater than the key set the new lower
     // value
@@ -770,12 +824,22 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
 
   switch (cmp_type) {
     // TILED does not support string dimensions
-    //                        case STRING_RESULT:
-    //                            res= pval->val_str(&tmp);
-    //                            pp->Value= PlugSubAllocStr(g, NULL,
-    //                            res->ptr(), res->length()); pp->Type=
-    //                            (pp->Value) ? TYPE_STRING : TYPE_ERROR;
-    //                            break;
+  case STRING_RESULT: {
+    char buff[256];
+    String *res, tmp(buff, sizeof(buff), &my_charset_bin);
+    res = lower_const->val_str(&tmp);
+    range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(res->length()), &std::free);
+    memcpy(range->lower_value.get(), res->ptr(), res->length());
+    range->lower_value_size = res->length();
+
+    res = upper_const->val_str(&tmp);
+    range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(res->length()), &std::free);
+    memcpy(range->upper_value.get(), res->ptr(), res->length());
+    range->upper_value_size = res->length();
+    break;
+  }
   case INT_RESULT: {
     range->datatype = tiledb_datatype_t::TILEDB_INT64;
     if (lower_const != nullptr) {
@@ -791,6 +855,7 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(sizeof(T)), &std::free);
       *static_cast<T *>(range->lower_value.get()) = static_cast<T>(lower);
+      range->lower_value_size = sizeof(T);
     }
     if (upper_const != nullptr) {
       longlong upper = upper_const->val_int();
@@ -805,6 +870,7 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(sizeof(T)), &std::free);
       *static_cast<T *>(range->upper_value.get()) = static_cast<T>(upper);
+      range->upper_value_size = sizeof(T);
     }
     break;
   }
@@ -832,6 +898,7 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(sizeof(T)), &std::free);
       *static_cast<T *>(range->lower_value.get()) = val;
+      range->lower_value_size = sizeof(T);
     }
 
     if (upper_const != nullptr) {
@@ -848,6 +915,7 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(sizeof(T)), &std::free);
       *static_cast<T *>(range->upper_value.get()) = val;
+      range->upper_value_size = sizeof(T);
     }
     break;
   }

@@ -51,6 +51,7 @@
 #include <mysqld_error.h>
 #include <vector>
 #include <unordered_map>
+#include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
 
 // Handler for mytile engine
 handlerton *mytile_hton;
@@ -228,7 +229,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     // of a subarray for querying
     this->ref_length = 0;
     for (const auto &dim : domain.dimensions()) {
-      this->ref_length += (tiledb_datatype_size(dim.type()) * 2);
+      this->ref_length += sizeof(uint64_t);
+      this->ref_length += tiledb_datatype_size(dim.type());
     }
 
     // If the user requests we will compute the table records on opening the
@@ -345,18 +347,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // we treat it is a dimension
     if (field->option_struct->dimension ||
         primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
-
-      // Validate the user has set the tile extent
-      // Only tile extent is checked because for the dimension domain we use the
-      // datatypes min/max values
-      if (field->option_struct->tile_extent == nullptr ||
-          strcmp(field->option_struct->tile_extent, "") == 0) {
-        my_printf_error(
-            ER_UNKNOWN_ERROR,
-            "Dimension field %s tile_extent was not set, can not create table",
-            ME_ERROR_LOG | ME_FATAL, field->field_name);
-        DBUG_RETURN(-13);
-      }
       domain.add_dimension(create_field_dimension(context, field));
     } else { // Else this is treated as a dimension
       tiledb::FilterList filter_list(context);
@@ -450,9 +440,15 @@ uint64_t tile::mytile::computeRecordsUB() {
       size_of_record += tiledb_datatype_size(datatype);
       dimension_or_attribute_name = dim.name();
       uint64_t size = 0;
-      this->ctx.handle_error(tiledb_query_get_est_result_size(
-          this->ctx.ptr().get(), this->query->ptr().get(),
-          dimension_or_attribute_name.c_str(), &size));
+      if (dim.cell_val_num() == TILEDB_VAR_NUM) {
+        auto sizes =
+            this->query->est_result_size_var(dimension_or_attribute_name);
+        size = sizes.first;
+      } else {
+        this->ctx.handle_error(tiledb_query_get_est_result_size(
+            this->ctx.ptr().get(), this->query->ptr().get(),
+            dimension_or_attribute_name.c_str(), &size));
+      }
 
       if (size > max_size) {
         max_size = size;
@@ -499,16 +495,28 @@ int tile::mytile::init_scan(THD *thd) {
 
     std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
     for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+      nonEmptyDomains.emplace_back(
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+    }
+
+    std::vector<std::pair<std::string, std::string>> nonEmptyDomainVars(
+        this->ndim);
+    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
       tiledb::Dimension dimension = domain.dimension(dim_idx);
-      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(size), &std::free);
 
-      this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
-          this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
-          nonEmptyDomain.get(), &this->empty_read));
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        nonEmptyDomainVars[dim_idx] =
+            this->array->non_empty_domain_var(dim_idx);
+      } else {
+        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(size), &std::free);
+        this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
+            this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
+            nonEmptyDomain.get(), &this->empty_read));
 
-      nonEmptyDomains.push_back(std::move(nonEmptyDomain));
+        nonEmptyDomains[dim_idx] = (std::move(nonEmptyDomain));
+      }
     }
 
     if (!this->valid_pushed_ranges() &&
@@ -522,14 +530,19 @@ int tile::mytile::init_scan(THD *thd) {
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain.dimension(dim_idx);
 
-        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
-        void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
-                      tiledb_datatype_size(dimension.type());
-
         // set range
-        this->ctx.handle_error(tiledb_query_add_range(
-            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
-            upper, nullptr));
+        if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+          auto &pair = nonEmptyDomainVars[dim_idx];
+          this->query->add_range(dim_idx, pair.first, pair.second);
+        } else {
+
+          void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+          void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
+                        tiledb_datatype_size(dimension.type());
+          this->ctx.handle_error(tiledb_query_add_range(
+              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+              upper, nullptr));
+        }
       }
 
     } else {
@@ -548,57 +561,109 @@ int tile::mytile::init_scan(THD *thd) {
         // are contained inside the merged super range we have
         const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
 
-        // get start of non empty domain
-        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+        if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+          auto &non_empty_domain = nonEmptyDomainVars[dim_idx];
+          // If the ranges for this dimension are not empty, we'll push it down
+          // else non empty domain is used
+          if (!ranges.empty() || !in_ranges.empty()) {
+            log_debug(thd, "Pushdown for %s.%s", this->table->s->table_name.str,
+                      dims[dim_idx].name().c_str());
 
-        // If the ranges for this dimension are not empty, we'll push it down
-        // else non empty domain is used
-        if (!ranges.empty() || !in_ranges.empty()) {
-          log_debug(thd, "Pushdown for %s.%s", this->table->s->table_name.str,
-                    dims[dim_idx].name().c_str());
+            std::shared_ptr<tile::range> range = nullptr;
+            if (!ranges.empty()) {
+              // Merge multiple ranges into single super range
+              range = merge_ranges(ranges, dims[dim_idx].type());
 
-          std::shared_ptr<tile::range> range = nullptr;
-          if (!ranges.empty()) {
-            // Merge multiple ranges into single super range
-            range = merge_ranges(ranges, dims[dim_idx].type());
+              if (range != nullptr) {
+                // Setup the range by filling in missing values with non empty
+                // domain
+                setup_range(thd, range, non_empty_domain, dims[dim_idx]);
 
-            if (range != nullptr) {
-              // Setup the range by filling in missing values with non empty
-              // domain
-              setup_range(thd, range, lower, dims[dim_idx]);
-
-              // set range
-              this->ctx.handle_error(tiledb_query_add_range(
-                  this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
-                  range->lower_value.get(), range->upper_value.get(), nullptr));
+                // set range
+                this->ctx.handle_error(tiledb_query_add_range_var(
+                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                    range->lower_value.get(), range->lower_value_size,
+                    range->upper_value.get(), range->upper_value_size));
+              }
             }
-          }
 
-          // If there are ranges from in conditions let's build proper ranges
-          // for them
-          if (!in_ranges.empty()) {
-            // First make the in ranges unique and remove any which are
-            // contained by the main range (if it is non null)
-            auto unique_in_ranges =
-                get_unique_non_contained_in_ranges(in_ranges, range);
+            // If there are ranges from in conditions let's build proper ranges
+            // for them
+            if (!in_ranges.empty()) {
+              // First make the in ranges unique and remove any which are
+              // contained by the main range (if it is non null)
+              auto unique_in_ranges =
+                  get_unique_non_contained_in_ranges(in_ranges, range);
 
-            for (auto &in_range : unique_in_ranges) {
-              // setup range so values are set to correct datatypes
-              setup_range(thd, in_range, lower, dims[dim_idx]);
-              // set range
-              this->ctx.handle_error(tiledb_query_add_range(
-                  this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
-                  in_range->lower_value.get(), in_range->upper_value.get(),
-                  nullptr));
+              for (auto &in_range : unique_in_ranges) {
+                // setup range so values are set to correct datatypes
+                setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
+                // set range
+                this->ctx.handle_error(tiledb_query_add_range_var(
+                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                    in_range->lower_value.get(), in_range->lower_value_size,
+                    in_range->upper_value.get(), in_range->upper_value_size));
+              }
             }
-          }
-        } else { // If the range is empty we need to use the non-empty-domain
+          } else { // If the range is empty we need to use the non-empty-domain
 
-          void *upper = static_cast<char *>(lower) +
-                        tiledb_datatype_size(dimension.type());
-          this->ctx.handle_error(tiledb_query_add_range(
-              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
-              upper, nullptr));
+            this->query->add_range(dim_idx, non_empty_domain.first,
+                                   non_empty_domain.second);
+          }
+        } else {
+
+          // get start of non empty domain
+          void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+          // If the ranges for this dimension are not empty, we'll push it down
+          // else non empty domain is used
+          if (!ranges.empty() || !in_ranges.empty()) {
+            log_debug(thd, "Pushdown for %s.%s", this->table->s->table_name.str,
+                      dims[dim_idx].name().c_str());
+
+            std::shared_ptr<tile::range> range = nullptr;
+            if (!ranges.empty()) {
+              // Merge multiple ranges into single super range
+              range = merge_ranges(ranges, dims[dim_idx].type());
+
+              if (range != nullptr) {
+                // Setup the range by filling in missing values with non empty
+                // domain
+                setup_range(thd, range, lower, dims[dim_idx]);
+
+                // set range
+                this->ctx.handle_error(tiledb_query_add_range(
+                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                    range->lower_value.get(), range->upper_value.get(),
+                    nullptr));
+              }
+            }
+
+            // If there are ranges from in conditions let's build proper ranges
+            // for them
+            if (!in_ranges.empty()) {
+              // First make the in ranges unique and remove any which are
+              // contained by the main range (if it is non null)
+              auto unique_in_ranges =
+                  get_unique_non_contained_in_ranges(in_ranges, range);
+
+              for (auto &in_range : unique_in_ranges) {
+                // setup range so values are set to correct datatypes
+                setup_range(thd, in_range, lower, dims[dim_idx]);
+                // set range
+                this->ctx.handle_error(tiledb_query_add_range(
+                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                    in_range->lower_value.get(), in_range->upper_value.get(),
+                    nullptr));
+              }
+            }
+          } else { // If the range is empty we need to use the non-empty-domain
+
+            void *upper = static_cast<char *>(lower) +
+                          tiledb_datatype_size(dimension.type());
+            this->ctx.handle_error(tiledb_query_add_range(
+                this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+                upper, nullptr));
+          }
         }
       }
     }
@@ -803,6 +868,89 @@ int tile::mytile::rnd_end() {
   DBUG_RETURN(close());
 };
 
+int tile::mytile::realloc_ref_based_size(uint64_t size) {
+  DBUG_ENTER("tile::mytile::ref");
+  int error = 0;
+
+  auto ref_length_old = this->ref_length;
+  this->ref_length = size;
+  /* Allocate ref in thd or on the table's mem_root */
+  if (!(ref = (uchar *)alloc_root(&table->mem_root,
+                                  ALIGN_SIZE(ref_length) * 2))) {
+    this->ref_length = ref_length_old;
+    error = HA_ERR_OUT_OF_MEM;
+  } else {
+    dup_ref = ref + ALIGN_SIZE(ref_length);
+  }
+  DBUG_RETURN(error);
+}
+
+/**
+ * Returns the coordinates as a single byte vector in the form
+ * <uint64_t>-<data>-<uint64_t>-<data>
+ *
+ * Where the prefix of <uint64_t> is the length of the data to follow
+ *
+ * @param index
+ * @return
+ */
+std::vector<uint8_t> tile::mytile::get_coords_as_byte_vector(uint64_t index) {
+  auto domain = this->array_schema->domain();
+  std::vector<uint8_t> data;
+  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+    bool var_sized = dimension.cell_val_num() == TILEDB_VAR_NUM;
+    for (auto &buff : this->buffers) {
+      if (buff->name != dimension.name()) {
+        continue;
+      } else { // the buffer is found
+        uint64_t datatype_size = tiledb_datatype_size(dimension.type());
+        uint64_t size = datatype_size;
+        char *buffer_casted =
+            static_cast<char *>(buff->buffer) + (index * datatype_size);
+        if (var_sized) {
+          uint64_t end_position = index + 1;
+          uint64_t start_position = 0;
+          // If its not the first value, we need to see where the previous
+          // position ended to know where to start.
+          if (index > 0) {
+            start_position = buff->offset_buffer[index];
+          }
+          // If the current position is equal to the number of results - 1 then
+          // we are at the last varchar value
+          if (index >= (buff->offset_buffer_size / sizeof(uint64_t)) - 1) {
+            end_position = buff->buffer_size / sizeof(char);
+          } else { // Else read the end from the next offset.
+            end_position = buff->offset_buffer[index + 1];
+          }
+          // Set the size
+          size = end_position - start_position;
+          // Set the casted buffer position
+          buffer_casted = static_cast<char *>(buff->buffer) +
+                          (start_position * sizeof(char));
+        }
+
+        // Copy the size details
+        char *size_char = reinterpret_cast<char *>(&size);
+        for (uint64_t i = 0; i < sizeof(uint64_t); ++i) {
+          data.emplace_back(size_char[i]);
+        }
+        // The index offset for coordinates is computed based on the number of
+        // dimensions, the datatype size and the record index We must subtract
+        // one from the record index because position is called after the end
+        // of rnd_next which means we have already incremented the index
+        // position Current dimension's value is the (record_index - 1) Order of
+        // dimensions is important
+        for (uint64_t i = 0; i < size; ++i) {
+          data.emplace_back(buffer_casted[i]);
+        }
+      }
+    }
+  }
+  return data;
+}
+
 int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
   DBUG_ENTER("tile::mytile::rnd_pos");
 
@@ -835,16 +983,23 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
       tiledb::Dimension dimension = domain.dimension(dim_idx);
 
       // Get datatype size
-      int datatype_size = tiledb_datatype_size(dimension.type());
+      uint64_t size = *reinterpret_cast<uint64_t *>(pos + current_offset);
+      current_offset += sizeof(uint64_t);
       // Fetch the point
       void *point = pos + current_offset;
       // Move current offset for the next dimension's cordinate
-      current_offset += datatype_size;
+      current_offset += size;
 
       // set range
-      this->ctx.handle_error(tiledb_query_add_range(
-          this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
-          point, nullptr));
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        this->ctx.handle_error(tiledb_query_add_range_var(
+            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
+            size, point, size));
+      } else {
+        this->ctx.handle_error(tiledb_query_add_range(
+            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
+            point, nullptr));
+      }
     }
 
     // Reset indicators
@@ -877,30 +1032,15 @@ void tile::mytile::position(const uchar *record) {
     DBUG_VOID_RETURN;
   }
 
-  auto domain = this->array_schema->domain();
-  int current_offset = 0;
-  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-    tiledb::Dimension dimension = domain.dimension(dim_idx);
+  std::vector<uint8_t> coords =
+      get_coords_as_byte_vector(this->record_index - 1);
 
-    for (auto &buff : this->buffers) {
-      if (buff->name != dimension.name()) {
-        continue;
-      } else { // the buffer is found
-        int datatype_size = tiledb_datatype_size(dimension.type());
-        // The index offset for coordinates is computed based on the number of
-        // dimensions, the datatype size and the record index We must subtract
-        // one from the record index because position is called after the end
-        // of rnd_next which means we have already incremented the index
-        // position Current dimension's value is the (record_index - 1) Order of
-        // dimensions is important
-        memcpy(this->ref + current_offset,
-               static_cast<char *>(buff->buffer) +
-                   ((this->record_index - 1) * datatype_size),
-               datatype_size);
-        current_offset += datatype_size;
-      }
-    }
+  if (coords.size() > this->ref_length) {
+    realloc_ref_based_size(coords.size());
   }
+
+  memcpy(this->ref, coords.data(), this->ref_length);
+
   DBUG_VOID_RETURN;
 }
 
@@ -1000,7 +1140,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
           std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY});
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
@@ -1023,7 +1163,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
     int ret =
         set_range_from_item_consts(dynamic_cast<Item_basic_constant *>(args[1]),
@@ -1074,7 +1214,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-        func_item->functype(), tiledb_datatype_t::TILEDB_ANY});
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
     int ret = set_range_from_item_consts(lower_const, upper_const, cmp_type,
                                          range, dim_type);
@@ -1248,6 +1388,13 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       buff->buffer = data_buffer;
       buff->type = dim.type();
       buff->dimension = true;
+      if (dim.cell_val_num() == TILEDB_VAR_NUM) {
+        uint64_t *offset_buffer = static_cast<uint64_t *>(
+            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+        buff->offset_buffer_size = size;
+        buff->allocated_offset_buffer_size = size;
+        buff->offset_buffer = offset_buffer;
+      }
     } else { // attribute
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
       uint64_t *offset_buffer = nullptr;
@@ -1278,21 +1425,15 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
     if (buff == nullptr)
       continue;
 
-    if (domain.has_dimension(buff->name)) {
+    if (buff->offset_buffer != nullptr) {
+      this->ctx.handle_error(tiledb_query_set_buffer_var(
+          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+          buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
+          &buff->buffer_size));
+    } else {
       this->ctx.handle_error(tiledb_query_set_buffer(
           this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
           buff->buffer, &buff->buffer_size));
-    } else {
-      if (buff->offset_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_buffer_var(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-            &buff->buffer_size));
-      } else {
-        this->ctx.handle_error(tiledb_query_set_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->buffer, &buff->buffer_size));
-      }
     }
   }
 }
@@ -1992,7 +2133,7 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
   DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
   std::vector<std::shared_ptr<tile::range>> ranges_from_keys =
       tile::build_ranges_from_key(key, key_len, find_flag,
-                                  this->array_schema->domain().type());
+                                  this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
     this->pushdown_ranges.clear();
@@ -2033,12 +2174,12 @@ int tile::mytile::build_mrr_ranges() {
   if (mrr_cur_range.start_key.key != nullptr) {
     ranges_from_key_start = tile::build_ranges_from_key(
         mrr_cur_range.start_key.key, mrr_cur_range.start_key.length,
-        HA_READ_KEY_OR_NEXT, this->array_schema->domain().type());
+        HA_READ_KEY_OR_NEXT, this->array_schema->domain());
   }
   if (mrr_cur_range.end_key.key != nullptr) {
     ranges_from_key_end = tile::build_ranges_from_key(
         mrr_cur_range.end_key.key, mrr_cur_range.end_key.length,
-        HA_READ_KEY_OR_PREV, this->array_schema->domain().type());
+        HA_READ_KEY_OR_PREV, this->array_schema->domain());
   }
 
   for (uint64_t i = 0; i < ranges_from_key_start.size(); i++) {
@@ -2156,7 +2297,61 @@ int tile::mytile::multi_range_read_explain_info(uint mrr_mode, char *str,
   mrr_mode &= ~HA_MRR_USE_DEFAULT_IMPL;
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
-/* MyISAM MRR implementation ends */
+/* MyTile MRR implementation ends */
+
+int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
+  int error;
+  DBUG_ENTER("handler::index_next_same");
+  // Store the current indexes so we can reset them after checking
+  // if the next key is the same
+  uint64_t record_index_before_check = this->record_index;
+  uint64_t records_read_before_check = this->records_read;
+  if (!(error = index_next(buf))) {
+    my_ptrdiff_t ptrdiff = buf - table->record[0];
+    uchar *UNINIT_VAR(save_record_0);
+    KEY *UNINIT_VAR(key_info);
+    KEY_PART_INFO *UNINIT_VAR(key_part);
+    KEY_PART_INFO *UNINIT_VAR(key_part_end);
+
+    /*
+      key_cmp_if_same() compares table->record[0] against 'key'.
+      In parts it uses table->record[0] directly, in parts it uses
+      field objects with their local pointers into table->record[0].
+      If 'buf' is distinct from table->record[0], we need to move
+      all record references. This is table->record[0] itself and
+      the field pointers of the fields used in this key.
+    */
+    if (ptrdiff) {
+      save_record_0 = table->record[0];
+      table->record[0] = buf;
+      key_info = table->key_info + active_index;
+      key_part = key_info->key_part;
+      key_part_end = key_part + key_info->user_defined_key_parts;
+      for (; key_part < key_part_end; key_part++) {
+        DBUG_ASSERT(key_part->field);
+        key_part->field->move_field_offset(ptrdiff);
+      }
+    }
+
+    if (key_cmp_if_same(table, key, active_index, keylen)) {
+      table->status = STATUS_NOT_FOUND;
+      error = HA_ERR_END_OF_FILE;
+    }
+
+    /* Move back if necessary. */
+    if (ptrdiff) {
+      table->record[0] = save_record_0;
+      for (key_part = key_info->key_part; key_part < key_part_end; key_part++)
+        key_part->field->move_field_offset(-ptrdiff);
+    }
+  }
+
+  // Reset the record indexes back to before the first read
+  this->record_index = record_index_before_check;
+  this->records_read = records_read_before_check;
+  DBUG_PRINT("return", ("%i", error));
+  DBUG_RETURN(error);
+}
 
 mysql_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)

@@ -33,3 +33,22 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DROP TABLE `quickstart_dense`;
 set mytile_delete_arrays=1;
 SET mytile_dimensions_are_primary_keys=1;
+#
+# The purpose of this test is to validate pushed ranges
+#
+# String
+CREATE TABLE t2 (
+column1 varchar(255) dimension=1,
+column2 BLOB,
+PRIMARY KEY(column1)
+) ENGINE=mytile;
+INSERT INTO t2 VALUES ('1','aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+INSERT INTO t2 VALUES ('3','dmFsdWUy');
+INSERT INTO t2 VALUES ('5','dmFsdWU');
+# Disable pushdown to force index scan
+SET mytile_enable_pushdown=0;
+explain SELECT * FROM t2 WHERE `column1` = '1' ORDER BY `column1`;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DROP TABLE t2;
+SET mytile_enable_pushdown=1;

@@ -382,7 +382,8 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_SET: {
-    sql_print_error("Varchar fields not supported for tiledb dimension fields");
+    return tiledb::Dimension::create(ctx, field->field_name.str,
+                                     TILEDB_STRING_ASCII, nullptr, nullptr);
     break;
   }
 

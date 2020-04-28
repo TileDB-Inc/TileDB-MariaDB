@@ -169,6 +169,24 @@ public:
   void position(const uchar *record) override;
 
   /**
+   * Fetches the current coordinates as a byte vector
+   * <uint64_t>-<data>-<uint64_t>-<data>
+   *
+   * Where the prefix of <uint64_t> is the length of the data to follow
+   * @param index of buffers to use
+   * @return byte vector
+   */
+  std::vector<uint8_t> get_coords_as_byte_vector(uint64_t index);
+
+  /**
+   * Realloc the ref based on current size of data
+   * This is needed for string dims
+   * @param size
+   * @return
+   */
+  int realloc_ref_based_size(uint64_t size);
+
+  /**
    * Write row
    * @param buf
    * @return
@@ -444,6 +462,17 @@ public:
                                 Cost_estimate *cost) override;
   int multi_range_read_explain_info(uint mrr_mode, char *str,
                                     size_t size) override;
+
+  /**
+   * We override the default implementation only so we can reset the
+   * index counters at the end of checking the function, otherwise
+   * most of the implementation is straight from handler.cc
+   * @param buf
+   * @param key
+   * @param keylen
+   * @return
+   */
+  int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
 
 private:
   DsMrr_impl ds_mrr;

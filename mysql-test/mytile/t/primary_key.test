@@ -29,3 +29,25 @@ DROP TABLE `quickstart_dense`;
 
 set mytile_delete_arrays=1;
 SET mytile_dimensions_are_primary_keys=1;
+
+--echo #
+--echo # The purpose of this test is to validate pushed ranges
+--echo #
+--echo # String
+
+CREATE TABLE t2 (
+  column1 varchar(255) dimension=1,
+  column2 BLOB,
+  PRIMARY KEY(column1)
+) ENGINE=mytile;
+INSERT INTO t2 VALUES ('1','aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+INSERT INTO t2 VALUES ('3','dmFsdWUy');
+INSERT INTO t2 VALUES ('5','dmFsdWU');
+
+--echo # Disable pushdown to force index scan
+SET mytile_enable_pushdown=0;
+explain SELECT * FROM t2 WHERE `column1` = '1' ORDER BY `column1`;
+
+DROP TABLE t2;
+
+SET mytile_enable_pushdown=1;

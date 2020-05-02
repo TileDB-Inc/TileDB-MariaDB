@@ -5,7 +5,7 @@
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 
-CREATE TABLE quickstart_dense_2 (`rows` INTEGER DIMENSION=1 tile_extent=100, `cols` INTEGER DIMENSION=1 tile_extent=100, a INTEGER unsigned) ENGINE=MyTile;
+CREATE TABLE quickstart_dense_2 (`rows` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent='100', `cols` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent='100', a INTEGER unsigned) ENGINE=MyTile;
 
 FLUSH TABLES;
 

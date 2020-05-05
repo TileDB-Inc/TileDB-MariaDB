@@ -659,7 +659,10 @@ tile::build_ranges_from_key(const uchar *key, uint length,
   bool last_key = false;
   uint64_t key_offset = 0;
   for (uint64_t dim_index = 0; dim_index < domain.ndim(); ++dim_index) {
-    tiledb_datatype_t datatype = domain.type();
+    if (key_offset >= length)
+      break;
+
+    tiledb_datatype_t datatype = domain.dimension(dim_index).type();
     uint64_t datatype_size = tiledb_datatype_size(datatype);
 
     if (dim_index == domain.ndim() - 1 ||

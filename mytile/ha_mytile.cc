@@ -314,113 +314,121 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   DBUG_ENTER("tile::create_array");
   int rc = 0;
 
-  tiledb_array_type_t arrayType = TILEDB_SPARSE;
-  if (create_info->option_struct->array_type == 1) {
-    arrayType = TILEDB_SPARSE;
-  } else {
-    arrayType = TILEDB_DENSE;
-  }
-
-  // Create array schema
-  std::unique_ptr<tiledb::ArraySchema> schema =
-      std::make_unique<tiledb::ArraySchema>(context, arrayType);
-
-  // Create domain
-  tiledb::Domain domain(context);
-
-  // Only a single key is support, and that is the primary key. We can use the
-  // primary key as an alternative to get which fields are suppose to be the
-  // dimensions
-  std::unordered_map<std::string, bool> primaryKeyParts;
-  if (table_arg->key_info != nullptr) {
-    KEY key_info = table_arg->key_info[0];
-    for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
-      Field *field = key_info.key_part[i].field;
-      primaryKeyParts[field->field_name.str] = true;
+  try {
+    tiledb_array_type_t arrayType = TILEDB_SPARSE;
+    if (create_info->option_struct->array_type == 1) {
+      arrayType = TILEDB_SPARSE;
+    } else {
+      arrayType = TILEDB_DENSE;
     }
-  }
 
-  // Create attributes or dimensions
-  for (Field **ffield = table_arg->field; *ffield; ffield++) {
-    Field *field = (*ffield);
-    // If the field has the dimension flag set or it is part of the primary key
-    // we treat it is a dimension
-    if (field->option_struct->dimension ||
-        primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
-      domain.add_dimension(create_field_dimension(context, field));
-    } else { // Else this is treated as a dimension
-      tiledb::FilterList filter_list(context);
-      if (field->option_struct->filters != nullptr) {
-        filter_list =
-            tile::parse_filter_list(context, field->option_struct->filters);
+    // Create array schema
+    std::unique_ptr<tiledb::ArraySchema> schema =
+        std::make_unique<tiledb::ArraySchema>(context, arrayType);
+
+    // Create domain
+    tiledb::Domain domain(context);
+
+    // Only a single key is support, and that is the primary key. We can use the
+    // primary key as an alternative to get which fields are suppose to be the
+    // dimensions
+    std::unordered_map<std::string, bool> primaryKeyParts;
+    if (table_arg->key_info != nullptr) {
+      KEY key_info = table_arg->key_info[0];
+      for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
+        Field *field = key_info.key_part[i].field;
+        primaryKeyParts[field->field_name.str] = true;
       }
-      tiledb::Attribute attr =
-          create_field_attribute(context, field, filter_list);
-      schema->add_attribute(attr);
-    };
-  }
-
-  if (create_info->option_struct->coordinate_filters != nullptr) {
-    tiledb::FilterList filter_list = tile::parse_filter_list(
-        context, create_info->option_struct->coordinate_filters);
-    schema->set_coords_filter_list(filter_list);
-  }
-
-  if (create_info->option_struct->offset_filters != nullptr) {
-    tiledb::FilterList filter_list = tile::parse_filter_list(
-        context, create_info->option_struct->offset_filters);
-    schema->set_offsets_filter_list(filter_list);
-  }
-
-  schema->set_domain(domain);
-
-  // Set capacity
-  schema->set_capacity(create_info->option_struct->capacity);
-
-  // Set cell ordering if configured
-  if (create_info->option_struct->cell_order == 0) {
-    schema->set_cell_order(TILEDB_ROW_MAJOR);
-  } else if (create_info->option_struct->cell_order == 1) {
-    schema->set_cell_order(TILEDB_COL_MAJOR);
-  }
-
-  // Set tile ordering if configured
-  if (create_info->option_struct->tile_order == 0) {
-    schema->set_tile_order(TILEDB_ROW_MAJOR);
-  } else if (create_info->option_struct->tile_order == 1) {
-    schema->set_tile_order(TILEDB_COL_MAJOR);
-  }
-
-  // Get array uri from name or table option
-  std::string create_uri = name;
-  if (create_info->option_struct->array_uri != nullptr)
-    create_uri = create_info->option_struct->array_uri;
-
-  // Check array schema
-  try {
-    schema->check();
-  } catch (tiledb::TileDBError &e) {
-    my_printf_error(ER_UNKNOWN_ERROR, "Error in building schema %s",
-                    ME_ERROR_LOG | ME_FATAL, e.what());
-    DBUG_RETURN(-10);
-  }
-
-  try {
-    std::string encryption_key;
-    if (create_info->option_struct->encryption_key != nullptr) {
-      encryption_key = std::string(create_info->option_struct->encryption_key);
     }
-    // Create the array on storage
-    tiledb::Array::create(create_uri, *schema,
-                          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                 : TILEDB_AES_256_GCM,
-                          encryption_key);
-    // Next we write the frm file to persist the newly created table
-    table_arg->s->write_frm_image();
+
+    // Create attributes or dimensions
+    for (Field **ffield = table_arg->field; *ffield; ffield++) {
+      Field *field = (*ffield);
+      // If the field has the dimension flag set or it is part of the primary
+      // key we treat it is a dimension
+      if (field->option_struct->dimension ||
+          primaryKeyParts.find(field->field_name.str) !=
+              primaryKeyParts.end()) {
+        domain.add_dimension(create_field_dimension(context, field));
+      } else { // Else this is treated as a dimension
+        tiledb::FilterList filter_list(context);
+        if (field->option_struct->filters != nullptr) {
+          filter_list =
+              tile::parse_filter_list(context, field->option_struct->filters);
+        }
+        tiledb::Attribute attr =
+            create_field_attribute(context, field, filter_list);
+        schema->add_attribute(attr);
+      };
+    }
+
+    if (create_info->option_struct->coordinate_filters != nullptr) {
+      tiledb::FilterList filter_list = tile::parse_filter_list(
+          context, create_info->option_struct->coordinate_filters);
+      schema->set_coords_filter_list(filter_list);
+    }
+
+    if (create_info->option_struct->offset_filters != nullptr) {
+      tiledb::FilterList filter_list = tile::parse_filter_list(
+          context, create_info->option_struct->offset_filters);
+      schema->set_offsets_filter_list(filter_list);
+    }
+
+    schema->set_domain(domain);
+
+    // Set capacity
+    schema->set_capacity(create_info->option_struct->capacity);
+
+    // Set cell ordering if configured
+    if (create_info->option_struct->cell_order == 0) {
+      schema->set_cell_order(TILEDB_ROW_MAJOR);
+    } else if (create_info->option_struct->cell_order == 1) {
+      schema->set_cell_order(TILEDB_COL_MAJOR);
+    }
+
+    // Set tile ordering if configured
+    if (create_info->option_struct->tile_order == 0) {
+      schema->set_tile_order(TILEDB_ROW_MAJOR);
+    } else if (create_info->option_struct->tile_order == 1) {
+      schema->set_tile_order(TILEDB_COL_MAJOR);
+    }
+
+    // Get array uri from name or table option
+    std::string create_uri = name;
+    if (create_info->option_struct->array_uri != nullptr)
+      create_uri = create_info->option_struct->array_uri;
+
+    // Check array schema
+    try {
+      schema->check();
+    } catch (tiledb::TileDBError &e) {
+      my_printf_error(ER_UNKNOWN_ERROR, "Error in building schema %s",
+                      ME_ERROR_LOG | ME_FATAL, e.what());
+      DBUG_RETURN(-10);
+    }
+
+    try {
+      std::string encryption_key;
+      if (create_info->option_struct->encryption_key != nullptr) {
+        encryption_key =
+            std::string(create_info->option_struct->encryption_key);
+      }
+      // Create the array on storage
+      tiledb::Array::create(create_uri, *schema,
+                            encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                                   : TILEDB_AES_256_GCM,
+                            encryption_key);
+      // Next we write the frm file to persist the newly created table
+      table_arg->s->write_frm_image();
+    } catch (tiledb::TileDBError &e) {
+      my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
+                      ME_ERROR_LOG | ME_FATAL, e.what());
+      DBUG_RETURN(-11);
+    }
   } catch (tiledb::TileDBError &e) {
-    my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
+    my_printf_error(ER_UNKNOWN_ERROR, "Error in creating table %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());
-    DBUG_RETURN(-11);
+    DBUG_RETURN(-12);
   }
   DBUG_RETURN(rc);
 }
@@ -672,11 +680,15 @@ int tile::mytile::init_scan(THD *thd) {
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -111;
+    // clear out failed query details
+    rnd_end();
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
     rc = -112;
+    // clear out failed query details
+    rnd_end();
   }
   DBUG_RETURN(rc);
 }
@@ -713,6 +725,7 @@ bool tile::mytile::query_complete() {
   // If we are complete and there is no more records we report EOF
   if (this->status == tiledb::Query::Status::COMPLETE &&
       static_cast<int64_t>(this->record_index) >= this->records) {
+    this->mrr_query = false;
     DBUG_RETURN(true);
   }
 
@@ -2247,6 +2260,8 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
   mrr_iter = seq->init(seq_init_param, n_ranges, mode);
   mrr_funcs = *seq;
 
+  this->mrr_query = true;
+
   build_mrr_ranges();
 
   // Never use default implementation also use sort key access
@@ -2347,8 +2362,10 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
   }
 
   // Reset the record indexes back to before the first read
-  this->record_index = record_index_before_check;
-  this->records_read = records_read_before_check;
+  if (this->mrr_query == true) {
+    this->record_index = record_index_before_check;
+    this->records_read = records_read_before_check;
+  }
   DBUG_PRINT("return", ("%i", error));
   DBUG_RETURN(error);
 }

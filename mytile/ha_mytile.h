@@ -522,6 +522,9 @@ private:
   // in bulk write mode
   bool bulk_write = false;
 
+  // query is mrr
+  bool mrr_query = false;
+
   // Upper bound for records, used for table stats by optimized
   uint64_t records_upper_bound = 2;
 

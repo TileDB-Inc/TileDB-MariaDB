@@ -39,13 +39,13 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
     return tiledb_datatype_t::TILEDB_DATETIME_YEAR;
   }
 
+  case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_INT24: {
     if (signedInt)
       return tiledb_datatype_t::TILEDB_INT32;
     return tiledb_datatype_t::TILEDB_UINT32;
   }
 
-  case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_LONGLONG: {
     if (signedInt)
       return tiledb_datatype_t::TILEDB_INT64;
@@ -356,6 +356,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
                                tiledb_datatype_t::TILEDB_DATETIME_YEAR);
   }
 
+  case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_INT24: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint32_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT32);
@@ -364,7 +365,6 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
     return create_dim<int32_t>(ctx, field, tiledb_datatype_t::TILEDB_INT32);
   }
 
-  case MYSQL_TYPE_LONG:
   case MYSQL_TYPE_LONGLONG: {
     if ((dynamic_cast<Field_num *>(field))->unsigned_flag) {
       return create_dim<uint64_t>(ctx, field, tiledb_datatype_t::TILEDB_UINT64);

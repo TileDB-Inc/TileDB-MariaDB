@@ -237,16 +237,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     }
 
     for (const auto &dim : schema->domain().dimensions()) {
-      std::string domain_str = dim.domain_to_str();
-      domain_str = domain_str.substr(1, domain_str.size() - 2);
-      auto domainSplitPosition = domain_str.find(',');
-
-      std::string lower_domain = domain_str.substr(0, domainSplitPosition);
-      std::string upper_domain = domain_str.substr(domainSplitPosition + 1);
-
-      trim(lower_domain);
-      trim(upper_domain);
-
       int mysql_type = TileDBTypeToMysqlType(dim.type(), false);
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
@@ -255,11 +245,27 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           TileDBTypeIsUnsigned(dim.type()))
         sql_string << " UNSIGNED";
 
-      sql_string << " dimension=1"
-                 << " lower_bound='" << lower_domain << "' upper_bound='"
-                 << upper_domain << "' tile_extent='"
-                 << dim.tile_extent_to_str() << "'"
-                 << ",";
+      // Only set the domain and tile extent for non string dimensions
+      if (dim.type() != TILEDB_STRING_ASCII) {
+        std::string domain_str = dim.domain_to_str();
+        domain_str = domain_str.substr(1, domain_str.size() - 2);
+        auto domainSplitPosition = domain_str.find(',');
+
+        std::string lower_domain = domain_str.substr(0, domainSplitPosition);
+        std::string upper_domain = domain_str.substr(domainSplitPosition + 1);
+
+        trim(lower_domain);
+        trim(upper_domain);
+
+        sql_string << " dimension=1"
+                   << " lower_bound='" << lower_domain << "' upper_bound='"
+                   << upper_domain << "' tile_extent='"
+                   << dim.tile_extent_to_str() << "'"
+                   << ",";
+      } else {
+        sql_string << " dimension=1"
+                   << ",";
+      }
     }
 
     for (const auto &attributeMap : schema->attributes()) {

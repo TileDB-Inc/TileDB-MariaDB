@@ -122,7 +122,7 @@ std::string tile::MysqlTypeString(int type) {
   case MYSQL_TYPE_BIT:
     return "BIT";
   case MYSQL_TYPE_VARCHAR:
-    return "VARCHAR";
+    return "VARCHAR(255)";
   case MYSQL_TYPE_STRING:
     return "TEXT";
   case MYSQL_TYPE_VAR_STRING:

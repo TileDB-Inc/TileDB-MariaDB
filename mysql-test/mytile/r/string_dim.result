@@ -1,0 +1,13 @@
+#
+# The purpose of this test is to validate creating table from existing TileDB array
+#
+CREATE TABLE string_dim ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/string_dim';;
+SELECT * FROM string_dim;
+d	a
+aa	4
+bb	2
+cc	3
+dddd	1
+jfk	5
+SET mytile_delete_arrays=0;
+DROP TABLE string_dim;

@@ -2177,8 +2177,11 @@ int tile::mytile::build_mrr_ranges() {
   this->pushdown_in_ranges.resize(this->ndim);
   tmp_ranges.resize(this->ndim);
 
-  tiledb_datatype_t datatype = this->array_schema->domain().type();
-  uint64_t datatype_size = tiledb_datatype_size(datatype);
+  // Get domain and dimensions
+  auto domain = this->array_schema->domain();
+  auto dims = domain.dimensions();
+//  tiledb_datatype_t datatype = this->array_schema->domain().type();
+//  uint64_t datatype_size = tiledb_datatype_size(datatype);
 
   std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
   std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
@@ -2202,8 +2205,7 @@ int tile::mytile::build_mrr_ranges() {
       combined_ranges_for_dimension.push_back(ranges_from_key_end[i]);
     }
 
-    auto merged_range = merge_ranges(combined_ranges_for_dimension,
-                                     this->array_schema->domain().type());
+    auto merged_range = merge_ranges(combined_ranges_for_dimension, dims[i].type());
     tmp_ranges[i].push_back(merged_range);
   }
 
@@ -2211,11 +2213,10 @@ int tile::mytile::build_mrr_ranges() {
   while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
 
     if (mrr_cur_range.start_key.key != nullptr) {
-      for (uint64_t i = 0; i < mrr_cur_range.start_key.length / datatype_size;
-           i++) {
+      for (uint64_t i = 0; i < this->ndim; i++) {
         auto &range = tmp_ranges[i][0];
         update_range_from_key_for_super_range(range, mrr_cur_range.start_key, i,
-                                              datatype);
+                                              dims[i].type());
       }
     }
 
@@ -2225,11 +2226,10 @@ int tile::mytile::build_mrr_ranges() {
         (mrr_cur_range.start_key.length != mrr_cur_range.end_key.length ||
          memcmp(mrr_cur_range.start_key.key, mrr_cur_range.end_key.key,
                 mrr_cur_range.start_key.length) != 0)) {
-      for (uint64_t i = 0; i < mrr_cur_range.end_key.length / datatype_size;
-           i++) {
+      for (uint64_t i = 0; i < this->ndim; i++) {
         auto range = tmp_ranges[i][0];
         update_range_from_key_for_super_range(range, mrr_cur_range.start_key, i,
-                                              datatype);
+                                              dims[i].type());
       }
     }
   }
@@ -2238,7 +2238,7 @@ int tile::mytile::build_mrr_ranges() {
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
     const auto &ranges = tmp_ranges[i];
     auto merged_range =
-        merge_ranges_to_super(ranges, this->array_schema->domain().type());
+        merge_ranges_to_super(ranges, dims[i].type());
     if (merged_range != nullptr) {
       this->pushdown_ranges[i].push_back(std::move(merged_range));
     }

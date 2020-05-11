@@ -1,0 +1,52 @@
+--echo #
+--echo # The purpose of this test is to build and query a table having heterogeneus dimensions with MRR functionality
+--echo #
+
+--echo # FLOAT32, INT64
+CREATE TABLE tmhd (d1 float dimension=1 lower_bound="1.0" upper_bound="20.0" tile_extent="5.0",
+    d2 bigint dimension=1 lower_bound="1" upper_bound="30" tile_extent="5",
+    a int
+) ENGINE=mytile;
+INSERT INTO tmhd (d1, d2, a) VALUES (1.1, 1, 1);
+INSERT INTO tmhd (d1, d2, a) VALUES (1.2, 2, 2);
+INSERT INTO tmhd (d1, d2, a) VALUES (1.3, 3, 3);
+INSERT INTO tmhd (d1, d2, a) VALUES (1.4, 4, 4);
+INSERT INTO tmhd (d1, d2, a) VALUES (1.5, 5, 5);
+INSERT INTO tmhd (d1, d2, a) VALUES (1.6, 6, 6);
+
+explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access (Sorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=6;
+explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access (Unsorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
+set join_cache_level=6;
+explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access Hash (Sorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=8;
+explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access Hash (Unsorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
+set join_cache_level=8;
+explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+set mytile_delete_arrays=0;
+DROP TABLE tmhd;

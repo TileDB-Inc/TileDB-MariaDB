@@ -1,5 +1,5 @@
 #
-# The purpose of this test is to validate creating table from existing TileDB array
+# The purpose of this test is to validate creating table with string dimensionsfrom existing TileDB array
 #
 CREATE TABLE string_dim ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/string_dim';;
 SELECT * FROM string_dim;

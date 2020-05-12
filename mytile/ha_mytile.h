@@ -51,12 +51,21 @@
 
 #define MYSQL_SERVER 1 // required for THD class
 
+#define MYTILE_MAX_KEY_LENGTH MAX_DATA_LENGTH_FOR_KEY
 // Handler for mytile engine
 extern handlerton *mytile_hton;
 namespace tile {
 
 class mytile : public handler {
 public:
+  // Set max support key size
+  uint max_supported_key_length() const override {
+    return MYTILE_MAX_KEY_LENGTH;
+  }
+  uint max_supported_key_part_length() const override {
+    return MYTILE_MAX_KEY_LENGTH;
+  }
+
   /**
    * Main handler
    * @param hton

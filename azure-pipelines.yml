@@ -14,7 +14,7 @@ jobs:
         imageName: 'ubuntu-16.04'
         CXX: g++
       macOS:
-        imageName: 'macOS-10.14'
+        imageName: 'macOS-10.15'
         CXX: clang++
 
   pool:

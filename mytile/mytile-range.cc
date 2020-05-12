@@ -231,7 +231,7 @@ std::shared_ptr<tile::range> tile::merge_ranges_to_super(
     return merge_ranges_to_super<uint64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    return merge_ranges<char>(ranges);
+    return merge_ranges_to_super<char>(ranges);
 
   default: {
     const char *datatype_str;

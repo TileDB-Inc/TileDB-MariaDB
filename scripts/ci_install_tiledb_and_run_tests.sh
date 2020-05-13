@@ -7,9 +7,8 @@ export MARIADB_VERSION="mariadb-10.4.11"
 mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp
-# Download mariadb, this has a habit of failing so let's do it first
-wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz
-tar xf ${MARIADB_VERSION}.tar.gz
+# Download mariadb using git, this has a habit of failing so let's do it first
+git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
 # Install tiledb using 2.0.0 release
 mkdir build_deps && cd build_deps \

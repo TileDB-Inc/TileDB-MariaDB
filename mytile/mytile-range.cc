@@ -174,7 +174,7 @@ tile::merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
     return merge_ranges<uint64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    return merge_ranges<char>(ranges);
+    return merge_ranges_str(ranges);
 
   default: {
     const char *datatype_str;
@@ -229,6 +229,9 @@ std::shared_ptr<tile::range> tile::merge_ranges_to_super(
 
   case tiledb_datatype_t::TILEDB_UINT64:
     return merge_ranges_to_super<uint64_t>(ranges);
+
+  case tiledb_datatype_t::TILEDB_STRING_ASCII:
+    return merge_ranges_to_super<char>(ranges);
 
   default: {
     const char *datatype_str;
@@ -769,8 +772,8 @@ tile::build_ranges_from_key(const uchar *key, uint length,
 }
 
 void tile::update_range_from_key_for_super_range(
-    std::shared_ptr<tile::range> &range, key_range key,
-    uint64_t dimension_index, tiledb_datatype_t datatype) {
+    std::shared_ptr<tile::range> &range, key_range key, uint64_t key_offset,
+    tiledb_datatype_t datatype) {
   // Length shouldn't be zero here but better safe then segfault!
   if (key.length == 0)
     return;
@@ -778,46 +781,53 @@ void tile::update_range_from_key_for_super_range(
   switch (datatype) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
     return update_range_from_key_for_super_range<double>(range, key,
-                                                         dimension_index);
+                                                         key_offset);
 
   case tiledb_datatype_t::TILEDB_FLOAT32:
-    return update_range_from_key_for_super_range<float>(range, key,
-                                                        dimension_index);
+    return update_range_from_key_for_super_range<float>(range, key, key_offset);
 
   case tiledb_datatype_t::TILEDB_INT8:
     return update_range_from_key_for_super_range<int8_t>(range, key,
-                                                         dimension_index);
+                                                         key_offset);
 
   case tiledb_datatype_t::TILEDB_UINT8:
     return update_range_from_key_for_super_range<uint8_t>(range, key,
-                                                          dimension_index);
+                                                          key_offset);
 
   case tiledb_datatype_t::TILEDB_INT16:
     return update_range_from_key_for_super_range<int16_t>(range, key,
-                                                          dimension_index);
+                                                          key_offset);
 
   case tiledb_datatype_t::TILEDB_UINT16:
     return update_range_from_key_for_super_range<uint16_t>(range, key,
-                                                           dimension_index);
+                                                           key_offset);
 
   case tiledb_datatype_t::TILEDB_INT32:
     return update_range_from_key_for_super_range<int32_t>(range, key,
-                                                          dimension_index);
+                                                          key_offset);
 
   case tiledb_datatype_t::TILEDB_UINT32:
     return update_range_from_key_for_super_range<uint32_t>(range, key,
-                                                           dimension_index);
+                                                           key_offset);
 
   case tiledb_datatype_t::TILEDB_INT64:
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
     return update_range_from_key_for_super_range<int64_t>(range, key,
-                                                          dimension_index);
+                                                          key_offset);
 
   case tiledb_datatype_t::TILEDB_UINT64:
     return update_range_from_key_for_super_range<uint64_t>(range, key,
-                                                           dimension_index);
+                                                           key_offset);
+
+  case tiledb_datatype_t::TILEDB_STRING_ASCII: {
+    const uint16_t char_length =
+        *reinterpret_cast<const uint16_t *>(key.key + key_offset);
+    key_offset += sizeof(uint16_t);
+    return update_range_from_key_for_super_range<uint64_t>(
+        range, key, key_offset, char_length);
+  }
 
   default: {
     const char *datatype_str;

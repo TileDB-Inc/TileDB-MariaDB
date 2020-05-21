@@ -665,6 +665,9 @@ int tile::mytile::init_scan(THD *thd) {
               }
             }
           } else { // If the range is empty we need to use the non-empty-domain
+            log_debug(thd, "No pushdownfor %s.%s",
+                      this->table->s->table_name.str,
+                      dims[dim_idx].name().c_str());
 
             void *upper = static_cast<char *>(lower) +
                           tiledb_datatype_size(dimension.type());
@@ -1885,7 +1888,7 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
   // range down
   if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
       this->query_complete()) {
-    this->reset_pushdowns_for_key(key, key_len, find_flag);
+    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
     int rc = init_scan(this->ha_thd());
 
     if (rc)
@@ -2013,9 +2016,9 @@ begin:
            (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
-          (key_cmp < 0 &&
-           (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+          (key_cmp < 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+                           find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
+                           find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
           (key_cmp > 0 &&
            (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
@@ -2122,7 +2125,7 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
   // If no conditions or index have been pushed, use key scan info to push a
   // range down
   if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())
-    this->reset_pushdowns_for_key(key, key_len, find_flag);
+    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
 
   // If we are doing an index scan we need to use row-major order to get the
   // results in the expected order
@@ -2142,10 +2145,11 @@ ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
 }
 
 int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
+                                          bool start_key,
                                           enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
   std::vector<std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(key, key_len, find_flag,
+      tile::build_ranges_from_key(key, key_len, find_flag, start_key,
                                   this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
@@ -2172,43 +2176,20 @@ int tile::mytile::build_mrr_ranges() {
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
 
-  std::vector<std::vector<std::shared_ptr<tile::range>>> tmp_ranges;
+  std::vector<std::shared_ptr<tile::range>> tmp_ranges;
   this->pushdown_ranges.resize(this->ndim);
   this->pushdown_in_ranges.resize(this->ndim);
-  tmp_ranges.resize(this->ndim);
+  //  tmp_ranges.resize(this->ndim);
+  for (uint64_t i = 0; i < this->ndim; i++) {
+    tmp_ranges.emplace_back(std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY, 0, 0}));
+  };
 
   // Get domain and dimensions
   auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
-  //  tiledb_datatype_t datatype = this->array_schema->domain().type();
-  //  uint64_t datatype_size = tiledb_datatype_size(datatype);
-
-  std::vector<std::shared_ptr<tile::range>> ranges_from_key_start;
-  std::vector<std::shared_ptr<tile::range>> ranges_from_key_end;
-  // get first key
-  mrr_funcs.next(mrr_iter, &mrr_cur_range);
-  if (mrr_cur_range.start_key.key != nullptr) {
-    ranges_from_key_start = tile::build_ranges_from_key(
-        mrr_cur_range.start_key.key, mrr_cur_range.start_key.length,
-        HA_READ_KEY_OR_NEXT, this->array_schema->domain());
-  }
-  if (mrr_cur_range.end_key.key != nullptr) {
-    ranges_from_key_end = tile::build_ranges_from_key(
-        mrr_cur_range.end_key.key, mrr_cur_range.end_key.length,
-        HA_READ_KEY_OR_PREV, this->array_schema->domain());
-  }
-
-  for (uint64_t i = 0; i < ranges_from_key_start.size(); i++) {
-    std::vector<std::shared_ptr<tile::range>> combined_ranges_for_dimension = {
-        ranges_from_key_start[i]};
-    if (ranges_from_key_end.size() > i) {
-      combined_ranges_for_dimension.push_back(ranges_from_key_end[i]);
-    }
-
-    auto merged_range =
-        merge_ranges(combined_ranges_for_dimension, dims[i].type());
-    tmp_ranges[i].push_back(merged_range);
-  }
 
   // Loop over all keys
   while (!mrr_funcs.next(mrr_iter, &mrr_cur_range)) {
@@ -2221,11 +2202,11 @@ int tile::mytile::build_mrr_ranges() {
         if (key_offset >= mrr_cur_range.start_key.length)
           break;
 
-        auto &range = tmp_ranges[i][0];
+        auto &range = tmp_ranges[i];
 
         tiledb_datatype_t datatype = dims[i].type();
         update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
-                                              key_offset, datatype);
+                                              key_offset, true, datatype);
         // Move the key offset
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
@@ -2240,20 +2221,18 @@ int tile::mytile::build_mrr_ranges() {
 
     // If the end key is not the same as the start key we need to also build the
     // range from it
-    if (mrr_cur_range.end_key.key != nullptr &&
-        (mrr_cur_range.start_key.length != mrr_cur_range.end_key.length ||
-         memcmp(mrr_cur_range.start_key.key, mrr_cur_range.end_key.key,
-                mrr_cur_range.start_key.length) != 0)) {
+    if (mrr_cur_range.end_key.key != nullptr) {
       uint64_t key_offset = 0;
       for (uint64_t i = 0; i < this->ndim; i++) {
         // Exit when we've reached the end of the key
         if (key_offset >= mrr_cur_range.end_key.length)
           break;
 
-        auto range = tmp_ranges[i][0];
+        auto &range = tmp_ranges[i];
+
         tiledb_datatype_t datatype = dims[i].type();
         update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
-                                              key_offset, datatype);
+                                              key_offset, false, datatype);
         // Move the key offset
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
@@ -2269,11 +2248,9 @@ int tile::mytile::build_mrr_ranges() {
 
   // Now that we have all ranges, let's build them into super ranges
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
-    const auto &ranges = tmp_ranges[i];
-    auto merged_range = merge_ranges_to_super(ranges, dims[i].type());
-    if (merged_range != nullptr) {
-      this->pushdown_ranges[i].push_back(std::move(merged_range));
-    }
+    auto &range = tmp_ranges[i];
+    if (range->lower_value != nullptr || range->upper_value != nullptr)
+      this->pushdown_ranges[i].push_back(range);
   }
 
   int rc = init_scan(this->ha_thd());

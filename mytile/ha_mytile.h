@@ -574,10 +574,11 @@ private:
    * Reset condition pushdowns to be for key conditions
    * @param key key(s) to pushdown
    * @param key_len
+   * @param start_key is key start key
    * @param find_flag equality condition of last key
    * @return
    */
-  int reset_pushdowns_for_key(const uchar *key, uint key_len,
+  int reset_pushdowns_for_key(const uchar *key, uint key_len, bool start_key,
                               enum ha_rkey_function find_flag);
 
   /**

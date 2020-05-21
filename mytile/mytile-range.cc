@@ -620,7 +620,8 @@ tile::get_unique_non_contained_in_ranges_str(
   return ret;
 }
 
-Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag) {
+Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag,
+                                            const bool start_key) {
   switch (find_flag) {
   case HA_READ_KEY_EXACT:
     return Item_func::Functype::EQ_FUNC;
@@ -629,14 +630,14 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag) {
   case HA_READ_KEY_OR_PREV:
     return Item_func::Functype::LE_FUNC;
   case HA_READ_AFTER_KEY:
-    return Item_func::Functype::GT_FUNC;
+    if (start_key)
+      return Item_func::Functype::GT_FUNC;
+    return Item_func::Functype::LE_FUNC;
+  case HA_READ_PREFIX_LAST:
+  case HA_READ_PREFIX_LAST_OR_PREV:
   case HA_READ_BEFORE_KEY:
     return Item_func::Functype::LT_FUNC;
   case HA_READ_PREFIX:
-    return Item_func::Functype::EQ_FUNC;
-  case HA_READ_PREFIX_LAST:
-    return Item_func::Functype::EQ_FUNC;
-  case HA_READ_PREFIX_LAST_OR_PREV:
     return Item_func::Functype::EQ_FUNC;
   case HA_READ_MBR_CONTAIN:
   case HA_READ_MBR_INTERSECT:
@@ -650,10 +651,9 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag) {
   return Item_func::Functype::EQ_FUNC;
 }
 
-std::vector<std::shared_ptr<tile::range>>
-tile::build_ranges_from_key(const uchar *key, uint length,
-                            enum ha_rkey_function find_flag,
-                            const tiledb::Domain &domain) {
+std::vector<std::shared_ptr<tile::range>> tile::build_ranges_from_key(
+    const uchar *key, uint length, enum ha_rkey_function find_flag,
+    const bool start_key, const tiledb::Domain &domain) {
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
@@ -676,56 +676,56 @@ tile::build_ranges_from_key(const uchar *key, uint length,
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {
       ranges.push_back(build_range_from_key<double>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_FLOAT32: {
       ranges.push_back(build_range_from_key<float>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT8: {
       ranges.push_back(build_range_from_key<int8_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT8: {
       ranges.push_back(build_range_from_key<uint8_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT16: {
       ranges.push_back(build_range_from_key<int16_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT16: {
       ranges.push_back(build_range_from_key<uint16_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT32: {
       ranges.push_back(build_range_from_key<int32_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT32: {
       ranges.push_back(build_range_from_key<uint32_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
@@ -735,14 +735,14 @@ tile::build_ranges_from_key(const uchar *key, uint length,
     case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
     case tiledb_datatype_t::TILEDB_DATETIME_NS: {
       ranges.push_back(build_range_from_key<int64_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT64: {
       ranges.push_back(build_range_from_key<uint64_t>(
-          key + key_offset, length, last_key, find_flag, datatype));
+          key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;
       break;
     }
@@ -751,9 +751,9 @@ tile::build_ranges_from_key(const uchar *key, uint length,
       const uint16_t char_length =
           *reinterpret_cast<const uint16_t *>(key + key_offset);
       key_offset += sizeof(uint16_t);
-      ranges.push_back(build_range_from_key<char>(key + key_offset, length,
-                                                  last_key, find_flag, datatype,
-                                                  char_length));
+      ranges.push_back(build_range_from_key<char>(
+          key + key_offset, length, last_key, find_flag, start_key, datatype,
+          char_length));
       key_offset += sizeof(char) * char_length;
       break;
     }
@@ -773,60 +773,61 @@ tile::build_ranges_from_key(const uchar *key, uint length,
 
 void tile::update_range_from_key_for_super_range(
     std::shared_ptr<tile::range> &range, key_range key, uint64_t key_offset,
-    tiledb_datatype_t datatype) {
+    const bool start_key, tiledb_datatype_t datatype) {
   // Length shouldn't be zero here but better safe then segfault!
   if (key.length == 0)
     return;
 
   switch (datatype) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
-    return update_range_from_key_for_super_range<double>(range, key,
-                                                         key_offset);
+    return update_range_from_key_for_super_range<double>(range, key, key_offset,
+                                                         start_key);
 
   case tiledb_datatype_t::TILEDB_FLOAT32:
-    return update_range_from_key_for_super_range<float>(range, key, key_offset);
+    return update_range_from_key_for_super_range<float>(range, key, key_offset,
+                                                        start_key);
 
   case tiledb_datatype_t::TILEDB_INT8:
-    return update_range_from_key_for_super_range<int8_t>(range, key,
-                                                         key_offset);
+    return update_range_from_key_for_super_range<int8_t>(range, key, key_offset,
+                                                         start_key);
 
   case tiledb_datatype_t::TILEDB_UINT8:
-    return update_range_from_key_for_super_range<uint8_t>(range, key,
-                                                          key_offset);
+    return update_range_from_key_for_super_range<uint8_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_INT16:
-    return update_range_from_key_for_super_range<int16_t>(range, key,
-                                                          key_offset);
+    return update_range_from_key_for_super_range<int16_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_UINT16:
-    return update_range_from_key_for_super_range<uint16_t>(range, key,
-                                                           key_offset);
+    return update_range_from_key_for_super_range<uint16_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_INT32:
-    return update_range_from_key_for_super_range<int32_t>(range, key,
-                                                          key_offset);
+    return update_range_from_key_for_super_range<int32_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_UINT32:
-    return update_range_from_key_for_super_range<uint32_t>(range, key,
-                                                           key_offset);
+    return update_range_from_key_for_super_range<uint32_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_INT64:
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    return update_range_from_key_for_super_range<int64_t>(range, key,
-                                                          key_offset);
+    return update_range_from_key_for_super_range<int64_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_UINT64:
-    return update_range_from_key_for_super_range<uint64_t>(range, key,
-                                                           key_offset);
+    return update_range_from_key_for_super_range<uint64_t>(
+        range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_STRING_ASCII: {
     const uint16_t char_length =
         *reinterpret_cast<const uint16_t *>(key.key + key_offset);
     key_offset += sizeof(uint16_t);
     return update_range_from_key_for_super_range<uint64_t>(
-        range, key, key_offset, char_length);
+        range, key, key_offset, start_key, char_length);
   }
 
   default: {

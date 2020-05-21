@@ -27,7 +27,7 @@ rows	cols	a	a
 4	4	16	16
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
-set mytile_dimensions_are_primary_keys=0;
+set mytile_dimensions_are_keys=0;
 CREATE TABLE quickstart_dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 # Block Nested Loop Join Explain
 explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;

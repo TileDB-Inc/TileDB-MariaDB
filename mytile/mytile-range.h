@@ -514,7 +514,8 @@ std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
  * @param find_flag
  * @return
  */
-Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag);
+Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag,
+                                      const bool start_key);
 
 /**
  *
@@ -527,7 +528,7 @@ Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag);
  */
 std::vector<std::shared_ptr<tile::range>>
 build_ranges_from_key(const uchar *key, uint length,
-                      enum ha_rkey_function find_flag,
+                      enum ha_rkey_function find_flag, const bool start_key,
                       const tiledb::Domain &domain);
 
 /**
@@ -541,8 +542,8 @@ build_ranges_from_key(const uchar *key, uint length,
  */
 template <typename T>
 std::shared_ptr<tile::range>
-build_range_from_key(const uchar *key, uint length, bool last_key,
-                     enum ha_rkey_function find_flag,
+build_range_from_key(const uchar *key, uint length, const bool last_key,
+                     enum ha_rkey_function find_flag, const bool start_key,
                      tiledb_datatype_t datatype, uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
@@ -576,7 +577,7 @@ build_range_from_key(const uchar *key, uint length, bool last_key,
                                                         &std::free),
             std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
                                                         &std::free),
-            find_flag_to_func(find_flag), datatype, size, size});
+            find_flag_to_func(find_flag, start_key), datatype, size, size});
 
     T lower = *key_typed;
     T upper = *key_typed;
@@ -649,6 +650,7 @@ build_range_from_key(const uchar *key, uint length, bool last_key,
  */
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
+                                           const bool start_key,
                                            tiledb_datatype_t datatype);
 
 /**
@@ -662,15 +664,17 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
 template <typename T>
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
+                                           const bool start_key,
                                            uint64_t key_length = sizeof(T)) {
   const T *key_typed = reinterpret_cast<const T *>(key.key + key_offset);
   T key_value = *key_typed;
 
-  auto operation_type = find_flag_to_func(key.flag);
+  auto operation_type = find_flag_to_func(key.flag, start_key);
   switch (operation_type) {
   // If we have greater than, lets make it greater than or equal
   // TileDB ranges are inclusive
   case Item_func::GT_FUNC: {
+    range->operation_type = Item_func::GE_FUNC;
     if (std::is_floating_point<T>()) {
       key_value = std::nextafter(key_value, std::numeric_limits<T>::max());
     } else if (!std::is_same<T, char>()) {
@@ -684,10 +688,10 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
 
       auto new_key = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length + 1), &std::free);
-      memcpy(range->lower_value.get(), &key_value, key_length);
+      memcpy(new_key.get(), &key_value, key_length);
       // we must add the null character to the end for greater than or equal to
       // conversion
-      static_cast<T *>(range->lower_value.get())[key_length] = '\0';
+      static_cast<T *>(new_key.get())[key_length] = '\0';
       if (range->lower_value == nullptr) {
         range->lower_value = std::move(new_key);
         range->lower_value_size = key_length + 1;
@@ -712,11 +716,13 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     break;
   }
   case Item_func::GE_FUNC: {
+    range->operation_type = Item_func::GE_FUNC;
     // If the lower is null, set it
     if (range->lower_value == nullptr) {
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
       memcpy(range->lower_value.get(), &key_value, key_length);
+      range->lower_value_size = key_length;
     } else if (std::is_same<T, char>()) {
       auto cmp = memcmp(range->lower_value.get(), key_typed,
                         std::min(range->lower_value_size, key_length));
@@ -749,10 +755,10 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
 
       auto new_key = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->upper_value.get(), &key_value, key_length);
+      memcpy(new_key.get(), &key_value, key_length);
       // we must change the last character to the max ascii character for less
       // than or equal to conversion
-      static_cast<T *>(range->upper_value.get())[key_length - 1] = 127;
+      static_cast<T *>(new_key.get())[key_length - 1] = 127;
       if (range->upper_value == nullptr) {
         range->upper_value = std::move(new_key);
         range->upper_value_size = key_length;
@@ -778,6 +784,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     break;
   }
   case Item_func::LE_FUNC: {
+    range->operation_type = Item_func::LE_FUNC;
     // If the upper is null, set it
     if (range->upper_value == nullptr) {
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
@@ -800,6 +807,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     break;
   }
   case Item_func::EQ_FUNC: {
+    range->operation_type = Item_func::BETWEEN;
 
     // If the lower is null, set it
     if (range->lower_value == nullptr) {

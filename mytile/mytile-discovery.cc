@@ -59,8 +59,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   std::string array_uri;
   std::unique_ptr<tiledb::ArraySchema> schema;
 
-  bool dimensions_are_keys =
-      tile::sysvars::dimensions_are_keys(thd);
+  bool dimensions_are_keys = tile::sysvars::dimensions_are_keys(thd);
 
   std::string encryption_key;
   if (info != nullptr && info->option_struct != nullptr &&
@@ -297,6 +296,9 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       // In the future we might want to set index instead of primary key when
       // TileDB supports duplicates
       std::vector<std::string> index_types = {"PRIMARY KEY"};
+      if (schema->allows_dups()) {
+        index_types = {"INDEX"};
+      }
       for (auto &index_type : index_types) {
         sql_string << std::endl << index_type << "(";
         for (const auto &dim : schema->domain().dimensions()) {

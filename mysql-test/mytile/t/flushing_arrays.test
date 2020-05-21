@@ -8,7 +8,7 @@
 
 
 --echo # Create test array
-CREATE TABLE quickstart_dense_2 (`rows` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent="100", `cols` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent="100", a INTEGER unsigned) ENGINE=MyTile;
+CREATE TABLE quickstart_dense_2 (`rows` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent="100", `cols` INTEGER DIMENSION=1 `lower_bound`='0' `upper_bound`='1024' tile_extent="100", a INTEGER unsigned) ENGINE=MyTile ARRAY_TYPE=DENSE;
 
 --echo # Start with no tables open
 FLUSH TABLES;

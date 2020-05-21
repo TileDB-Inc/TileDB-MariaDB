@@ -333,13 +333,24 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // primary key as an alternative to get which fields are suppose to be the
     // dimensions
     std::unordered_map<std::string, bool> primaryKeyParts;
+    bool allows_dups = true;
     if (table_arg->key_info != nullptr) {
-      KEY key_info = table_arg->key_info[0];
+      uint key_index = 0;
+
+      // Check for primary key
+      if (table_arg->s->primary_key != MAX_KEY) {
+        key_index = table_arg->s->primary_key;
+        allows_dups = false;
+      }
+      KEY key_info = table_arg->key_info[key_index];
       for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
         Field *field = key_info.key_part[i].field;
         primaryKeyParts[field->field_name.str] = true;
       }
     }
+
+    if (schema->array_type() == TILEDB_SPARSE && allows_dups)
+      schema->set_allows_dups(allows_dups);
 
     // Create attributes or dimensions
     for (Field **ffield = table_arg->field; *ffield; ffield++) {
@@ -1565,7 +1576,10 @@ int tile::mytile::finalize_write() {
   try {
     // Submit query
     if (this->query != nullptr) {
-      flush_write();
+      rc = flush_write();
+      if (rc)
+        DBUG_RETURN(rc);
+
       // If the layout is GLOBAL_ORDER we need to call finalize
       if (query->query_layout() == tiledb_layout_t::TILEDB_GLOBAL_ORDER) {
         this->query->finalize();
@@ -1670,10 +1684,12 @@ int tile::mytile::write_row(const uchar *buf) {
   try {
     rc = mysql_row_to_tiledb_buffers(buf);
     if (rc == ERR_WRITE_FLUSH_NEEDED) {
-      flush_write();
-
+      rc = flush_write();
       // Reset bitmap to original
       tmp_restore_column_map(table->read_set, original_bitmap);
+      if (rc)
+        DBUG_RETURN(rc);
+
       DBUG_RETURN(write_row(buf));
     }
     this->record_index++;

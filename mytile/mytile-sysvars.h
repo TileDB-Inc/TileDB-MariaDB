@@ -59,7 +59,7 @@ my_bool reopen_for_every_query(THD *thd);
 
 tiledb_layout_t read_query_layout(THD *thd);
 
-my_bool dimensions_are_primary_keys(THD *thd);
+my_bool dimensions_are_keys(THD *thd);
 
 my_bool enable_pushdown(THD *thd);
 

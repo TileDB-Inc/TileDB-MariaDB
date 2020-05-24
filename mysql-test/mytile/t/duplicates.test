@@ -1,0 +1,33 @@
+--echo #
+--echo # The purpose of this test is to validate sparse arrays will support duplicates
+--echo #
+
+--echo # No key should allow duplicates
+CREATE TABLE t1 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL,
+  attr1 integer
+) ENGINE=mytile;
+INSERT INTO t1 VALUES (1, 1), (1, 2);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # Index should allow duplicates
+CREATE TABLE t2 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL,
+  attr1 integer,
+  INDEX(dim1)
+) ENGINE=mytile;
+INSERT INTO t2 VALUES (1, 10), (1, 20);
+select * FROM t2;
+DROP TABLE t2;
+
+--echo # Primary key should not allow duplicates
+CREATE TABLE t3 (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL,
+  attr1 integer,
+  PRIMARY KEY(dim1)
+) ENGINE=mytile;
+INSERT INTO t3 VALUES (1, 10);
+INSERT INTO t3 VALUES (1, 20);
+select * FROM t3;
+DROP TABLE t3;

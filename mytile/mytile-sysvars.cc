@@ -84,7 +84,7 @@ static MYSQL_THDVAR_ENUM(read_query_layout, PLUGIN_VAR_OPCMDARG,
                          &query_layout_typelib);
 
 // Dimensions as primary keys
-static MYSQL_THDVAR_BOOL(dimensions_are_primary_keys,
+static MYSQL_THDVAR_BOOL(dimensions_are_keys,
                          PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
                          "Should dimension be treated as primary keys", NULL,
                          NULL, true);
@@ -119,7 +119,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(tiledb_config),
     MYSQL_SYSVAR(reopen_for_every_query),
     MYSQL_SYSVAR(read_query_layout),
-    MYSQL_SYSVAR(dimensions_are_primary_keys),
+    MYSQL_SYSVAR(dimensions_are_keys),
     MYSQL_SYSVAR(enable_pushdown),
     MYSQL_SYSVAR(compute_table_records),
     MYSQL_SYSVAR(log_level),
@@ -146,8 +146,8 @@ tiledb_layout_t read_query_layout(THD *thd) {
   return query_layout;
 }
 
-my_bool dimensions_are_primary_keys(THD *thd) {
-  return THDVAR(thd, dimensions_are_primary_keys);
+my_bool dimensions_are_keys(THD *thd) {
+  return THDVAR(thd, dimensions_are_keys);
 }
 
 my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }

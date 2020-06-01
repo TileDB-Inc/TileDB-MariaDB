@@ -73,9 +73,9 @@ RUN git config --global user.email "you@example.com" \
 
 # Install tiledb using 2.0 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.2 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.3 && cd TileDB \
  && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
+ && cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps

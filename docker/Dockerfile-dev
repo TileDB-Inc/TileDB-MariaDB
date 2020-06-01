@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 LABEL maintainer="support@tiledb.io"
 
 #RUN apt-get update && apt install -y software-properties-common python-software-properties curl
@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
   gcc \
   g++ \
   build-essential \
-  libasan0 \
+  libasan5 \
   bison \
   chrpath \
   cmake \
@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y \
   ccache \
   git \
   wget \
+  libcurl4-openssl-dev \
   && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM /tmp
@@ -59,7 +60,7 @@ RUN git config --global user.email "you@example.com" \
 RUN mkdir build_deps && cd build_deps \
  && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.2 && cd TileDB \
  && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
+ && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \
  && make -C tiledb install \
  && cd /tmp && rm -r build_deps

@@ -18,7 +18,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SET mytile_enable_pushdown=1;
 SET mytile_delete_arrays=0;
 DROP TABLE `quickstart_dense`;
-SET mytile_dimensions_are_primary_keys=0;
+SET mytile_dimensions_are_keys=0;
 CREATE TABLE quickstart_dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 show create table quickstart_dense;
 Table	Create Table
@@ -32,7 +32,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	quickstart_dense	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
 DROP TABLE `quickstart_dense`;
 set mytile_delete_arrays=1;
-SET mytile_dimensions_are_primary_keys=1;
+SET mytile_dimensions_are_keys=1;
 #
 # The purpose of this test is to validate pushed ranges
 #

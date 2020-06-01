@@ -10,9 +10,9 @@ mv !(tmp) tmp # Move everything but tmp
 # Download mariadb using git, this has a habit of failing so let's do it first
 git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
-# Install tiledb using 2.0.2 release
+# Install TileDB using 2.0 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.2 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.3 && cd TileDB \
 && mkdir -p build && cd build
 
 # Configure and build TileDB

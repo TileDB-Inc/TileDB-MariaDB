@@ -2032,10 +2032,10 @@ begin:
            (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
-          (key_cmp < 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+          (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
                            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
                            find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
-          (key_cmp > 0 &&
+          (key_cmp < 0 &&
            (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
             find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
         tileToFields(record_index, false, table);

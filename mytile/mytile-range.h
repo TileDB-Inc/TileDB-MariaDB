@@ -666,8 +666,10 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
                                            const bool start_key,
                                            uint64_t key_length = sizeof(T)) {
-  const T *key_typed = reinterpret_cast<const T *>(key.key + key_offset);
-  T key_value = *key_typed;
+  auto tmp_key = std::unique_ptr<void, decltype(&std::free)>(std::malloc(key_length), &std::free);
+  const T *key_pushed = reinterpret_cast<const T *>(key.key + key_offset);
+  memcpy(tmp_key.get(), key_pushed, key_length);
+  T* key_value = reinterpret_cast<T *>(tmp_key.get());
 
   auto operation_type = find_flag_to_func(key.flag, start_key);
   switch (operation_type) {
@@ -676,19 +678,19 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
   case Item_func::GT_FUNC: {
     range->operation_type = Item_func::GE_FUNC;
     if (std::is_floating_point<T>()) {
-      key_value = std::nextafter(key_value, std::numeric_limits<T>::max());
+      *key_value = std::nextafter(*key_value, std::numeric_limits<T>::max());
     } else if (!std::is_same<T, char>()) {
-      key_value += 1;
+      *key_value += 1;
     }
 
     // If the lower is null, set it
     if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->lower_value.get(), key_typed,
+      auto cmp = memcmp(range->lower_value.get(), key_value,
                         std::min(range->lower_value_size, key_length));
 
       auto new_key = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length + 1), &std::free);
-      memcpy(new_key.get(), &key_value, key_length);
+      memcpy(new_key.get(), key_value, key_length);
       // we must add the null character to the end for greater than or equal to
       // conversion
       static_cast<T *>(new_key.get())[key_length] = '\0';
@@ -705,12 +707,12 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     } else if (range->lower_value == nullptr) {
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->lower_value.get(), &key_value, key_length);
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
       // If the current lower_value is greater than the key set the new lower
       // value
-    } else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
-      memcpy(range->lower_value.get(), &key_value, key_length);
+    } else if (*static_cast<T *>(range->lower_value.get()) > *key_value) {
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
     }
     break;
@@ -721,19 +723,19 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     if (range->lower_value == nullptr) {
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->lower_value.get(), &key_value, key_length);
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
     } else if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->lower_value.get(), key_typed,
+      auto cmp = memcmp(range->lower_value.get(), key_value,
                         std::min(range->lower_value_size, key_length));
       if (cmp == 1 || (cmp == 0 && key_length < range->lower_value_size)) {
-        memcpy(range->lower_value.get(), &key_value, key_length);
+        memcpy(range->lower_value.get(), key_value, key_length);
         range->lower_value_size = key_length;
       }
       // If the current lower_value is greater than the key set the new lower
       // value
-    } else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
-      memcpy(range->lower_value.get(), &key_value, key_length);
+    } else if (*static_cast<T *>(range->lower_value.get()) > *key_value) {
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
     }
     break;
@@ -743,19 +745,19 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     // TileDB ranges are inclusive
     range->operation_type = Item_func::LE_FUNC;
     if (std::is_floating_point<T>()) {
-      key_value = std::nextafter(key_value, std::numeric_limits<T>::min());
+      *key_value = std::nextafter(*key_value, std::numeric_limits<T>::min());
     } else if (!std::is_same<T, char>()) {
-      key_value -= 1;
+      *key_value -= 1;
     }
 
     // If the upper is null, set it
     if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->upper_value.get(), key_typed,
+      auto cmp = memcmp(range->upper_value.get(), key_value,
                         std::min(range->upper_value_size, key_length));
 
       auto new_key = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(new_key.get(), &key_value, key_length);
+      memcpy(new_key.get(), key_value, key_length);
       // we must change the last character to the max ascii character for less
       // than or equal to conversion
       static_cast<T *>(new_key.get())[key_length - 1] = 127;
@@ -772,12 +774,12 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     } else if (range->upper_value == nullptr) {
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->upper_value.get(), &key_value, key_length);
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     }
     // If the current upper_value is less than the key set the new upper value
-    else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
-      memcpy(range->upper_value.get(), &key_value, key_length);
+    else if (*static_cast<T *>(range->upper_value.get()) < *key_value) {
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     }
 
@@ -789,18 +791,18 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     if (range->upper_value == nullptr) {
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->upper_value.get(), &key_value, key_length);
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     } else if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->upper_value.get(), key_typed,
+      auto cmp = memcmp(range->upper_value.get(), key_value,
                         std::min(range->upper_value_size, key_length));
       if (cmp == -1 || (cmp == 0 && key_length > range->upper_value_size)) {
-        memcpy(range->upper_value.get(), &key_value, key_length);
+        memcpy(range->upper_value.get(), key_value, key_length);
         range->upper_value_size = key_length;
       }
       // If the current upper_value is less than the key set the new upper value
-    } else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
-      memcpy(range->upper_value.get(), &key_value, key_length);
+    } else if (*static_cast<T *>(range->upper_value.get()) < *key_value) {
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     }
 
@@ -813,19 +815,19 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     if (range->lower_value == nullptr) {
       range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->lower_value.get(), &key_value, key_length);
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
     } else if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->lower_value.get(), key_typed,
+      auto cmp = memcmp(range->lower_value.get(), key_value,
                         std::min(range->lower_value_size, key_length));
       if (cmp == 1 || (cmp == 0 && key_length < range->lower_value_size)) {
-        memcpy(range->lower_value.get(), &key_value, key_length);
+        memcpy(range->lower_value.get(), key_value, key_length);
         range->lower_value_size = key_length;
       }
       // If the current lower_value is greater than the key set the new lower
       // value
-    } else if (*static_cast<T *>(range->lower_value.get()) > key_value) {
-      memcpy(range->lower_value.get(), &key_value, key_length);
+    } else if (*static_cast<T *>(range->lower_value.get()) > *key_value) {
+      memcpy(range->lower_value.get(), key_value, key_length);
       range->lower_value_size = key_length;
     }
 
@@ -833,18 +835,18 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     if (range->upper_value == nullptr) {
       range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(key_length), &std::free);
-      memcpy(range->upper_value.get(), &key_value, key_length);
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     } else if (std::is_same<T, char>()) {
-      auto cmp = memcmp(range->upper_value.get(), key_typed,
+      auto cmp = memcmp(range->upper_value.get(), key_value,
                         std::min(range->upper_value_size, key_length));
       if (cmp == -1 || (cmp == 0 && key_length > range->upper_value_size)) {
-        memcpy(range->upper_value.get(), &key_value, key_length);
+        memcpy(range->upper_value.get(), key_value, key_length);
         range->upper_value_size = key_length;
       }
       // If the current upper_value is less than the key set the new upper value
-    } else if (*static_cast<T *>(range->upper_value.get()) < key_value) {
-      memcpy(range->upper_value.get(), &key_value, key_length);
+    } else if (*static_cast<T *>(range->upper_value.get()) < *key_value) {
+      memcpy(range->upper_value.get(), key_value, key_length);
       range->upper_value_size = key_length;
     }
 

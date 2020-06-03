@@ -1939,17 +1939,13 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
       if (dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
-        auto dim_byte_size = tiledb_datatype_size(dimension.type());
-        auto dim_comparison = memcmp(key + key_position,
-                                     static_cast<char *>(dim_buffer->buffer) +
-                                         (index * dim_byte_size),
-                                     dim_byte_size);
-
+        uint64_t dim_key_length = 0;
+        uint64_t dim_comparison = compare_key_to_dim(
+            key + key_position, &dim_key_length, index, dim_buffer);
+        key_position += dim_key_length;
         if (dim_comparison != 0) {
           return dim_comparison;
         }
-
-        key_position += dim_byte_size;
       }
       break; // skipping rest of buffers, proceed with next dimension
     }
@@ -1958,6 +1954,88 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
       break;
     }
   }
+  return 0;
+}
+
+int8_t tile::mytile::compare_key_to_dim(const uchar *key,
+                                        uint64_t *dim_key_length,
+                                        const uint64_t index,
+                                        const std::shared_ptr<buffer> &buf) {
+
+  uint64_t datatype_size = tiledb_datatype_size(buf->type);
+
+  void *fixed_buff_pointer =
+      (static_cast<char *>(buf->buffer) + index * datatype_size);
+
+  *dim_key_length = datatype_size;
+
+  switch (buf->type) {
+
+  case TILEDB_FLOAT32:
+    return compare_key_to_dim<float>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_FLOAT64:
+    return compare_key_to_dim<double>(key, *dim_key_length, fixed_buff_pointer);
+    //  case TILEDB_CHAR:
+  case TILEDB_INT8:
+    return compare_key_to_dim<int8>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_UINT8:
+    return compare_key_to_dim<uint8>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_INT16:
+    return compare_key_to_dim<int16>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_UINT16:
+    return compare_key_to_dim<uint16>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_INT32:
+    return compare_key_to_dim<int32>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_UINT32:
+    return compare_key_to_dim<uint32>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_UINT64:
+    return compare_key_to_dim<uint64>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_INT64:
+  case TILEDB_DATETIME_YEAR:
+  case TILEDB_DATETIME_MONTH:
+  case TILEDB_DATETIME_WEEK:
+  case TILEDB_DATETIME_DAY:
+  case TILEDB_DATETIME_HR:
+  case TILEDB_DATETIME_MIN:
+  case TILEDB_DATETIME_SEC:
+  case TILEDB_DATETIME_MS:
+  case TILEDB_DATETIME_US:
+  case TILEDB_DATETIME_NS:
+  case TILEDB_DATETIME_PS:
+  case TILEDB_DATETIME_FS:
+  case TILEDB_DATETIME_AS:
+    return compare_key_to_dim<int64>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_STRING_ASCII: {
+    const uint16_t char_length = *reinterpret_cast<const uint16_t *>(key);
+    uint64_t key_offset = sizeof(uint16_t);
+    *dim_key_length = key_offset + char_length;
+
+    uint64_t end_position = index + 1;
+    uint64_t start_position = 0;
+    // If its not the first value, we need to see where the previous position
+    // ended to know where to start.
+    if (index > 0) {
+      start_position = buf->offset_buffer[index];
+    }
+    // If the current position is equal to the number of results - 1 then we are
+    // at the last varchar value
+    if (index >= (buf->offset_buffer_size / sizeof(uint64_t)) - 1) {
+      end_position = buf->buffer_size / sizeof(char);
+    } else { // Else read the end from the next offset.
+      end_position = buf->offset_buffer[index + 1];
+    }
+    size_t size = end_position - start_position;
+
+    void *buff = (static_cast<char *>(buf->buffer) + start_position);
+
+    return compare_key_to_dim<char>(key + key_offset, char_length, buff, size);
+  }
+  default: {
+    my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in key compare",
+                    ME_ERROR_LOG | ME_FATAL);
+  }
+  }
+
   return 0;
 }
 

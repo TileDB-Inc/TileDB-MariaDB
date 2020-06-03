@@ -666,10 +666,11 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
                                            const bool start_key,
                                            uint64_t key_length = sizeof(T)) {
-  auto tmp_key = std::unique_ptr<void, decltype(&std::free)>(std::malloc(key_length), &std::free);
+  auto tmp_key = std::unique_ptr<void, decltype(&std::free)>(
+      std::malloc(key_length), &std::free);
   const T *key_pushed = reinterpret_cast<const T *>(key.key + key_offset);
   memcpy(tmp_key.get(), key_pushed, key_length);
-  T* key_value = reinterpret_cast<T *>(tmp_key.get());
+  T *key_value = reinterpret_cast<T *>(tmp_key.get());
 
   auto operation_type = find_flag_to_func(key.flag, start_key);
   switch (operation_type) {

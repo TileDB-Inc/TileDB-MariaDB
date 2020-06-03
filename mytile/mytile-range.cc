@@ -826,8 +826,8 @@ void tile::update_range_from_key_for_super_range(
     const uint16_t char_length =
         *reinterpret_cast<const uint16_t *>(key.key + key_offset);
     key_offset += sizeof(uint16_t);
-    return update_range_from_key_for_super_range<char>(
-        range, key, key_offset, start_key, char_length);
+    return update_range_from_key_for_super_range<char>(range, key, key_offset,
+                                                       start_key, char_length);
   }
 
   default: {

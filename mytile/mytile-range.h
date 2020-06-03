@@ -764,7 +764,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
       if (static_cast<T *>(new_key.get())[key_length - 1] == '\0') {
         auto copy_key = std::unique_ptr<void, decltype(&std::free)>(
             std::malloc(key_length-1), &std::free);
-        memcpy(static_cast<char *>(copy_key.get()), static_cast<char *>(new_key.get()), key_length-1);
+        memcpy(static_cast<T *>(copy_key.get()), static_cast<T *>(new_key.get()), key_length-1);
         key_length -= 1;
         static_cast<T *>(copy_key.get())[key_length - 1] = 127;
         new_key = std::move(copy_key);

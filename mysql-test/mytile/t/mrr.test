@@ -55,10 +55,10 @@ select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `col
 
 --echo # Bank test
 set optimizer_switch='optimize_join_buffer_size=off,mrr=off,mrr_sort_keys=off';
-explain select * from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+explain select id, job from `bank` where id between 1 and 10 AND job in ('retired', 'management');
 
 # Run join
-select * from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+select id, job from `bank` where id between 1 and 10 AND job in ('retired', 'management');
 
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;

@@ -3,6 +3,7 @@
 #
 CREATE TABLE quickstart_dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 CREATE TABLE quickstart_sparse ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_sparse';;
+CREATE TABLE bank ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/bank';;
 # Block Nested Loop Join Explain
 explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -82,6 +83,17 @@ rows	cols	a	a
 1	1	1	1
 2	3	7	3
 2	4	8	2
+# Bank test
+set optimizer_switch='optimize_join_buffer_size=off,mrr=off,mrr_sort_keys=off';
+explain select * from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	bank	range	PRIMARY	PRIMARY	265	NULL	1	Using where with pushed condition
+select * from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+id	job	y	poutcome	age	education	day	default	housing	balance	loan	marital	month	campaign	previous	contact	duration	pdays
+5	management	no	unknown	35	tertiary	5	no	yes	231	no	married	may	1	0	unknown	139	9223372036854775807
+6	management	no	unknown	28	tertiary	5	no	yes	447	yes	single	may	1	0	unknown	217	9223372036854775807
+8	retired	no	unknown	58	primary	5	no	yes	121	no	married	may	1	0	unknown	50	9223372036854775807
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
 drop table `quickstart_sparse`;
+drop table `bank`;

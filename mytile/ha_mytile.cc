@@ -53,6 +53,9 @@
 #include <unordered_map>
 #include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
 
+#include <stdio.h>
+#include <string.h>
+
 // Handler for mytile engine
 handlerton *mytile_hton;
 
@@ -1928,6 +1931,147 @@ int tile::mytile::index_next(uchar *buf) {
   DBUG_RETURN(scan_rnd_row(table));
 }
 
+bool tile::mytile::filter_key_to_dims(const uchar *key, uint key_len,
+                                         uint64_t index, enum ha_rkey_function find_flag) {
+  auto domain = this->array_schema->domain();
+  int key_position = 0;
+  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+    for (auto &dim_buffer : this->buffers) {
+      if (dim_buffer->name != dimension.name()) {
+        continue;
+      } else { // buffer for dimension was found
+        auto datatype = dimension.type();
+        auto dim_byte_size = tiledb_datatype_size(datatype);
+
+        int8_t dim_comparison = 0;
+
+        if (datatype == TILEDB_STRING_ASCII) {
+          key_position += sizeof(uint16_t);
+          const char *key_value =
+              reinterpret_cast<const char *>(key + key_position);
+          auto key_length = strlen(key_value);
+          auto offset = dim_buffer->offset_buffer + index;
+          dim_comparison = memcmp(key + key_position,
+                                  static_cast<char *>(dim_buffer->buffer) +
+                                      (*offset),
+                                  key_length);
+          if ((dim_comparison == 0 &&
+               (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+              (dim_comparison > 0 &&
+               (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
+                find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
+              (dim_comparison < 0 &&
+               (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+            key_position += (*offset);
+          } else {
+            return false;
+          }
+        } else {
+          dim_comparison = memcmp(key + key_position,
+                                  static_cast<char *>(dim_buffer->buffer) +
+                                      (index * dim_byte_size),
+                                  dim_byte_size);
+          if ((dim_comparison == 0 &&
+               (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+              (dim_comparison > 0 &&
+               (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
+                find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
+              (dim_comparison < 0 &&
+               (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
+                find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+            key_position += dim_byte_size;
+          } else {
+            return false;
+          }
+        }
+      }
+      break; // skipping rest of buffers, proceed with next dimension
+    }
+
+    if (key_position >= (int)key_len) {
+      break;
+    }
+  }
+  return true;
+}
+
+int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
+                                      uint64_t index, enum ha_rkey_function find_flag) {
+  auto domain = this->array_schema->domain();
+  int key_position = 0;
+  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+    auto datatype = dimension.type();
+
+    for (auto &dim_buffer : this->buffers) {
+      if (dim_buffer->name != dimension.name()) {
+        continue;
+      }
+
+      int8_t dim_comparison = 0;
+      if (datatype == TILEDB_STRING_ASCII) {
+        key_position += sizeof(uint16_t);
+        const char *key_value =
+            reinterpret_cast<const char *>(key + key_position);
+        auto key_length = strlen(key_value);
+        auto offset = dim_buffer->offset_buffer + index;
+        dim_comparison = memcmp(key + key_position,
+                                static_cast<char *>(dim_buffer->buffer) +
+                                (*offset),
+                                key_length);
+        key_position += (*offset);
+      } else {
+        auto dim_byte_size = tiledb_datatype_size(datatype);
+        dim_comparison = memcmp(key + key_position,
+                                static_cast<char *>(dim_buffer->buffer) +
+                                (index * dim_byte_size),
+                                dim_byte_size);
+        key_position += dim_byte_size;
+      }
+
+      if (dim_comparison < 0) {
+        if ((find_flag == HA_READ_KEY_OR_NEXT) ||
+            (find_flag == HA_READ_AFTER_KEY)) {
+          continue;
+        } else {
+          return 1;
+        }
+      } else if (dim_comparison > 0) {
+        if ((find_flag == HA_READ_BEFORE_KEY) ||
+            (find_flag == HA_READ_AFTER_KEY) ||
+            (find_flag == HA_READ_KEY_OR_PREV)) {
+          continue;
+        } else {
+          return -1;
+        }
+      } else {
+        if ((find_flag == HA_READ_KEY_EXACT ||
+            find_flag == HA_READ_KEY_OR_NEXT ||
+            find_flag == HA_READ_KEY_OR_PREV)) {
+          continue;
+        } else {
+          return -1;
+        }
+      }
+    }
+
+    if (key_position >= (int)key_len) {
+      break;
+    }
+  }
+
+  return 0;
+}
+
 int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
                                          uint64_t index) {
   auto domain = this->array_schema->domain();
@@ -2025,19 +2169,10 @@ begin:
     }
 
     do {
-      int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
+      int key_cmp = compare_key_to_dims(key, key_len, this->record_index, find_flag);
       // If the current index coordinates matches the key we are looking for we
       // must set the fields
-      if ((key_cmp == 0 &&
-           (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
-          (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
-                           find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
-                           find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
-          (key_cmp < 0 &&
-           (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+      if (key_cmp == 0) {
         tileToFields(record_index, false, table);
         this->record_index++;
         this->records_read++;

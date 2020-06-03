@@ -417,6 +417,24 @@ public:
   int8_t compare_key_to_dims(const uchar *key, uint key_len, uint64_t index);
 
   /**
+ * Compares two buffers checking their bytes
+ * Iterates through dimension buffers
+ * First buffer is the key, second buffer is the dimension buffer
+ * Takes into account the function (find_flag)
+ * @param key
+ * @param key_len
+ * @param index
+ * @param find_flag
+ * @return minus(<0) if key is less than buffer, 0 if equal, positive (>0) if
+ * buffer is greater than key
+ */
+  int8_t compare_key_to_dims(const uchar *key, uint key_len,
+                      uint64_t index, enum ha_rkey_function find_flag);
+
+  bool filter_key_to_dims(const uchar *key, uint key_len, uint64_t index,
+                      enum ha_rkey_function find_flag);
+
+  /**
    * Returns an estimation for number of records expected from the current query
    * @return number of rows
    */

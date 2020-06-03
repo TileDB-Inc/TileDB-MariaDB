@@ -761,7 +761,17 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
       memcpy(new_key.get(), key_value, key_length);
       // we must change the last character to the max ascii character for less
       // than or equal to conversion
-      static_cast<T *>(new_key.get())[key_length - 1] = 127;
+      if (static_cast<T *>(new_key.get())[key_length - 1] == '\0') {
+        auto copy_key = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(key_length-1), &std::free);
+        memcpy(static_cast<char *>(copy_key.get()), static_cast<char *>(new_key.get()), key_length-1);
+        key_length -= 1;
+        static_cast<T *>(copy_key.get())[key_length - 1] = 127;
+        new_key = std::move(copy_key);
+      } else {
+        static_cast<T *>(new_key.get())[key_length - 1] =
+            static_cast<T *>(new_key.get())[key_length - 1] - 1;
+      }
       if (range->upper_value == nullptr) {
         range->upper_value = std::move(new_key);
         range->upper_value_size = key_length;

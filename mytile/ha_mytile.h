@@ -412,9 +412,40 @@ public:
    * @param key_len
    * @param index
    * @return minus(<0) if key is less than buffer, 0 if equal, positive (>0) if
-   * buffer is greater than key
+   * key is greater than buffer
    */
-  int8_t compare_key_to_dims(const uchar *key, uint key_len, uint64_t index);
+  int8_t compare_key_to_dims(const uchar *key, uint key_length, uint64_t index);
+
+  int8_t compare_key_to_dim(const uchar *key, uint64_t *dim_key_length,
+                            const uint64_t index,
+                            const std::shared_ptr<buffer> &buf);
+
+  template <typename T>
+  int8_t compare_key_to_dim(const uchar *key, uint64_t key_length,
+                            const void *buffer,
+                            uint64_t buffer_size = sizeof(T)) {
+    // If the lower is null, set it
+    if (std::is_same<T, char>()) {
+      auto cmp = memcmp(buffer, key, std::min(key_length, buffer_size));
+      if (cmp == 0 && key_length < buffer_size) {
+        return -1;
+      } else if (cmp == 0 && key_length > buffer_size) {
+        return 1;
+      }
+      return cmp;
+    }
+
+    const T *key_typed = reinterpret_cast<const T *>(key);
+    const T *buffer_typed = reinterpret_cast<const T *>(buffer);
+
+    if (*key_typed < *buffer_typed)
+      return -1;
+    if (*key_typed == *buffer_typed)
+      return 0;
+
+    // last case is always if (key_typed > buffer_size)
+    return 1;
+  }
 
   /**
    * Returns an estimation for number of records expected from the current query

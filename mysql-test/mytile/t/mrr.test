@@ -8,6 +8,16 @@
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE quickstart_sparse ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_sparse';
 
+# Citation Request:
+#   This dataset is public available for research. The details are described in [Moro et al., 2011].
+#   Please include this citation if you plan to use this database:
+#   [Moro et al., 2011] S. Moro, R. Laureano and P. Cortez. Using Data Mining for Bank Direct Marketing: An Application of the CRISP-DM Methodology.
+#   In P. Novais et al. (Eds.), Proceedings of the European Simulation and Modelling Conference - ESM'2011, pp. 117-121, Guimarães, Portugal, October, 2011. EUROSIS.
+#   Available at: [pdf] http://hdl.handle.net/1822/14838
+#                 [bib] http://www3.dsi.uminho.pt/pcortez/bib/2011-esm-1.txt
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE bank ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/bank';
+
 --echo # Block Nested Loop Join Explain
 explain select * from `quickstart_dense` a JOIN `quickstart_dense` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 
@@ -43,6 +53,14 @@ explain select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`row
 # Run join
 select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `cols`) ORDER BY `rows` asc, cols asc;
 
+--echo # Bank test
+set optimizer_switch='optimize_join_buffer_size=off,mrr=off,mrr_sort_keys=off';
+explain select id, job from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+
+# Run join
+select id, job from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
 drop table `quickstart_sparse`;
+drop table `bank`;

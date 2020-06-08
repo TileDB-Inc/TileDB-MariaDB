@@ -543,7 +543,7 @@ private:
   // Array Schema
   std::unique_ptr<tiledb::ArraySchema> array_schema;
 
-  int64_t records = -2;
+  uint64_t records = 0;
   uint64_t records_read = 0;
   tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;
 

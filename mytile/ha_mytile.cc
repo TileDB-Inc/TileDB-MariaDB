@@ -738,7 +738,7 @@ bool tile::mytile::query_complete() {
   DBUG_ENTER("tile::mytile::query_complete");
   // If we are complete and there is no more records we report EOF
   if (this->status == tiledb::Query::Status::COMPLETE &&
-      static_cast<int64_t>(this->record_index) >= this->records) {
+      this->record_index >= this->records) {
     this->mrr_query = false;
     DBUG_RETURN(true);
   }
@@ -774,7 +774,7 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
   try {
     // If the cursor has passed the number of records from the previous query
     // (or if this is the first time), (re)submit the query->
-    if (static_cast<int64_t>(this->record_index) >= this->records) {
+    if (this->record_index >= this->records) {
       do {
         this->status = query->submit();
 
@@ -2070,7 +2070,7 @@ begin:
   try {
     // If the cursor has passed the number of records from the previous query
     // (or if this is the first time), (re)submit the query
-    if (static_cast<int64_t>(this->record_index) >= this->records) {
+    if (this->record_index >= this->records) {
       do {
         this->status = query->submit();
 
@@ -2185,10 +2185,10 @@ begin:
       // next incomplete batch We do this by going back to the start of the
       // function so we trigger the next batch call We can't use recursion
       // because DEBUG_ENTER has a limit to the depth in which it can be called
-      if (static_cast<int64_t>(this->record_index) >= this->records) {
+      if (this->record_index >= this->records) {
         goto begin;
       }
-    } while (static_cast<int64_t>(this->record_index) < this->records);
+    } while (this->record_index < this->records);
 
   } catch (const tiledb::TileDBError &e) {
     // Log errors

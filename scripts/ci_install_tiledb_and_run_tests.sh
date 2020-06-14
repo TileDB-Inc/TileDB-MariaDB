@@ -12,12 +12,12 @@ git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_
 
 # Install TileDB using 2.0 release
 mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.3 && cd TileDB \
+&& git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.5 && cd TileDB \
 && mkdir -p build && cd build
 
 # Configure and build TileDB
 cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Debug .. \
-&& make -j4 \
+&& make -j$(nproc) \
 && sudo make -C tiledb install \
 && cd $original_dir
 

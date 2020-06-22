@@ -2,12 +2,12 @@ trigger:
   branches:
     include:
     - master
-
-variables:
-  imageName: 'tiledb/tiledb-mariadb'
+  tags:
+    include:
+    - "*"
 
 jobs:
-- job:
+- job: Build
   strategy:
     matrix:
       linux:
@@ -21,3 +21,24 @@ jobs:
     vmImage: $(imageName)
   steps:
   - template: scripts/azure-linux_mac.yml
+
+- job: Docker
+  dependsOn: Build
+  condition: succeeded()
+
+  pool:
+    vmImage: 'ubuntu-18.04'
+
+  strategy:
+    matrix:
+      tiledb-mariadb:
+        dockerfile: docker/Dockerfile
+        repository: tiledb/tiledb-mariadb
+        context: .
+      tiledb-mariadb-server:
+        dockerfile: docker/Dockerfile
+        repository: tiledb/tiledb-mariadb-server
+        context: .
+
+  steps:
+  - template: scripts/build-images.yml

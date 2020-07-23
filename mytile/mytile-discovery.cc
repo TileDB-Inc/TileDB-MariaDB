@@ -237,8 +237,13 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
 
     for (const auto &dim : schema->domain().dimensions()) {
       int mysql_type = TileDBTypeToMysqlType(dim.type(), false);
+
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
+
+      if (schema->allows_dups()) {
+        sql_string << " NOT NULL";
+      }
 
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(dim.type()))

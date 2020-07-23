@@ -241,9 +241,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
 
-      if (schema->allows_dups()) {
-        sql_string << " NOT NULL";
-      }
+      // TileDB does not currently support nulls
+      sql_string << " NOT NULL";
 
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(dim.type()))
@@ -287,6 +286,9 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
+
+      // TileDB does not currently support nulls
+      sql_string << " NOT NULL";
 
       // Check for filters
       tiledb::FilterList filters = attribute.filter_list();

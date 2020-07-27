@@ -50,6 +50,8 @@ RUN apt-get update && apt-get install -y \
 
 ENV MTR_MEM /tmp
 
+ARG TILEDB_VERSION="2.0.5"
+
 WORKDIR /tmp
 
 # Set git config so superbuild of tiledb can cherry-pick capnp fix
@@ -58,7 +60,7 @@ RUN git config --global user.email "you@example.com" \
 
 # Install tiledb using 2.0 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.5 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \

@@ -6,39 +6,43 @@ trigger:
     include:
     - "*"
 
-jobs:
-- job: Build
-  strategy:
-    matrix:
-      linux:
-        imageName: 'ubuntu-16.04'
-        CXX: g++
-      macOS:
-        imageName: 'macOS-10.14'
-        CXX: clang++
+stages:
+  - stage: CI
+    condition: not(or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), contains(variables['Build.SourceBranchName'], 'release-')))
+    jobs:
+    - job: Build
+      strategy:
+        matrix:
+          linux:
+            imageName: 'ubuntu-16.04'
+            CXX: g++
+          macOS:
+            imageName: 'macOS-10.14'
+            CXX: clang++
 
-  pool:
-    vmImage: $(imageName)
-  steps:
-  - template: scripts/azure-linux_mac.yml
+      pool:
+        vmImage: $(imageName)
+      steps:
+      - template: scripts/azure-linux_mac.yml
 
-- job: Docker
-  dependsOn: Build
-  condition: succeeded()
 
-  pool:
-    vmImage: 'ubuntu-18.04'
+  - stage: Docker
+    condition: or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+    jobs:
+    - job: Docker
+      pool:
+        vmImage: 'ubuntu-18.04'
 
-  strategy:
-    matrix:
-      tiledb-mariadb:
-        dockerfile: docker/Dockerfile
-        repository: tiledb/tiledb-mariadb
-        context: .
-      tiledb-mariadb-server:
-        dockerfile: docker/Dockerfile
-        repository: tiledb/tiledb-mariadb-server
-        context: .
+      strategy:
+        matrix:
+          tiledb-mariadb:
+            dockerfile: docker/Dockerfile
+            repository: tiledb/tiledb-mariadb
+            context: .
+          tiledb-mariadb-server:
+            dockerfile: docker/Dockerfile
+            repository: tiledb/tiledb-mariadb-server
+            context: .
 
-  steps:
-  - template: scripts/build-images.yml
+      steps:
+      - template: scripts/build-images.yml

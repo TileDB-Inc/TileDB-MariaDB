@@ -54,7 +54,9 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-10.4.13"
 
-ARG MYTILE_VERSION="0.5.4"
+ARG MYTILE_VERSION="0.5.9"
+
+ARG TILEDB_VERSION="2.0.5"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -73,7 +75,7 @@ RUN git config --global user.email "you@example.com" \
 
 # Install tiledb using 2.0 release
 RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.5 && cd TileDB \
+ && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
  && mkdir -p build && cd build \
  && cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
  && make -j$(nproc) \

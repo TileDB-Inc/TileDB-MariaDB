@@ -80,17 +80,11 @@ std::string tile::build_metadata_value_string(THD *thd, const void *data,
   case TILEDB_DATETIME_SEC:
   case TILEDB_DATETIME_MS:
   case TILEDB_DATETIME_US:
-    return tile::build_metadata_datetime_value_string(thd, data, num, type);
   case TILEDB_DATETIME_NS:
   case TILEDB_DATETIME_PS:
   case TILEDB_DATETIME_FS:
-  case TILEDB_DATETIME_AS: {
-    my_printf_error(
-        ER_UNKNOWN_ERROR,
-        "Unsupported datetime for MariaDB. US/NS/PS/FS/AS not supported",
-        ME_ERROR_LOG | ME_FATAL);
-    break;
-  }
+  case TILEDB_DATETIME_AS:
+    return tile::build_metadata_datetime_value_string(thd, data, num, type);
   }
   return "";
 }
@@ -149,14 +143,36 @@ std::string tile::build_metadata_datetime_value_string(THD *thd,
                                   MYSQL_TIMESTAMP_DATETIME);
       break;
     }
-    case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    case tiledb_datatype_t::TILEDB_DATETIME_PS:
-    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    case tiledb_datatype_t::TILEDB_DATETIME_NS: {
+      uint64_t ns = value;
+      uint64_t seconds = ns / 1000000000;
+      ss << build_datetime_string(thd, seconds,
+                                  (ns - (seconds * 1000000000)) / 1000,
+                                  MYSQL_TIMESTAMP_DATETIME);
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_DATETIME_PS: {
+      uint64_t ps = value;
+      uint64_t seconds = ps / 1000000000000;
+      ss << build_datetime_string(thd, seconds,
+                                  (ps - (seconds * 1000000000)) / 1000000,
+                                  MYSQL_TIMESTAMP_DATETIME);
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_DATETIME_FS: {
+      uint64_t fs = value;
+      uint64_t seconds = fs / 1000000000000000;
+      ss << build_datetime_string(thd, seconds,
+                                  (fs - (seconds * 1000000000)) / 1000000000,
+                                  MYSQL_TIMESTAMP_DATETIME);
+      break;
+    }
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-      my_printf_error(
-          ER_UNKNOWN_ERROR,
-          "Unsupported datetime for MariaDB. US/NS/PS/FS/AS not supported",
-          ME_ERROR_LOG | ME_FATAL);
+      uint64_t as = value;
+      uint64_t seconds = as / 1000000000000000000;
+      ss << build_datetime_string(thd, seconds,
+                                  (as - (seconds * 1000000000)) / 1000000000000,
+                                  MYSQL_TIMESTAMP_DATETIME);
       break;
     }
     default: {

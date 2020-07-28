@@ -292,3 +292,11 @@ select * FROM t1;
 dim1	attr1
 a	1
 DROP TABLE t1;
+# Test All Possible Datetime types
+CREATE TABLE all_datetimes ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/all_datetimes';;
+select id, datetime_attosecond, datetime_femtosecond, datetime_picosecond, datetime_nanosecond, datetime_microsecond, datetime_millisecond, datetime_hour, datetime_day, datetime_second, datetime_minute, datetime_week, datetime_month, datetime_year from all_datetimes;
+id	datetime_attosecond	datetime_femtosecond	datetime_picosecond	datetime_nanosecond	datetime_microsecond	datetime_millisecond	datetime_hour	datetime_day	datetime_second	datetime_minute	datetime_week	datetime_month	datetime_year
+1	1970-01-01 00:00:12.151381	1970-01-01 04:45:12.283138	1970-04-19 05:32:44.784435	2020-07-26 13:45:55.123456	2020-07-26 13:45:55.123456	2020-07-26 13:45:55.123000	2020-07-26 13:00:00.000000	2020-07-26	2020-07-26 13:45:55.000000	2020-07-26 13:45:00.000000	2020-07-23 00:00:00.000000	2020-06-19 12:00:00.000000	2020
+set mytile_delete_arrays=0;
+DROP TABLE `all_datetimes`;
+set mytile_delete_arrays=1;

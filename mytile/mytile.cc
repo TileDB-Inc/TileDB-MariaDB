@@ -214,8 +214,11 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
     return MYSQL_TYPE_YEAR;
 
-  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
   case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
   case tiledb_datatype_t::TILEDB_DATETIME_MS:
   case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
@@ -590,10 +593,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    /*INTERVAL interval;
-    interval.year = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, interval);*/
-    return set_field<int64_t>(field, buff, i);
+    return field->store(static_cast<uint64_t *>(buff->buffer)[i] + 1970, false);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
     // TODO: This isn't a good calculation we should fix it
@@ -626,7 +626,8 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_MS: {
     uint64_t ms = static_cast<uint64_t *>(buff->buffer)[i];
     uint64_t seconds = ms / 1000;
-    return set_datetime_field(thd, field, seconds, ms - (seconds * 1000),
+    return set_datetime_field(thd, field, seconds,
+                              (ms - (seconds * 1000)) * 1000,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_US: {
@@ -635,15 +636,34 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     return set_datetime_field(thd, field, seconds, us - (seconds * 1000000),
                               MYSQL_TIMESTAMP_DATETIME);
   }
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
-  case tiledb_datatype_t::TILEDB_DATETIME_PS:
-  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS: {
+    uint64_t ns = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = ns / 1000000000;
+    return set_datetime_field(thd, field, seconds,
+                              (ns - (seconds * 1000000000)) / 1000,
+                              MYSQL_TIMESTAMP_DATETIME);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_PS: {
+    uint64_t ps = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = ps / 1000000000000;
+    return set_datetime_field(thd, field, seconds,
+                              (ps - (seconds * 1000000000000)) / 1000000,
+                              MYSQL_TIMESTAMP_DATETIME);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_FS: {
+    uint64_t fs = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = fs / 1000000000000000;
+    return set_datetime_field(thd, field, seconds,
+                              (fs - (seconds * 1000000000000000)) / 1000000000,
+                              MYSQL_TIMESTAMP_DATETIME);
+  }
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-    my_printf_error(
-        ER_UNKNOWN_ERROR,
-        "Unsupported datetime for MariaDB. US/NS/PS/FS/AS not supported",
-        ME_ERROR_LOG | ME_FATAL);
-    break;
+    uint64_t as = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = as / 1000000000000000000;
+    return set_datetime_field(thd, field, seconds,
+                              (as - (seconds * 1000000000000000000)) /
+                                  1000000000000,
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   default: {
     const char *type_str = nullptr;
@@ -751,8 +771,8 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-
-    return set_buffer_from_field<int64_t>(field->val_int(), buff, i);
+    // Convert date to relative to 1970
+    return set_buffer_from_field<int64_t>(field->val_int() - 1970, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
     MYSQL_TIME mysql_time, diff_time;
@@ -843,15 +863,57 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     return set_buffer_from_field<int64_t>(seconds * 1000000 + microseconds,
                                           buff, i);
   }
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
-  case tiledb_datatype_t::TILEDB_DATETIME_PS:
-  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(
+        (seconds * 1000000 + microseconds) * 1000, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_PS: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(
+        (seconds * 1000000 + microseconds) * 1000000, buff, i);
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_FS: {
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(
+        (seconds * 1000000 + microseconds) * 1000000000, buff, i);
+  }
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-    my_printf_error(
-        ER_UNKNOWN_ERROR,
-        "Unsupported datetime for MariaDB. NS/PS/FS/AS not supported",
-        ME_ERROR_LOG | ME_FATAL);
-    break;
+    MYSQL_TIME mysql_time;
+    field->get_date(&mysql_time, date_mode_t(0));
+
+    // Convert time with timezone consideration
+    uint32_t not_used;
+    my_time_t seconds =
+        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    uint64_t microseconds = mysql_time.second_part;
+
+    return set_buffer_from_field<int64_t>(
+        (seconds * 1000000 + microseconds) * 1000000000, buff, i);
   }
   default: {
     const char *type_str = nullptr;

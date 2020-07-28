@@ -406,6 +406,13 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
     // Get array uri from name or table option
     std::string create_uri = name;
+
+    if( (strncmp(table_arg->s->table_name.str, "s3://", 5) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "azure://", 8) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "gcs://", 6) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "tiledb://", 9) == 0))
+      create_uri = table_arg->s->table_name.str;
+
     if (create_info->option_struct->array_uri != nullptr)
       create_uri = create_info->option_struct->array_uri;
 

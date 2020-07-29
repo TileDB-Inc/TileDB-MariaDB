@@ -49,13 +49,13 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     MESSAGE(STATUS "TileDB not found for MyTile. Building as depedency from source")
     include(ExternalProject)
 
-    SET(TILEDB_VERSION "2.0.5")
+    SET(TILEDB_VERSION "2.0.7")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=2ea02e466bec14a30f82b618387d066551e432ff
+	    URL_HASH SHA1=96ab0ef70baaa0fcb5bba5be356f1cdb24b89160
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

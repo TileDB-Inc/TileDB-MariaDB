@@ -56,7 +56,7 @@ ENV MARIADB_VERSION="mariadb-10.4.13"
 
 ARG MYTILE_VERSION="0.5.9"
 
-ARG TILEDB_VERSION="2.0.5"
+ARG TILEDB_VERSION="2.0.7"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \

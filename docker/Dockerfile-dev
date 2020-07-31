@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 LABEL maintainer="support@tiledb.io"
 
-#RUN apt-get update && apt install -y software-properties-common python-software-properties curl
+ENV AWS_EC2_METADATA_DISABLED true
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=GMT

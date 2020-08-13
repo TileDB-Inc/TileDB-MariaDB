@@ -1375,11 +1375,12 @@ int tile::mytile::info(uint) {
 
 ulonglong tile::mytile::table_flags(void) const {
   DBUG_ENTER("tile::mytile::table_flags");
-  DBUG_RETURN(HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
-//               HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
-              HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT |
-              HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
-              HA_CAN_BIT_FIELD | HA_FILE_BASED);
+  DBUG_RETURN(
+      HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
+      //               HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
+      HA_FAST_KEY_READ | HA_SLOW_RND_POS | HA_CAN_TABLE_CONDITION_PUSHDOWN |
+      HA_CAN_EXPORT | HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
+      HA_CAN_BIT_FIELD | HA_FILE_BASED);
 }
 
 void tile::mytile::alloc_buffers(uint64_t size) {

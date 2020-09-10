@@ -407,7 +407,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Get array uri from name or table option
     std::string create_uri = name;
 
-    if( (strncmp(table_arg->s->table_name.str, "s3://", 5) == 0) ||
+    if ((strncmp(table_arg->s->table_name.str, "s3://", 5) == 0) ||
         (strncmp(table_arg->s->table_name.str, "azure://", 8) == 0) ||
         (strncmp(table_arg->s->table_name.str, "gcs://", 6) == 0) ||
         (strncmp(table_arg->s->table_name.str, "tiledb://", 9) == 0))
@@ -936,7 +936,7 @@ std::vector<uint8_t> tile::mytile::get_coords_as_byte_vector(uint64_t index) {
 
     bool var_sized = dimension.cell_val_num() == TILEDB_VAR_NUM;
     for (auto &buff : this->buffers) {
-      if (buff->name != dimension.name()) {
+      if (buff == nullptr || buff->name != dimension.name()) {
         continue;
       } else { // the buffer is found
         uint64_t datatype_size = tiledb_datatype_size(dimension.type());
@@ -1375,11 +1375,12 @@ int tile::mytile::info(uint) {
 
 ulonglong tile::mytile::table_flags(void) const {
   DBUG_ENTER("tile::mytile::table_flags");
-  DBUG_RETURN(HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
-              // HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
-              HA_CAN_TABLE_CONDITION_PUSHDOWN | HA_CAN_EXPORT |
-              HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
-              HA_CAN_BIT_FIELD | HA_FILE_BASED);
+  DBUG_RETURN(
+      HA_PARTIAL_COLUMN_READ | HA_REC_NOT_IN_SEQ | HA_CAN_SQL_HANDLER |
+      //               HA_REQUIRE_PRIMARY_KEY | HA_PRIMARY_KEY_IN_READ_INDEX |
+      HA_FAST_KEY_READ | HA_SLOW_RND_POS | HA_CAN_TABLE_CONDITION_PUSHDOWN |
+      HA_CAN_EXPORT | HA_CONCURRENT_OPTIMIZE | HA_CAN_ONLINE_BACKUPS |
+      HA_CAN_BIT_FIELD | HA_FILE_BASED);
 }
 
 void tile::mytile::alloc_buffers(uint64_t size) {
@@ -1943,7 +1944,7 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
     tiledb::Dimension dimension = domain.dimension(dim_idx);
 
     for (auto &dim_buffer : this->buffers) {
-      if (dim_buffer->name != dimension.name()) {
+      if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
         uint64_t dim_key_length = 0;

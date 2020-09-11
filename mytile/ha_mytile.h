@@ -536,8 +536,13 @@ public:
    * Implement initial records in range
    * Currently returns static large value
    */
+#if MYSQL_VERSION_ID < 100500
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key) override;
+#else
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *page) override;
+#endif
 
   /**
    * Multi Range Read interface

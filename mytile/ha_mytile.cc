@@ -140,8 +140,10 @@ static int mytile_init_func(void *p) {
   DBUG_ENTER("mytile_init_func");
 
   mytile_hton = static_cast<handlerton *>(p);
-  mytile_hton->state = SHOW_OPTION_YES;
   mytile_hton->create = mytile_create_handler;
+#if MYSQL_VERSION_ID < 100500
+  mytile_hton->state = SHOW_OPTION_YES;
+#endif
   mytile_hton->tablefile_extensions = mytile_exts;
   mytile_hton->table_options = mytile_table_option_list;
   mytile_hton->field_options = mytile_field_option_list;

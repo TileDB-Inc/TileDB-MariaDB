@@ -100,7 +100,7 @@ Requires MariaDB 10.4.8 or newer.
 ### Inside MariaDB Source Tree
 
 ```bash
-git clone git@github.com:MariaDB/server.git -b mariadb-10.5.8
+git clone git@github.com:MariaDB/server.git -b mariadb-10.5.12
 cd server
 git submodule add https://github.com/TileDB-Inc/TileDB-MariaDB.git storage/mytile
 mkdir build && cd build

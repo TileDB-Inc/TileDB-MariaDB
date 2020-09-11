@@ -45,10 +45,11 @@ steps:
 
     if [[ "$AGENT_OS" == "Darwin" ]]; then
       brew install cmake jemalloc traildb/judy/judy openssl boost gnutls
-      export OSX_FLAGS_NEEDED="-Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign"
+      export OSX_FLAGS_NEEDED="-Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=shorten-64-to-32"
       export CXXFLAGS="${CXXFLAGS} ${OSX_FLAGS_NEEDED}"
       export CFLAGS="${CFLAGS} ${OSX_FLAGS_NEEDED}"
       export DYLD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:$DYLD_LIBRARY_PATH
+      alias nproc="sysctl -n hw.logicalcpu"
     fi
     source ./scripts/ci_install_tiledb_and_run_tests.sh
 

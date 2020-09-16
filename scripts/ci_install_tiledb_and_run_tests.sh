@@ -11,15 +11,21 @@ mv !(tmp) tmp # Move everything but tmp
 git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
 # Install TileDB using 2.0 release
-mkdir build_deps && cd build_deps \
-&& git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.8 && cd TileDB \
-&& mkdir -p build && cd build
+if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
+  mkdir build_deps && cd build_deps \
+  && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.0.8 && cd TileDB \
+  && mkdir -p build && cd build
 
-# Configure and build TileDB
-cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Debug .. \
-&& make -j$(nproc) \
-&& sudo make -C tiledb install \
-&& cd $original_dir
+   # Configure and build TileDB
+   cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Debug .. \
+   && make -j$(nproc) \
+   && sudo make -C tiledb install \
+   && cd $original_dir
+else # set superbuild flags
+  export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations"
+  export CXXFLAGS="${CXXFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
+  export CFLAGS="${CFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
+fi
 
 mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd ${MARIADB_VERSION} \

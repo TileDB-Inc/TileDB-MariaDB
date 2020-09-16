@@ -50,8 +50,6 @@ steps:
       export CFLAGS="${CFLAGS} ${OSX_FLAGS_NEEDED}"
       export DYLD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:$DYLD_LIBRARY_PATH
     fi
-    # source ./scripts/ci_install_tiledb.sh
-    # source ./scripts/ci_tests.sh
     source ./scripts/ci_install_tiledb_and_run_tests.sh
 
     #  displayName: 'Build examples, PNG test, and benchmarks (build-only)'

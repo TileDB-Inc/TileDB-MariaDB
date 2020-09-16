@@ -49,13 +49,16 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     MESSAGE(STATUS "TileDB not found for MyTile. Building as depedency from source")
     include(ExternalProject)
 
-    SET(TILEDB_VERSION "2.0.8")
+    SET(TILEDB_VERSION_MAJOR "2")
+    SET(TILEDB_VERSION_MINOR "0")
+    SET(TILEDB_VERSION_PATCH "8")
+    SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=f0ba8f768aafe844530f85f3c8b51ac2d27d7194
+            URL_HASH SHA1=f0ba8f768aafe844530f85f3c8b51ac2d27d7194
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
@@ -73,14 +76,14 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             LOG_CONFIGURE TRUE
             LOG_BUILD TRUE
             LOG_INSTALL TRUE
-	    LOG_OUTPUT_ON_FAILURE TRUE
+            LOG_OUTPUT_ON_FAILURE TRUE
             )
 
     # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
 #    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}tiledb${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}")
-    FILE(GLOB TILEDB_INSTALL_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/libtiledb*")
+    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
+    FILE(GLOB TILEDB_INSTALL_LIBRARIES "${TILEDB_LIBRARIES}")
 else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
@@ -101,7 +104,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     # when building, don't use the install RPATH already
     # (but later on when installing)
     SET(PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}")
-    SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    SET(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
     SET(CMAKE_INSTALL_RPATH "${PLUGIN_INSTALL_DIR}")
 
     # add the automatically determined parts of the RPATH

@@ -299,11 +299,15 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
 
 tiledb::Attribute
 tile::create_field_attribute(tiledb::Context &ctx, Field *field,
+                             const void* default_value,
+                             const uint64_t default_value_size,
                              const tiledb::FilterList &filter_list) {
 
   tiledb_datatype_t datatype =
       tile::mysqlTypeToTileDBType(field->type(), false);
   tiledb::Attribute attr(ctx, field->field_name.str, datatype);
+
+  attr.set_fill_value(default_value, default_value_size);
 
   // Only support variable length strings and blobs for now
   if ((datatype == tiledb_datatype_t::TILEDB_CHAR ||

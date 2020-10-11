@@ -87,10 +87,14 @@ bool MysqlDatetimeType(enum_field_types type);
  * Used when create table is being translated to create array
  * @param ctx
  * @param field
+ * @param default_value
+ * @param default_value_size
  * @param filterList
  * @return tiledb::Attribute from field
  */
 tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
+                                         const void* default_value,
+                                         uint64_t default_value_size,
                                          const tiledb::FilterList &filterList);
 
 /**

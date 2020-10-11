@@ -329,6 +329,17 @@ public:
   void dealloc_buffers();
 
   /**
+   * Helper to get field attribute value specified as DEFAULT during table creation
+   * @param table_arg
+   * @param field_num
+   * @param default_value
+   * @param default_value_size
+   */
+  void get_field_default_value(TABLE *table_arg, size_t field_num,
+                                void *&default_value,
+                                uint64_t &default_value_size) const;
+
+  /**
    *
    * Converts a tiledb record to mysql buffer using mysql fields
    * @param record_position

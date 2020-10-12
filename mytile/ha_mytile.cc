@@ -355,11 +355,18 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Create attributes or dimensions
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
+      bool has_default_value = field_has_default_value(table_arg, field_idx);
+
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
       if (field->option_struct->dimension ||
           primaryKeyParts.find(field->field_name.str) !=
               primaryKeyParts.end()) {
+        if (has_default_value) {
+          my_printf_error(ER_UNKNOWN_ERROR, "Default value on dimension %s not allowed",
+                          ME_ERROR_LOG | ME_FATAL, field->field_name.str);
+          DBUG_RETURN(-9);
+        }
         domain.add_dimension(create_field_dimension(context, field));
       } else { // Else this is treated as a dimension
         tiledb::FilterList filter_list(context);
@@ -369,12 +376,15 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         }
 
         void* default_value = nullptr; 
-        uint64_t default_value_size;
-        get_field_default_value(table_arg, field_idx, 
-                                default_value, default_value_size);
+        uint64_t default_value_size = 0;
+
+        if (has_default_value) {
+          get_field_default_value(table_arg, field_idx, 
+                                  default_value, default_value_size);
+        }
 
         tiledb::Attribute attr =
-            create_field_attribute(context, field, &default_value, 
+            create_field_attribute(context, field, default_value, 
                                    default_value_size, filter_list);
         schema->add_attribute(attr);
       };
@@ -1480,9 +1490,16 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
   }
 }
 
-  void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
-                               void *&default_value,
-                               uint64_t &default_value_size) const {
+bool tile::mytile::field_has_default_value(TABLE *table_arg, 
+                                           size_t field_idx) const {
+  DBUG_ENTER("tile::mytile::field_has_default_value");
+  DBUG_RETURN(*(table_arg->s->field[field_idx]->ptr) != 0);
+}
+
+void tile::mytile::get_field_default_value(TABLE *table_arg, 
+                                           size_t field_idx,
+                                           void *&default_value,
+                                           uint64_t &default_value_size) const {
   DBUG_ENTER("tile::mytile::get_field_default_value");
   Field* field = table_arg->s->field[field_idx];
 
@@ -1537,15 +1554,6 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
-      // Error if there is a field missing from writing
-      if (!bitmap_is_set(this->table->write_set, fieldIndex)) {
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "[mysql_row_to_tiledb_buffers] field %s is not set, "
-                        "tiledb requires "
-                        "all fields set for writing",
-                        ME_ERROR_LOG | ME_FATAL, field->field_name.str);
-      }
-
       if (field->is_null()) {
         error = HA_ERR_UNSUPPORTED;
       } else {

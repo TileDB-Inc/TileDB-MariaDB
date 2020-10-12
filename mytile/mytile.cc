@@ -307,7 +307,9 @@ tile::create_field_attribute(tiledb::Context &ctx, Field *field,
       tile::mysqlTypeToTileDBType(field->type(), false);
   tiledb::Attribute attr(ctx, field->field_name.str, datatype);
 
-  attr.set_fill_value(default_value, default_value_size);
+  if (default_value != nullptr) {
+    attr.set_fill_value(default_value, default_value_size);
+  }
 
   // Only support variable length strings and blobs for now
   if ((datatype == tiledb_datatype_t::TILEDB_CHAR ||

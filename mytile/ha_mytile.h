@@ -329,6 +329,14 @@ public:
   void dealloc_buffers();
 
   /**
+   * Helper to check if a field has been assigned a default value
+   * @param table_arg
+   * @param field_idx
+   */
+  bool field_has_default_value(TABLE *table_arg,
+                               size_t field_idx) const;
+
+  /**
    * Helper to get field attribute value specified as DEFAULT during table creation
    * @param table_arg
    * @param field_idx

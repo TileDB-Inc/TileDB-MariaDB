@@ -353,8 +353,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       schema->set_allows_dups(allows_dups);
 
     // Create attributes or dimensions
-    for (size_t field_num = 0; table_arg->field[field_num]; field_num++) {
-      Field *field = table_arg->field[field_num];
+    for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
+      Field *field = table_arg->field[field_idx];
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
       if (field->option_struct->dimension ||
@@ -370,7 +370,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
         void* default_value = nullptr; 
         uint64_t default_value_size;
-        get_field_default_value(table_arg, field_num, 
+        get_field_default_value(table_arg, field_idx, 
                                 default_value, default_value_size);
 
         tiledb::Attribute attr =
@@ -1480,61 +1480,15 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
   }
 }
 
-  void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_num,
+  void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
                                void *&default_value,
                                uint64_t &default_value_size) const {
   DBUG_ENTER("tile::mytile::get_field_default_value");
-  Field* field = table_arg->s->field[field_num];
+  Field* field = table_arg->s->field[field_idx];
 
   default_value = field->ptr;
-
   tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(field->type(), false);
-
-  switch (datatype) {
-    case tiledb_datatype_t::TILEDB_FLOAT64: {
-      default_value_size = sizeof(double);
-      break;
-    }
-    case tiledb_datatype_t::TILEDB_FLOAT32: {
-    }
-    case tiledb_datatype_t::TILEDB_INT64: {
-    }
-    case tiledb_datatype_t::TILEDB_UINT64: {
-    }
-    case tiledb_datatype_t::TILEDB_INT32: {
-    }
-    case tiledb_datatype_t::TILEDB_UINT32: {
-      default_value_size = sizeof(uint32_t);
-      break;
-    }
-    case tiledb_datatype_t::TILEDB_INT16: {
-    }
-    case tiledb_datatype_t::TILEDB_UINT16: {
-    }
-    case tiledb_datatype_t::TILEDB_INT8: {
-    }
-    case tiledb_datatype_t::TILEDB_UINT8: {
-    }
-    case tiledb_datatype_t::TILEDB_STRING_ASCII: {
-      auto str = std::string(reinterpret_cast<char*>(field->ptr));
-      default_value_size = str.length();
-      break;
-    }
-    case tiledb_datatype_t::TILEDB_CHAR: {
-    }
-    case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    }
-    case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
-    }
-    case tiledb_datatype_t::TILEDB_DATETIME_NS: {
-    }
-
-    default: {
-      my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in get_field_default_value",
-                      ME_ERROR_LOG | ME_FATAL);
-      break;
-    }
-  }
+  default_value_size = tiledb_datatype_size(datatype);
 
   DBUG_VOID_RETURN;
 }

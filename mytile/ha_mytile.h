@@ -331,11 +331,11 @@ public:
   /**
    * Helper to get field attribute value specified as DEFAULT during table creation
    * @param table_arg
-   * @param field_num
+   * @param field_idx
    * @param default_value
    * @param default_value_size
    */
-  void get_field_default_value(TABLE *table_arg, size_t field_num,
+  void get_field_default_value(TABLE *table_arg, size_t field_idx,
                                 void *&default_value,
                                 uint64_t &default_value_size) const;
 

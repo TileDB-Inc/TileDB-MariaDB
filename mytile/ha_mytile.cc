@@ -308,6 +308,44 @@ int tile::mytile::close(void) {
   DBUG_RETURN(0);
 }
 
+void tile::mytile::get_field_default_value(TABLE *table_arg, 
+                                      size_t field_idx, 
+                                      tiledb::Attribute *attr,
+                                      std::shared_ptr<buffer> buff) {
+  DBUG_ENTER("tile::get_field_default_value");
+
+  this->record_index = 0;
+
+  buff->name = table_arg->s->field[field_idx]->field_name.str;
+  buff->dimension = false;
+  buff->buffer_offset = 0;
+  buff->fixed_size_elements = 1;
+
+  auto size = tile::sysvars::write_buffer_size(this->ha_thd());
+  buff->buffer_size = size;
+  buff->allocated_buffer_size = size;
+
+  uint64_t *offset_buffer = nullptr;
+  tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(table_arg->s->field[field_idx]->type(), false);
+  auto data_buffer = alloc_buffer(datatype, size);
+  buff->fixed_size_elements = attr->cell_val_num();
+  if (attr->variable_sized()) {
+    offset_buffer = static_cast<uint64_t *>(
+         alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+    buff->offset_buffer_size = size;
+    buff->allocated_offset_buffer_size = size;
+  }
+
+  buff->offset_buffer = offset_buffer;
+  buff->buffer = data_buffer;
+  buff->type = attr->type();
+
+  set_buffer_from_field(table_arg->s->field[field_idx],
+                            buff, this->record_index, ha_thd());
+
+  DBUG_VOID_RETURN;
+}
+
 int tile::mytile::create_array(const char *name, TABLE *table_arg,
                                HA_CREATE_INFO *create_info,
                                tiledb::Context context) {
@@ -355,18 +393,11 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Create attributes or dimensions
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
-      bool has_default_value = field_has_default_value(table_arg, field_idx);
-
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
       if (field->option_struct->dimension ||
           primaryKeyParts.find(field->field_name.str) !=
               primaryKeyParts.end()) {
-        if (has_default_value) {
-          my_printf_error(ER_UNKNOWN_ERROR, "Default value on dimension %s not allowed",
-                          ME_ERROR_LOG | ME_FATAL, field->field_name.str);
-          DBUG_RETURN(-9);
-        }
         domain.add_dimension(create_field_dimension(context, field));
       } else { // Else this is treated as a dimension
         tiledb::FilterList filter_list(context);
@@ -375,17 +406,14 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
               tile::parse_filter_list(context, field->option_struct->filters);
         }
 
-        void* default_value = nullptr; 
-        uint64_t default_value_size = 0;
-
-        if (has_default_value) {
-          get_field_default_value(table_arg, field_idx, 
-                                  default_value, default_value_size);
-        }
-
         tiledb::Attribute attr =
-            create_field_attribute(context, field, default_value, 
-                                   default_value_size, filter_list);
+            create_field_attribute(context, field, filter_list);
+
+        std::shared_ptr<buffer> buff = std::make_shared<buffer>();
+        get_field_default_value(table_arg, field_idx, &attr, buff);
+        uint64_t default_value_size = tiledb_datatype_size(buff->type); 
+        attr.set_fill_value(buff->buffer, default_value_size);
+
         schema->add_attribute(attr);
       };
     }
@@ -1488,26 +1516,6 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
           buff->buffer, &buff->buffer_size));
     }
   }
-}
-
-bool tile::mytile::field_has_default_value(TABLE *table_arg, 
-                                           size_t field_idx) const {
-  DBUG_ENTER("tile::mytile::field_has_default_value");
-  DBUG_RETURN(*(table_arg->s->field[field_idx]->ptr) != 0);
-}
-
-void tile::mytile::get_field_default_value(TABLE *table_arg, 
-                                           size_t field_idx,
-                                           void *&default_value,
-                                           uint64_t &default_value_size) const {
-  DBUG_ENTER("tile::mytile::get_field_default_value");
-  Field* field = table_arg->s->field[field_idx];
-
-  default_value = field->ptr;
-  tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(field->type(), false);
-  default_value_size = tiledb_datatype_size(datatype);
-
-  DBUG_VOID_RETURN;
 }
 
 int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,

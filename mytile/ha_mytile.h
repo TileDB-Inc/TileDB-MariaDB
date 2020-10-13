@@ -91,9 +91,20 @@ public:
   int create(const char *name, TABLE *table_arg,
              HA_CREATE_INFO *create_info) override;
 
+  /**
+   * check if a field has a not null clause
+   * @param field
+   */
+  bool field_has_not_null(Field *field) const;
 
   /**
-   * get_field_default_value
+   * check if a field has a default value
+   * @param field
+   */
+  bool field_has_default_value(Field *field) const;
+
+  /**
+   * get a buffer containing the default value of a field 
    * @param table_arg
    * @param field_idx
    * @param attr

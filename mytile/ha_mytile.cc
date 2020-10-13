@@ -308,6 +308,21 @@ int tile::mytile::close(void) {
   DBUG_RETURN(0);
 }
 
+bool tile::mytile::field_has_not_null(Field *field) const {
+  DBUG_ENTER("tile::field_has_not_null");
+  bool has_not_null = field->flags & NOT_NULL_FLAG;
+  DBUG_RETURN(has_not_null);
+}
+
+bool tile::mytile::field_has_default_value(Field *field) const {
+  DBUG_ENTER("tile::field_has_default_value");
+
+  bool has_no_default_value = field->flags &
+                              NO_DEFAULT_VALUE_FLAG;
+
+  DBUG_RETURN(!has_no_default_value);
+}
+
 void tile::mytile::get_field_default_value(TABLE *table_arg, 
                                       size_t field_idx, 
                                       tiledb::Attribute *attr,
@@ -393,6 +408,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Create attributes or dimensions
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
+      bool has_default_value = field_has_default_value(field);
+      bool has_not_null = field_has_not_null(field);
+
+      // we currently ignore default values for dimensions
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
       if (field->option_struct->dimension ||
@@ -400,6 +419,11 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
               primaryKeyParts.end()) {
         domain.add_dimension(create_field_dimension(context, field));
       } else { // Else this is treated as a dimension
+        if (has_default_value && !has_not_null) {
+          my_printf_error(ER_UNKNOWN_ERROR, "Attribute %s default value requires NOT NULL clause",
+                          ME_ERROR_LOG | ME_FATAL, field->field_name);
+          DBUG_RETURN(-9);
+        }
         tiledb::FilterList filter_list(context);
         if (field->option_struct->filters != nullptr) {
           filter_list =
@@ -409,10 +433,12 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         tiledb::Attribute attr =
             create_field_attribute(context, field, filter_list);
 
-        std::shared_ptr<buffer> buff = std::make_shared<buffer>();
-        get_field_default_value(table_arg, field_idx, &attr, buff);
-        uint64_t default_value_size = tiledb_datatype_size(buff->type); 
-        attr.set_fill_value(buff->buffer, default_value_size);
+        if (has_default_value) {
+          std::shared_ptr<buffer> buff = std::make_shared<buffer>();
+          get_field_default_value(table_arg, field_idx, &attr, buff);
+          uint64_t default_value_size = tiledb_datatype_size(buff->type); 
+          attr.set_fill_value(buff->buffer, default_value_size);
+        }
 
         schema->add_attribute(attr);
       };

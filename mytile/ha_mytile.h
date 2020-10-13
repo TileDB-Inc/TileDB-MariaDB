@@ -92,12 +92,6 @@ public:
              HA_CREATE_INFO *create_info) override;
 
   /**
-   * check if a field has a not null clause
-   * @param field
-   */
-  bool field_has_not_null(Field *field) const;
-
-  /**
    * check if a field has a default value
    * @param field
    */
@@ -346,6 +340,11 @@ public:
    * @param size
    */
   void alloc_read_buffers(uint64_t size);
+
+  /**
+   * Helper to free buffer
+   */
+  void dealloc_buffer(std::shared_ptr<buffer> buff) const;
 
   /**
    * Helper to free buffers

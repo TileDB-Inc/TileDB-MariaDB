@@ -1,0 +1,36 @@
+--echo # int varchar and double defaults
+CREATE TABLE t1 (
+  dim0 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  dim1 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr0 integer DEFAULT 12345 NOT NULL,
+  attr1 varchar(255) DEFAULT 'abc',
+  attr2 double DEFAULT 12.345 NOT NULL
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t1 (dim0, dim1, attr0, attr1, attr2) VALUES (0, 1, 2, '3', 4.5);
+INSERT INTO t1 (dim0, dim1, attr0, attr1, attr2) VALUES (2, 3, DEFAULT, DEFAULT, DEFAULT);
+INSERT INTO t1 (dim0, dim1) VALUES (4, 5);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # single attribute no explicit default
+CREATE TABLE t2 (
+  dim0 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr0 integer
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t2 (dim0, attr0) VALUES (0, 1);
+INSERT INTO t2 (dim0) VALUES (2);
+SELECT * FROM t2;
+DROP TABLE t2;
+
+--echo # default and non-default
+CREATE TABLE t3 (
+  dim0 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  dim1 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr0 integer NOT NULL,
+  attr1 double DEFAULT 12.345
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t3 (dim0, dim1, attr0, attr1) VALUES (0, 1, 2, 3.4);
+INSERT INTO t3 (dim0, dim1, attr0, attr1) VALUES (5, 6, 7, DEFAULT);
+INSERT INTO t3 (dim0, dim1, attr0) VALUES (8, 9, 10);
+SELECT * FROM t3;
+DROP TABLE t3;

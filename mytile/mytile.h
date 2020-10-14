@@ -55,6 +55,15 @@ tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
 int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value);
 
 /**
+ * Converts a value of tiledb_datatype_t to a string
+ * @param type
+ * @param value
+ */
+std::string TileDBTypeValueToString(tiledb_datatype_t type, 
+                                    const void *value,
+                                    uint64_t value_size);
+
+/**
  * Create the text string for a mysql type
  * e.g. MYSQL_TYPE_TINY -> "TINY"
  * @param type

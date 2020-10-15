@@ -295,6 +295,10 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
     case TILEDB_DATETIME_FS:
     case TILEDB_DATETIME_AS: {
       auto v = static_cast<const int64_t*>(value);
+      // negative dates are invalid
+      if (*v < 0) {
+        return std::to_string(0);
+      }
       return std::to_string(*v);
     }
     case TILEDB_STRING_ASCII:

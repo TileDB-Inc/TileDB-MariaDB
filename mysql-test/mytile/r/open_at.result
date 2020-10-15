@@ -9,7 +9,7 @@ Table	Create Table
 quickstart_dense	CREATE TABLE `quickstart_dense` (
   `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='4',
   `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='4',
-  `a` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT -2147483648,
   PRIMARY KEY (`rows`,`cols`)
 ) ENGINE=MyTile DEFAULT CHARSET=latin1 `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR `coordinate_filters`='ZSTD=-1' `offset_filters`='ZSTD=-1'
 show create table quickstart_dense_zero;
@@ -17,7 +17,7 @@ Table	Create Table
 quickstart_dense_zero	CREATE TABLE `quickstart_dense_zero` (
   `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='4',
   `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='4',
-  `a` int(11) DEFAULT NULL,
+  `a` int(11) DEFAULT -2147483648,
   PRIMARY KEY (`rows`,`cols`)
 ) ENGINE=MyTile DEFAULT CHARSET=latin1 `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR `open_at`=0 `coordinate_filters`='ZSTD=-1' `offset_filters`='ZSTD=-1'
 select * FROM quickstart_dense;

@@ -98,6 +98,14 @@ public:
   bool field_has_default_value(Field *field) const;
 
   /**
+   * get a default value's size
+   * @param value
+   * @param type
+   */
+  uint64_t get_default_value_size(const void* value,
+                                  tiledb_datatype_t type) const;
+
+  /**
    * get a buffer containing the default value of a field 
    * @param table_arg
    * @param field_idx

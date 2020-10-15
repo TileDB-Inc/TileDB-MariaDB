@@ -317,6 +317,21 @@ bool tile::mytile::field_has_default_value(Field *field) const {
   DBUG_RETURN(!has_no_default_value);
 }
 
+uint64_t tile::mytile::get_default_value_size(const void* value,
+                                              tiledb_datatype_t type) const {
+  DBUG_ENTER("tile::get_default_value_size");
+  uint64_t size = 0;
+
+  if (type == TILEDB_STRING_ASCII) {
+    auto str = std::string(static_cast<const char*>(value));
+    size = str.size();
+  } else {
+    size = tiledb_datatype_size(type);
+  }
+
+  DBUG_RETURN(size);
+}
+
 void tile::mytile::get_field_default_value(TABLE *table_arg, 
                                       size_t field_idx, 
                                       tiledb::Attribute *attr,
@@ -335,7 +350,8 @@ void tile::mytile::get_field_default_value(TABLE *table_arg,
   buff->allocated_buffer_size = size;
 
   uint64_t *offset_buffer = nullptr;
-  tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(table_arg->s->field[field_idx]->type(), false);
+  tiledb_datatype_t datatype = 
+    tile::mysqlTypeToTileDBType(table_arg->s->field[field_idx]->type(), false);
   auto data_buffer = alloc_buffer(datatype, size);
   buff->fixed_size_elements = attr->cell_val_num();
   if (attr->variable_sized()) {
@@ -432,9 +448,11 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         if (has_default_value) {
           std::shared_ptr<buffer> buff = std::make_shared<buffer>();
           get_field_default_value(table_arg, field_idx, &attr, buff);
-          uint64_t default_value_size = tiledb_datatype_size(buff->type); 
-          attr.set_fill_value(buff->buffer, default_value_size);
-
+          uint64_t default_value_size = get_default_value_size(buff->buffer,
+                                                               buff->type); 
+          if (default_value_size > 0) {
+            attr.set_fill_value(buff->buffer, default_value_size);
+          }
           dealloc_buffer(buff);
         }
 

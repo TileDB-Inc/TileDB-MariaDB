@@ -237,6 +237,90 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   }
 }
 
+std::string tile::TileDBTypeValueToString(tiledb_datatype_t type, 
+                                          const void *value, 
+                                          uint64_t value_size) {
+  switch (type) {
+    case TILEDB_INT8: {
+      auto v = static_cast<const int8_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_UINT8: {
+      auto v = static_cast<const uint8_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_INT16: {
+      auto v = static_cast<const int16_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_UINT16: {
+      auto v = static_cast<const uint16_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_INT32: {
+      auto v = static_cast<const int32_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_UINT32: {
+      auto v = static_cast<const uint32_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_INT64: {
+      auto v = static_cast<const int64_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_UINT64: {
+      auto v = static_cast<const uint64_t*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_FLOAT32: {
+      auto v = static_cast<const float*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_FLOAT64: {
+      auto v = static_cast<const double*>(value);
+      return std::to_string(*v);
+    }
+    case TILEDB_DATETIME_YEAR:
+    case TILEDB_DATETIME_MONTH:
+    case TILEDB_DATETIME_WEEK:
+    case TILEDB_DATETIME_DAY:
+    case TILEDB_DATETIME_HR:
+    case TILEDB_DATETIME_MIN:
+    case TILEDB_DATETIME_SEC:
+    case TILEDB_DATETIME_MS:
+    case TILEDB_DATETIME_US:
+    case TILEDB_DATETIME_NS:
+    case TILEDB_DATETIME_PS:
+    case TILEDB_DATETIME_FS:
+    case TILEDB_DATETIME_AS: {
+      auto v = static_cast<const int64_t*>(value);
+      // negative dates are invalid
+      if (*v < 0) {
+        return std::to_string(0);
+      }
+      return std::to_string(*v);
+    }
+    case TILEDB_STRING_ASCII:
+    case TILEDB_CHAR:
+    case TILEDB_STRING_UTF8:
+    case TILEDB_STRING_UTF16:
+    case TILEDB_STRING_UTF32:
+    case TILEDB_STRING_UCS2:
+    case TILEDB_STRING_UCS4:
+    case TILEDB_ANY: {
+      auto v = reinterpret_cast<const char*>(value);
+      return std::string("'") + std::string(v, value_size) + std::string("'");
+    }
+
+    default: {
+      sql_print_error("Unknown tiledb data type in TileDBTypeValueToString");
+    }
+  }
+
+  return nullptr;
+}
+
 /**
  * Returns if a tiledb datatype is unsigned or not
  * @param type

@@ -92,6 +92,32 @@ public:
              HA_CREATE_INFO *create_info) override;
 
   /**
+   * check if a field has a default value
+   * @param field
+   */
+  bool field_has_default_value(Field *field) const;
+
+  /**
+   * get a default value's size
+   * @param value
+   * @param type
+   */
+  uint64_t get_default_value_size(const void* value,
+                                  tiledb_datatype_t type) const;
+
+  /**
+   * get a buffer containing the default value of a field 
+   * @param table_arg
+   * @param field_idx
+   * @param attr
+   * @param buff
+   */
+  void get_field_default_value(TABLE *table_arg, 
+                          size_t field_idx, 
+                          tiledb::Attribute *attr,
+                          std::shared_ptr<buffer> buff);
+
+  /**
    * Create array functionality
    * @param name
    * @param table_arg
@@ -324,9 +350,25 @@ public:
   void alloc_read_buffers(uint64_t size);
 
   /**
+   * Helper to free buffer
+   */
+  void dealloc_buffer(std::shared_ptr<buffer> buff) const;
+
+  /**
    * Helper to free buffers
    */
   void dealloc_buffers();
+
+  /**
+   * Helper to get field attribute value specified as DEFAULT during table creation
+   * @param table_arg
+   * @param field_idx
+   * @param default_value
+   * @param default_value_size
+   */
+  void get_field_default_value(TABLE *table_arg, size_t field_idx,
+                                void *&default_value,
+                                uint64_t &default_value_size) const;
 
   /**
    *

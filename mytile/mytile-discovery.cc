@@ -288,6 +288,15 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
 
+      const void *default_value = nullptr;
+      uint64_t default_value_size = tiledb_datatype_size(attribute.type());
+      attribute.get_fill_value(&default_value, &default_value_size);
+      auto default_value_str = TileDBTypeValueToString(attribute.type(), 
+                                                       default_value,
+                                                       default_value_size);
+
+      sql_string << " DEFAULT " << default_value_str;
+
       // Check for filters
       tiledb::FilterList filters = attribute.filter_list();
       if (filters.nfilters() > 0) {

@@ -38,6 +38,8 @@ steps:
     echo ON
     cd $(ROOT_DIR)
     echo %cd%
+    dir
+    dir $(ROOT_DIR)
 
     set PATH=%PATH%;$(TILEDB_INSTALL)\bin\
     set PATH=%PATH%;$(TILEDB_INSTALL)\include\

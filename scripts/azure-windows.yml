@@ -64,6 +64,9 @@ steps:
     xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
     xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
 
+    dir 
+    dir mytile
+
     cd ../../
 
     mkdir builddir
@@ -72,7 +75,13 @@ steps:
     cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. 
     cmake --build . -j3
 
-    cd mysql-test
+  displayName: "Pull / Build MariaDB"
+- script: |
+    echo ON
+    cd $(ROOT_DIR)
+    echo %cd%
+
+    cd $(MARIADB_VERSION)\builddir\mysql-test
     perl ./mysql-test-run.pl --suite=mytile --debug
 
-  displayName: "Pull / Build MariaDB"
+  displayName: "Run mysql-test"

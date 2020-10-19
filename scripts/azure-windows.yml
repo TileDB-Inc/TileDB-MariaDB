@@ -1,0 +1,72 @@
+steps:
+- script: |
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+    echo ON
+    cd $(ROOT_DIR)
+    echo %cd%
+
+    mkdir $(TILEDB_INSTALL)
+    git clone https://github.com/TileDB-Inc/TileDB $(TILEDB_SRC)
+    git -C $(TILEDB_SRC) checkout $(TILEDB_VERSION)
+
+    cd $(TILEDB_SRC)
+    mkdir build
+    cd build
+
+    cmake -A X64 -DCMAKE_BUILD_TYPE=Debug -DTILEDB_WERROR=ON -DTILEDB_TBB=ON -DTILEDB_S3=ON -DTILEDB_TBB_SHARED=ON -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
+
+    cmake --build . --config Debug -j3
+    cmake --build . --target install-tiledb --config Debug
+
+  displayName: "Pull / Build TileDB"
+- script: |
+    echo ON
+    cd $(ROOT_DIR)
+    echo %cd%
+
+    mkdir build_deps
+    cd build_deps
+    powershell -Command "Invoke-WebRequest https://netactuate.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-dep.zip -OutFile bison-2.4.1-dep.zip"
+    powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-bin.zip -OutFile bison-2.4.1-bin.zip"
+
+    tar -xf bison-2.4.1-dep.zip
+    tar -xf bison-2.4.1-bin.zip
+
+  displayName: "Install dependencies"
+- script: |
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+    echo ON
+    cd $(ROOT_DIR)
+    echo %cd%
+
+    set PATH=%PATH%;$(TILEDB_INSTALL)\bin\
+    set PATH=%PATH%;$(TILEDB_INSTALL)\include\
+    set PATH=%PATH%;$(TILEDB_INSTALL)\lib\
+    set PATH=%PATH%;$(BUILD_DEPS)\bin\
+
+    git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
+    cd $(MARIADB_VERSION)
+
+    cd storage
+    mkdir mytile
+    cd mytile
+    xcopy /E /I "$(ROOT_DIR)\CMakeLists.txt" "."
+    xcopy /E /I "$(ROOT_DIR)\LICENSE" "."
+    xcopy /E /I "$(ROOT_DIR)\cmake" "."
+    xcopy /E /I "$(ROOT_DIR)\docker" "."
+    xcopy /E /I "$(ROOT_DIR)\mysql-test" "."
+    xcopy /E /I "$(ROOT_DIR)\mytile" "."
+    xcopy /E /I "$(ROOT_DIR)\scripts" "."
+
+    cd ../../
+
+    mkdir builddir
+    cd builddir
+
+    cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. 
+    cmake --build . -j3
+
+    cd mysql-test
+    perl ./mysql-test-run.pl --suite=mytile --debug
+
+  displayName: "Pull / Build MariaDB"

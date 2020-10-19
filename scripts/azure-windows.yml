@@ -50,13 +50,19 @@ steps:
     cd storage
     mkdir mytile
     cd mytile
+    mkdir cmake
+    mkdir docker
+    mkdir mysql-test
+    mkdir mytile
+    mkdir scripts
+    
     xcopy /E /I "$(ROOT_DIR)\CMakeLists.txt" "."
     xcopy /E /I "$(ROOT_DIR)\LICENSE" "."
-    xcopy /E /I "$(ROOT_DIR)\cmake" "."
-    xcopy /E /I "$(ROOT_DIR)\docker" "."
-    xcopy /E /I "$(ROOT_DIR)\mysql-test" "."
-    xcopy /E /I "$(ROOT_DIR)\mytile" "."
-    xcopy /E /I "$(ROOT_DIR)\scripts" "."
+    xcopy /E /I "$(ROOT_DIR)\cmake" "./cmake"
+    xcopy /E /I "$(ROOT_DIR)\docker" "./docker"
+    xcopy /E /I "$(ROOT_DIR)\mysql-test" "./mysql-test"
+    xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
+    xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
 
     cd ../../
 

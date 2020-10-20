@@ -58,8 +58,8 @@ steps:
     mkdir mytile
     mkdir scripts
     
-    xcopy /I "$(ROOT_DIR)\CMakeLists.txt" "."
-    xcopy /I "$(ROOT_DIR)\LICENSE" "."
+    xcopy /I "$(ROOT_DIR)CMakeLists.txt" "."
+    xcopy /I "$(ROOT_DIR)LICENSE" "."
     xcopy /E /I "$(ROOT_DIR)\cmake" "./cmake"
     xcopy /E /I "$(ROOT_DIR)\docker" "./docker"
     xcopy /E /I "$(ROOT_DIR)\mysql-test" "./mysql-test"

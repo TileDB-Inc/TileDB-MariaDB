@@ -3,7 +3,6 @@ steps:
     call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
     echo ON
     cd $(ROOT_DIR)
-    echo %cd%
 
     mkdir $(TILEDB_INSTALL)
     git clone https://github.com/TileDB-Inc/TileDB $(TILEDB_SRC)
@@ -22,7 +21,6 @@ steps:
 - script: |
     echo ON
     cd $(ROOT_DIR)
-    echo %cd%
 
     mkdir build_deps
     cd build_deps
@@ -37,9 +35,6 @@ steps:
     call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
     echo ON
     cd $(ROOT_DIR)
-    echo %cd%
-    dir
-    dir $(ROOT_DIR)
 
     set PATH=%PATH%;$(TILEDB_INSTALL)\bin\
     set PATH=%PATH%;$(TILEDB_INSTALL)\include\
@@ -66,9 +61,6 @@ steps:
     xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
     xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
 
-    dir 
-    dir mytile
-
     cd ../../
 
     mkdir builddir
@@ -81,7 +73,6 @@ steps:
 - script: |
     echo ON
     cd $(ROOT_DIR)
-    echo %cd%
 
     cd $(MARIADB_VERSION)\builddir\mysql-test
     perl ./mysql-test-run.pl --suite=mytile --debug

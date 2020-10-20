@@ -11,7 +11,7 @@ stages:
     variables:
       TILEDB_VERSION: 2.1.1
       MARIADB_VERSION: 'mariadb-10.5.0'
-      ROOT_DIR: '$(Build.Repository.Localpath)/'
+      ROOT_DIR: '$(Build.Repository.Localpath)\'
       BUILD_DEPS: '$(Build.Repository.Localpath)/build_deps'
       TILEDB_SRC: '$(Build.Repository.Localpath)/tiledb_src'
       TILEDB_INSTALL: '$(Build.Repository.Localpath)/tiledb_install'

@@ -951,10 +951,17 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
 
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    my_time_t seconds = 0;
+    // if we only have the time part
+    if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
+       seconds = (mysql_time.hour * 60 * 60) +
+                 (mysql_time.minute * 60) +
+                 mysql_time.second;
+    // else we have a date and time which must be take tz into account 
+    } else {
+        uint32_t not_used;
+        seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    }
     uint64_t microseconds = mysql_time.second_part;
 
     return set_buffer_from_field<int64_t>(

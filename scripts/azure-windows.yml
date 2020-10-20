@@ -36,10 +36,12 @@ steps:
     echo ON
     cd $(ROOT_DIR)
 
+    set PATH=%PATH%;$(TILEDB_INSTALL)
     set PATH=%PATH%;$(TILEDB_INSTALL)\bin\
     set PATH=%PATH%;$(TILEDB_INSTALL)\include\
     set PATH=%PATH%;$(TILEDB_INSTALL)\lib\
     set PATH=%PATH%;$(BUILD_DEPS)\bin\
+    dir $(TILEDB_INSTALL)
 
     git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
     cd $(MARIADB_VERSION)

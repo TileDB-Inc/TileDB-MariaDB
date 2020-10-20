@@ -263,6 +263,36 @@ id	hour_min_sec
 DROP TABLE t2;
 CREATE TABLE t1 (
 id int(11) NOT NULL dimension=1 lower_bound="1" upper_bound="4" tile_extent="4",
+time time(6) NOT NULL DEFAULT '00:00:00.000000',
+PRIMARY KEY (id)
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t1 VALUES(1, '12:34:56.123456');
+SELECT * FROM t1;
+id	time
+1	12:34:56.123456
+DROP TABLE t1;
+CREATE TABLE t2 (
+id int(11) NOT NULL dimension=1 lower_bound="1" upper_bound="4" tile_extent="4",
+time time(1) NOT NULL DEFAULT '00:00:00.0',
+PRIMARY KEY (id)
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t2 VALUES(1, '12:34:56.1');
+SELECT * FROM t2;
+id	time
+1	12:34:56.1
+DROP TABLE t2;
+CREATE TABLE t3 (
+id int(11) NOT NULL dimension=1 lower_bound="1" upper_bound="4" tile_extent="4",
+time time(0) NOT NULL DEFAULT '00:00:00',
+PRIMARY KEY (id)
+) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
+INSERT INTO t3 VALUES(1, '12:34:56');
+SELECT * FROM t3;
+id	time
+1	12:34:56
+DROP TABLE t3;
+CREATE TABLE t1 (
+id int(11) NOT NULL dimension=1 lower_bound="1" upper_bound="4" tile_extent="4",
 day date NOT NULL DEFAULT '0000-00-00',
 PRIMARY KEY (id)
 ) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";

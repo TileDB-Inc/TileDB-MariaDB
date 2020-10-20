@@ -3,7 +3,7 @@
 set -v -e -x
 
 original_dir=$PWD
-export MARIADB_VERSION="mariadb-10.4.13"
+export MARIADB_VERSION="mariadb-10.4.15"
 mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp

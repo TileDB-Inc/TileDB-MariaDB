@@ -12,7 +12,7 @@ steps:
     mkdir build
     cd build
 
-    cmake -A X64 -DCMAKE_BUILD_TYPE=Debug -DTILEDB_WERROR=ON -DTILEDB_TBB=ON -DTILEDB_S3=ON -DTILEDB_TBB_SHARED=ON -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
+    cmake -A X64 -DCMAKE_BUILD_TYPE=Debug -DTILEDB_WERROR=ON -DTILEDB_TBB=OFF -DTILEDB_S3=OFF -DTILEDB_TBB_SHARED=OFF -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
 
     cmake --build . --config Debug -j3
     cmake --build . --target install-tiledb --config Debug
@@ -41,6 +41,7 @@ steps:
     set PATH=%PATH%;$(TILEDB_INSTALL)\include\
     set PATH=%PATH%;$(TILEDB_INSTALL)\lib\
     set PATH=%PATH%;$(BUILD_DEPS)\bin\
+    set CL=%CL% /I $(TILEDB_INSTALL)\include
     dir $(TILEDB_INSTALL)
 
     git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
@@ -77,6 +78,8 @@ steps:
     cd $(ROOT_DIR)
 
     cd $(MARIADB_VERSION)\builddir\mysql-test
-    perl ./mysql-test-run.pl --suite=mytile --debug
+    #TODO
+    #perl /mysql-test-run.pl --suite=mytile --debug
+    perl mysql-test-run.pl --suite=main --parallel=auto
 
   displayName: "Run mysql-test"

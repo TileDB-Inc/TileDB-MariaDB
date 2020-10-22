@@ -397,10 +397,24 @@ int64_t tile::MysqlTimeToXSeconds(THD* thd, const MYSQL_TIME &mysql_time,
   uint64_t microseconds = mysql_time.second_part;
 
   switch(datatype) {
-    case tiledb_datatype_t::TILEDB_DATETIME_NS:
-      return (seconds * 1000000 + microseconds) * 1000;
+    case tiledb_datatype_t::TILEDB_DATETIME_HR:
+      return (seconds / 60 / 60);
+    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+      return (seconds / 60);
+    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+      return seconds;
+    case tiledb_datatype_t::TILEDB_DATETIME_MS:
+      return (seconds * 1000) + (microseconds / 1000);
     case tiledb_datatype_t::TILEDB_DATETIME_US:
       return (seconds * 1000000 + microseconds);
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+      return (seconds * 1000000 + microseconds) * 1000;
+    case tiledb_datatype_t::TILEDB_DATETIME_PS:
+      return (seconds * 1000000 + microseconds) * 1000000;
+    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+      return (seconds * 1000000 + microseconds) * 1000000000;
+    case tiledb_datatype_t::TILEDB_DATETIME_AS:
+      return (seconds * 1000000 + microseconds) * 1000000000;
     default:
       my_printf_error(ER_UNKNOWN_ERROR,
                      "Unknown tiledb data type in MysqlTimeToXSeconds",
@@ -919,108 +933,20 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 
     return set_buffer_from_field<int64_t>(seconds / (60 * 60 * 24), buff, i);
   }
-  case tiledb_datatype_t::TILEDB_DATETIME_HR: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-
-    return set_buffer_from_field<int64_t>(seconds / (3600), buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-
-    return set_buffer_from_field<int64_t>(seconds / 60, buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-
-    return set_buffer_from_field<int64_t>(seconds, buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_MS: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(
-        seconds * 1000 + (microseconds / 1000), buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_US: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(seconds * 1000000 + microseconds,
-                                          buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_NS: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-    int64_t ms = MysqlTimeToXSeconds(thd, mysql_time, buff->type);
-
-    return set_buffer_from_field<int64_t>(ms, buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_PS: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(
-        (seconds * 1000000 + microseconds) * 1000000, buff, i);
-  }
-  case tiledb_datatype_t::TILEDB_DATETIME_FS: {
-    MYSQL_TIME mysql_time;
-    field->get_date(&mysql_time, date_mode_t(0));
-
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(
-        (seconds * 1000000 + microseconds) * 1000000000, buff, i);
-  }
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
+    int64_t xs = MysqlTimeToXSeconds(thd, mysql_time, buff->type);
 
-    // Convert time with timezone consideration
-    uint32_t not_used;
-    my_time_t seconds =
-        thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(
-        (seconds * 1000000 + microseconds) * 1000000000, buff, i);
+    return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   default: {
     const char *type_str = nullptr;

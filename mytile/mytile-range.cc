@@ -168,6 +168,7 @@ tile::merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
     return merge_ranges<int64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_UINT64:
@@ -225,6 +226,7 @@ std::shared_ptr<tile::range> tile::merge_ranges_to_super(
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
     return merge_ranges_to_super<int64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_UINT64:
@@ -390,6 +392,7 @@ void tile::setup_range(THD *thd, const std::shared_ptr<range> &range,
     return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
     return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
@@ -416,35 +419,35 @@ int tile::set_range_from_item_consts(THD *thd,
   switch (datatype) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
     tile::set_range_from_item_consts<double>(thd, lower_const, upper_const, cmp_type,
-                                             range);
+                                             range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_FLOAT32:
     tile::set_range_from_item_consts<float>(thd, lower_const, upper_const, cmp_type,
-                                            range);
+                                            range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_INT8:
     tile::set_range_from_item_consts<int8_t>(thd, lower_const, upper_const, cmp_type,
-                                             range);
+                                             range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_UINT8:
     tile::set_range_from_item_consts<uint8_t>(thd, lower_const, upper_const,
-                                              cmp_type, range);
+                                              cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_INT16:
     tile::set_range_from_item_consts<int16_t>(thd, lower_const, upper_const,
-                                              cmp_type, range);
+                                              cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_UINT16:
     tile::set_range_from_item_consts<uint16_t>(thd, lower_const, upper_const,
-                                               cmp_type, range);
+                                               cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_INT32:
     tile::set_range_from_item_consts<int32_t>(thd, lower_const, upper_const,
-                                              cmp_type, range);
+                                              cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_UINT32:
     tile::set_range_from_item_consts<uint32_t>(thd, lower_const, upper_const,
-                                               cmp_type, range);
+                                               cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_INT64:
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
@@ -452,11 +455,11 @@ int tile::set_range_from_item_consts(THD *thd,
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_US:
     tile::set_range_from_item_consts<int64_t>(thd, lower_const, upper_const,
-                                              cmp_type, range);
+                                              cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_UINT64:
     tile::set_range_from_item_consts<uint64_t>(thd, lower_const, upper_const,
-                                               cmp_type, range);
+                                               cmp_type, range, datatype);
     break;
   default: {
     DBUG_RETURN(1);

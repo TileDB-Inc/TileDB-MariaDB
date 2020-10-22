@@ -381,6 +381,35 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
   return false;
 }
 
+int64_t tile::MysqlTimeToXSeconds(THD* thd, const MYSQL_TIME &mysql_time,
+                                  tiledb_datatype_t datatype) {
+  my_time_t seconds = 0;
+  // if we only have the time part
+  if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
+     seconds = (mysql_time.hour * 60 * 60) +
+               (mysql_time.minute * 60) +
+               mysql_time.second;
+  // else we have a date and time which must take tz into account 
+  } else {
+      uint32_t not_used;
+      seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+  }
+  uint64_t microseconds = mysql_time.second_part;
+
+  switch(datatype) {
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+      return (seconds * 1000000 + microseconds) * 1000;
+    case tiledb_datatype_t::TILEDB_DATETIME_US:
+      return (seconds * 1000000 + microseconds);
+    default:
+      my_printf_error(ER_UNKNOWN_ERROR,
+                     "Unknown tiledb data type in MysqlTimeToXSeconds",
+                     ME_ERROR_LOG | ME_FATAL);
+  }
+
+  return 0;
+}
+
 tiledb::Attribute
 tile::create_field_attribute(tiledb::Context &ctx, Field *field,
                              const tiledb::FilterList &filter_list) {
@@ -950,22 +979,9 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_NS: {
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
+    int64_t ms = MysqlTimeToXSeconds(thd, mysql_time, buff->type);
 
-    my_time_t seconds = 0;
-    // if we only have the time part
-    if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
-       seconds = (mysql_time.hour * 60 * 60) +
-                 (mysql_time.minute * 60) +
-                 mysql_time.second;
-    // else we have a date and time which must take tz into account 
-    } else {
-        uint32_t not_used;
-        seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-    }
-    uint64_t microseconds = mysql_time.second_part;
-
-    return set_buffer_from_field<int64_t>(
-        (seconds * 1000000 + microseconds) * 1000, buff, i);
+    return set_buffer_from_field<int64_t>(ms, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_PS: {
     MYSQL_TIME mysql_time;

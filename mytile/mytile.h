@@ -93,12 +93,12 @@ bool MysqlBlobType(enum_field_types type);
 bool MysqlDatetimeType(enum_field_types type);
 
 /**
- * Convert a time to microseconds
+ * Convert a MYSQL_TIME to a TileDB int64 time value
  * @param mysql_time
  * @return
  */
-int64_t MysqlTimeToXSeconds(THD* thd, const MYSQL_TIME &mysql_time,
-                            tiledb_datatype_t datatype);
+int64_t MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
+                                 tiledb_datatype_t datatype);
 
 /**
  * Used when create table is being translated to create array

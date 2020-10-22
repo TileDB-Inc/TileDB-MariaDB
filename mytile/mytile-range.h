@@ -978,7 +978,7 @@ int set_range_from_item_consts(THD *thd,
       MYSQL_TIME mysql_time;
       lower_const->get_date(thd, &mysql_time, date_mode_t(0));
 
-      int64_t lower = MysqlTimeToXSeconds(thd, mysql_time, datatype);
+      int64_t lower = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 
       // If we have greater than, lets make it greater than or equal
       // TileDB ranges are inclusive
@@ -997,7 +997,7 @@ int set_range_from_item_consts(THD *thd,
       MYSQL_TIME mysql_time;
       upper_const->get_date(thd, &mysql_time, date_mode_t(0));
 
-      int64_t upper = MysqlTimeToXSeconds(thd, mysql_time, datatype);
+      int64_t upper = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 
       // If we have less than, lets make it less than or equal
       // TileDB ranges are inclusive

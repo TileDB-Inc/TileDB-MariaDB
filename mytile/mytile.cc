@@ -381,44 +381,79 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
   return false;
 }
 
-int64_t tile::MysqlTimeToXSeconds(THD* thd, const MYSQL_TIME &mysql_time,
-                                  tiledb_datatype_t datatype) {
-  my_time_t seconds = 0;
-  // if we only have the time part
-  if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
-     seconds = (mysql_time.hour * 60 * 60) +
-               (mysql_time.minute * 60) +
-               mysql_time.second;
-  // else we have a date and time which must take tz into account 
+int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
+                                       tiledb_datatype_t datatype) {
+  if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR  ||
+      datatype == tiledb_datatype_t::TILEDB_DATETIME_MONTH ||
+      datatype == tiledb_datatype_t::TILEDB_DATETIME_WEEK  ||
+      datatype == tiledb_datatype_t::TILEDB_DATETIME_DAY) {
+    switch(datatype) {
+      case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+        return mysql_time.year - 1970;
+      }
+      case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
+        MYSQL_TIME diff_time;
+        calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+        adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+        return diff_time.year * 12 + diff_time.month;
+      }
+      case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
+        MYSQL_TIME diff_time;
+        calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+        adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
+        uint64_t daynr = calc_daynr(diff_time.year, diff_time.month, diff_time.day);
+        return diff_time.year * 52 + daynr / 7;
+      }
+      case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
+        uint32_t not_used;
+        // Since we are only using the day portion we want to ignore any TZ
+        // conversions by assuming it is already in UTC
+        my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
+        return seconds / (60 * 60 * 24);
+      }
+      default:
+        my_printf_error(ER_UNKNOWN_ERROR,
+          "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",
+          ME_ERROR_LOG | ME_FATAL);
+    }
   } else {
-      uint32_t not_used;
-      seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
-  }
-  uint64_t microseconds = mysql_time.second_part;
-
-  switch(datatype) {
-    case tiledb_datatype_t::TILEDB_DATETIME_HR:
-      return (seconds / 60 / 60);
-    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
-      return (seconds / 60);
-    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
-      return seconds;
-    case tiledb_datatype_t::TILEDB_DATETIME_MS:
-      return (seconds * 1000) + (microseconds / 1000);
-    case tiledb_datatype_t::TILEDB_DATETIME_US:
-      return (seconds * 1000000 + microseconds);
-    case tiledb_datatype_t::TILEDB_DATETIME_NS:
-      return (seconds * 1000000 + microseconds) * 1000;
-    case tiledb_datatype_t::TILEDB_DATETIME_PS:
-      return (seconds * 1000000 + microseconds) * 1000000;
-    case tiledb_datatype_t::TILEDB_DATETIME_FS:
-      return (seconds * 1000000 + microseconds) * 1000000000;
-    case tiledb_datatype_t::TILEDB_DATETIME_AS:
-      return (seconds * 1000000 + microseconds) * 1000000000;
-    default:
-      my_printf_error(ER_UNKNOWN_ERROR,
-                     "Unknown tiledb data type in MysqlTimeToXSeconds",
-                     ME_ERROR_LOG | ME_FATAL);
+    my_time_t seconds = 0;
+    // if we only have the time part
+    if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
+       seconds = (mysql_time.hour * 60 * 60) +
+                 (mysql_time.minute * 60) +
+                 mysql_time.second;
+    // else we have a date and time which must take tz into account 
+    } else {
+        uint32_t not_used;
+        seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+    }
+    uint64_t microseconds = mysql_time.second_part;
+    
+    switch(datatype) {
+      case tiledb_datatype_t::TILEDB_DATETIME_HR:
+        return (seconds / 60 / 60);
+      case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+        return (seconds / 60);
+      case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+        return seconds;
+      case tiledb_datatype_t::TILEDB_DATETIME_MS:
+        return (seconds * 1000) + (microseconds / 1000);
+      case tiledb_datatype_t::TILEDB_DATETIME_US:
+        return (seconds * 1000000 + microseconds);
+      case tiledb_datatype_t::TILEDB_DATETIME_NS:
+        return (seconds * 1000000 + microseconds) * 1000;
+      case tiledb_datatype_t::TILEDB_DATETIME_PS:
+        return (seconds * 1000000 + microseconds) * 1000000;
+      case tiledb_datatype_t::TILEDB_DATETIME_FS:
+        return (seconds * 1000000 + microseconds) * 1000000000;
+      case tiledb_datatype_t::TILEDB_DATETIME_AS:
+        return (seconds * 1000000 + microseconds) * 1000000000;
+      default:
+        my_printf_error(ER_UNKNOWN_ERROR,
+          "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",
+          ME_ERROR_LOG | ME_FATAL);
+    }
   }
 
   return 0;
@@ -898,40 +933,32 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    // Convert date to relative to 1970
-    return set_buffer_from_field<int64_t>(field->val_int() - 1970, buff, i);
+    MYSQL_TIME year={ static_cast<uint32_t>(field->val_int()),
+                      0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, year, buff->type);
+
+    return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
-    MYSQL_TIME mysql_time, diff_time;
+    MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
 
-    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
-
-    return set_buffer_from_field<int64_t>(diff_time.year * 12 + diff_time.month,
-                                          buff, i);
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
+    return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
-    MYSQL_TIME mysql_time, diff_time;
+    MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
 
-    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-    adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
-
-    uint64_t daynr = calc_daynr(diff_time.year, diff_time.month, diff_time.day);
-    return set_buffer_from_field<int64_t>(diff_time.year * 52 + daynr / 7, buff,
-                                          i);
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
+    return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
 
-    uint32_t not_used;
-    // Since we are only using the day portion we want to ignore any TZ
-    // conversions by assuming it is already in UTC
-    my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
-
-    return set_buffer_from_field<int64_t>(seconds / (60 * 60 * 24), buff, i);
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
+    return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_HR:
   case tiledb_datatype_t::TILEDB_DATETIME_MIN:
@@ -944,7 +971,7 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
-    int64_t xs = MysqlTimeToXSeconds(thd, mysql_time, buff->type);
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
 
     return set_buffer_from_field<int64_t>(xs, buff, i);
   }

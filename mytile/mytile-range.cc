@@ -405,7 +405,8 @@ void tile::setup_range(THD *thd, const std::shared_ptr<range> &range,
   }
 }
 
-int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
+int tile::set_range_from_item_consts(THD *thd,
+                                     Item_basic_constant *lower_const,
                                      Item_basic_constant *upper_const,
                                      Item_result cmp_type,
                                      std::shared_ptr<range> &range,
@@ -414,46 +415,47 @@ int tile::set_range_from_item_consts(Item_basic_constant *lower_const,
 
   switch (datatype) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
-    tile::set_range_from_item_consts<double>(lower_const, upper_const, cmp_type,
+    tile::set_range_from_item_consts<double>(thd, lower_const, upper_const, cmp_type,
                                              range);
     break;
   case tiledb_datatype_t::TILEDB_FLOAT32:
-    tile::set_range_from_item_consts<float>(lower_const, upper_const, cmp_type,
+    tile::set_range_from_item_consts<float>(thd, lower_const, upper_const, cmp_type,
                                             range);
     break;
   case tiledb_datatype_t::TILEDB_INT8:
-    tile::set_range_from_item_consts<int8_t>(lower_const, upper_const, cmp_type,
+    tile::set_range_from_item_consts<int8_t>(thd, lower_const, upper_const, cmp_type,
                                              range);
     break;
   case tiledb_datatype_t::TILEDB_UINT8:
-    tile::set_range_from_item_consts<uint8_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<uint8_t>(thd, lower_const, upper_const,
                                               cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_INT16:
-    tile::set_range_from_item_consts<int16_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<int16_t>(thd, lower_const, upper_const,
                                               cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_UINT16:
-    tile::set_range_from_item_consts<uint16_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<uint16_t>(thd, lower_const, upper_const,
                                                cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_INT32:
-    tile::set_range_from_item_consts<int32_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<int32_t>(thd, lower_const, upper_const,
                                               cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_UINT32:
-    tile::set_range_from_item_consts<uint32_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<uint32_t>(thd, lower_const, upper_const,
                                                cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_INT64:
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    tile::set_range_from_item_consts<int64_t>(lower_const, upper_const,
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+    tile::set_range_from_item_consts<int64_t>(thd, lower_const, upper_const,
                                               cmp_type, range);
     break;
   case tiledb_datatype_t::TILEDB_UINT64:
-    tile::set_range_from_item_consts<uint64_t>(lower_const, upper_const,
+    tile::set_range_from_item_consts<uint64_t>(thd, lower_const, upper_const,
                                                cmp_type, range);
     break;
   default: {

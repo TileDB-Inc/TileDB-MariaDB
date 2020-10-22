@@ -1274,7 +1274,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
 
-      int ret = set_range_from_item_consts(lower_const, upper_const, cmp_type,
+      int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const, cmp_type,
                                            range, dim_type);
 
       if (ret)
@@ -1295,7 +1295,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
     int ret =
-        set_range_from_item_consts(dynamic_cast<Item_basic_constant *>(args[1]),
+        set_range_from_item_consts(ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
                                    dynamic_cast<Item_basic_constant *>(args[1]),
                                    args[1]->cmp_type(), range, dim_type);
 
@@ -1345,7 +1345,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
-    int ret = set_range_from_item_consts(lower_const, upper_const, cmp_type,
+    int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const, cmp_type,
                                          range, dim_type);
 
     if (ret)

@@ -40,6 +40,8 @@
 #include <field.h>
 #include <item.h>
 #include <item_func.h>
+#include <sql_class.h>
+#include <tztime.h>
 #include <log.h>
 #include <tiledb/tiledb>
 #include <unordered_set>
@@ -59,7 +61,8 @@ typedef struct range_struct {
   uint64_t upper_value_size;
 } range;
 
-int set_range_from_item_consts(Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd,
+                               Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
                                std::shared_ptr<tile::range> &range,
@@ -910,7 +913,8 @@ int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
 }
 
 template <typename T>
-int set_range_from_item_consts(Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd,
+                               Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
                                std::shared_ptr<range> &range) {
@@ -968,13 +972,71 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
     }
     break;
   }
-    // TODO: support time
-    //                        case TIME_RESULT:
-    //                            pp->Type= TYPE_DATE;
-    //                            pp->Value= PlugSubAlloc(g, NULL,
-    //                            sizeof(int));
-    //                            *((int*)pp->Value)= (int)
-    //                            Temporal_hybrid(pval).to_longlong(); break;
+  case TIME_RESULT: {
+    range->datatype = TILEDB_DATETIME_US;
+    if (lower_const != nullptr) {
+      MYSQL_TIME mysql_time;
+      lower_const->get_date(thd, &mysql_time, date_mode_t(0));
+
+      my_time_t seconds = 0;
+      // if we only have the time part
+      if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
+         seconds = (mysql_time.hour * 60 * 60) +
+                   (mysql_time.minute * 60) +
+                   mysql_time.second;
+      // else we have a date and time which must take tz into account 
+      } else {
+          uint32_t not_used;
+          seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+      }
+      uint64_t microseconds = mysql_time.second_part;
+      int64_t lower = (seconds * 1000000 + microseconds) * 1000;
+
+      // If we have greater than, lets make it greater than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::GT_FUNC) {
+        range->operation_type = Item_func::GE_FUNC;
+        lower += 1;
+      }
+
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->lower_value.get()) = static_cast<T>(lower);
+      range->lower_value_size = sizeof(T);
+    }
+
+    if (upper_const != nullptr) {
+      MYSQL_TIME mysql_time;
+      upper_const->get_date(thd, &mysql_time, date_mode_t(0));
+
+      my_time_t seconds = 0;
+      // if we only have the time part
+      if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
+         seconds = (mysql_time.hour * 60 * 60) +
+                   (mysql_time.minute * 60) +
+                   mysql_time.second;
+      // else we have a date and time which must take tz into account 
+      } else {
+          uint32_t not_used;
+          seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+      }
+      uint64_t microseconds = mysql_time.second_part;
+      int64_t upper = (seconds * 1000000 + microseconds) * 1000;
+
+      // If we have less than, lets make it less than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::LT_FUNC) {
+        range->operation_type = Item_func::LE_FUNC;
+        upper -= 1;
+      }
+
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->upper_value.get()) = static_cast<T>(upper);
+      range->upper_value_size = sizeof(T);
+    }
+    break;
+  }
   case REAL_RESULT:
   case DECIMAL_RESULT: {
     range->datatype = tiledb_datatype_t::TILEDB_FLOAT64;

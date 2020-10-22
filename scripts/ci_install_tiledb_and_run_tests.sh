@@ -13,7 +13,7 @@ git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_
 # Install TileDB using 2.0 release
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
   mkdir build_deps && cd build_deps \
-  && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.1.1 && cd TileDB \
+  && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.1.2 && cd TileDB \
   && mkdir -p build && cd build
 
    # Configure and build TileDB

@@ -1,0 +1,23 @@
+--echo #
+--echo # The purpose of this test is to validate MyTile pushdown of datetime conditions
+--echo #
+
+#echo datetime eq / in
+CREATE TABLE dt (
+  column1 datetime(6) dimension=1 tile_extent="10",
+  column2 BLOB
+) ENGINE=mytile;
+INSERT INTO dt VALUES ('2020-10-20 00:00:00.000000','aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+INSERT INTO dt VALUES ('2020-10-20 01:00:00.000000','dmFsdWUy');
+INSERT INTO dt VALUES ('2020-10-20 02:00:00.000000','dmFsdWU');
+
+SELECT * from dt;
+
+EXPLAIN SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
+SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
+
+EXPLAIN SELECT column2 FROM dt WHERE column1 IN ('2020-10-20 00:00:00.000000','2020-10-20 02:00:00.000000') ORDER BY column1 asc;
+SELECT column2 FROM dt WHERE column1 IN ('2020-10-20 00:00:00.000000','2020-10-20 02:00:00.000000') ORDER BY column1 asc;
+
+SELECT * FROM dt WHERE column2 = 'dmFsdWU';
+DROP TABLE dt;

@@ -79,6 +79,13 @@ std::string MysqlTypeString(int type);
 bool TileDBTypeIsUnsigned(tiledb_datatype_t type);
 
 /**
+ * Returns if a tiedb datatype is a date/time type
+ * @param type
+ * @return
+ */
+bool TileDBDateTimeType(tiledb_datatype_t type);
+
+/**
  * Returns if a mysql type is a blob type
  * @param type
  * @return

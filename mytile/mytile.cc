@@ -342,6 +342,32 @@ bool tile::TileDBTypeIsUnsigned(tiledb_datatype_t type) {
 }
 
 /**
+ * Returns if a tiedb datatype is a date/time type
+ * @param type
+ * @return
+ */
+bool tile::TileDBDateTimeType(tiledb_datatype_t type) {
+  switch(type) {
+    case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+    case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+    case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+    case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+    case tiledb_datatype_t::TILEDB_DATETIME_HR:
+    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+    case tiledb_datatype_t::TILEDB_DATETIME_MS:
+    case tiledb_datatype_t::TILEDB_DATETIME_US:
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    case tiledb_datatype_t::TILEDB_DATETIME_PS:
+    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    case tiledb_datatype_t::TILEDB_DATETIME_AS:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * Returns if a mysql tpye is a blob
  * @param type
  * @return

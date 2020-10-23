@@ -1338,6 +1338,11 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
+    //TODO : why do we have to do this?
+    if (TileDBDateTimeType(dim_type)) {
+      cmp_type = TIME_RESULT;
+    }
+
     // If we have 3 items then we can set lower and upper
     if (func_item->argument_count() == 3) {
       lower_const = dynamic_cast<Item_basic_constant *>(args[1]);

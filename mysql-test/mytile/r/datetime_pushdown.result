@@ -86,3 +86,42 @@ column2
 first
 third
 DROP TABLE ts;
+CREATE TABLE y (
+column1 year dimension=1 tile_extent="10",
+column2 int
+) ENGINE=mytile;
+INSERT INTO y VALUES (1970,1970);
+INSERT INTO y VALUES (2000,2000);
+INSERT INTO y VALUES (2050,2050);
+SELECT * from y;
+column1	column2
+1970	1970
+2000	2000
+2050	2050
+EXPLAIN SELECT * FROM y WHERE column1 = 1970;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM y WHERE column1 = 1970;
+column1	column2
+1970	1970
+EXPLAIN SELECT * FROM y WHERE column1 = 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM y WHERE column1 = 2000;
+column1	column2
+2000	2000
+EXPLAIN SELECT * FROM y WHERE column1 = 2050;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM y WHERE column1 = 2050;
+column1	column2
+2050	2050
+EXPLAIN SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	y	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+column1	column2
+1970	1970
+2000	2000
+2050	2050
+DROP TABLE y;

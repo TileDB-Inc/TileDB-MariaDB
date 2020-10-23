@@ -976,7 +976,12 @@ int set_range_from_item_consts(THD *thd,
     range->datatype = tiledb_datatype_t::TILEDB_INT64;
     if (lower_const != nullptr) {
       MYSQL_TIME mysql_time;
-      lower_const->get_date(thd, &mysql_time, date_mode_t(0));
+      if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
+        mysql_time = { static_cast<uint32_t>(lower_const->val_int()),
+                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+      } else { 
+        lower_const->get_date(thd, &mysql_time, date_mode_t(0));
+      }
 
       int64_t lower = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 
@@ -995,7 +1000,12 @@ int set_range_from_item_consts(THD *thd,
 
     if (upper_const != nullptr) {
       MYSQL_TIME mysql_time;
-      upper_const->get_date(thd, &mysql_time, date_mode_t(0));
+      if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
+        mysql_time = { static_cast<uint32_t>(upper_const->val_int()),
+                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+      } else {
+        upper_const->get_date(thd, &mysql_time, date_mode_t(0));
+      }
 
       int64_t upper = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 

@@ -56,3 +56,26 @@ EXPLAIN SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '202
 SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '2020-10-22 02:00:00.789') ORDER BY column1 asc;
 DROP TABLE ts;
 
+#echo year eq / in
+CREATE TABLE y (
+  column1 year dimension=1 tile_extent="10",
+  column2 int
+) ENGINE=mytile;
+INSERT INTO y VALUES (1970,1970);
+INSERT INTO y VALUES (2000,2000);
+INSERT INTO y VALUES (2050,2050);
+
+SELECT * from y;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 1970;
+SELECT * FROM y WHERE column1 = 1970;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 2000;
+SELECT * FROM y WHERE column1 = 2000;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 2050;
+SELECT * FROM y WHERE column1 = 2050;
+
+EXPLAIN SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+DROP TABLE y;

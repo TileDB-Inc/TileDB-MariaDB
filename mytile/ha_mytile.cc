@@ -1299,10 +1299,18 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    //TODO : why do we have to do this?
+    if (TileDBDateTimeType(dim_type)) {
+      cmp_type = TIME_RESULT;
+    }
+
     int ret =
         set_range_from_item_consts(ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
                                    dynamic_cast<Item_basic_constant *>(args[1]),
-                                   args[1]->cmp_type(), range, dim_type);
+                                   cmp_type, range, dim_type);
 
     if (ret)
       DBUG_RETURN(func_item);

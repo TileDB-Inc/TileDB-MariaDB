@@ -11,7 +11,7 @@ INSERT INTO dt VALUES ('2020-10-20 00:00:00.000000','aHR0cHM6Ly9naXRodWIuY29tL1N
 INSERT INTO dt VALUES ('2020-10-20 01:00:00.000000','dmFsdWUy');
 INSERT INTO dt VALUES ('2020-10-20 02:00:00.000000','dmFsdWU');
 
-SELECT * from dt;
+SELECT * FROM dt;
 
 EXPLAIN SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
 SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
@@ -21,3 +21,38 @@ SELECT column2 FROM dt WHERE column1 IN ('2020-10-20 00:00:00.000000','2020-10-2
 
 SELECT * FROM dt WHERE column2 = 'dmFsdWU';
 DROP TABLE dt;
+
+#echo timestamp eq / in
+CREATE TABLE ts (
+  column1 timestamp(3) dimension=1 tile_extent="10",
+  column2 VARCHAR(255)
+) ENGINE=mytile;
+
+INSERT INTO ts VALUES ('2020-10-20 00:00:00.123','first');
+INSERT INTO ts VALUES ('2020-10-21 01:00:00.456','second');
+INSERT INTO ts VALUES ('2020-10-22 02:00:00.789','third');
+
+SELECT * FROM ts;
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.123';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.123';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.1230';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.1230';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.456';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.456';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.45600';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.45600';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789000';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789000';
+
+EXPLAIN SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '2020-10-22 02:00:00.789') ORDER BY column1 asc;
+SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '2020-10-22 02:00:00.789') ORDER BY column1 asc;
+DROP TABLE ts;
+

@@ -50,3 +50,52 @@ select * from `tmhds` a JOIN `tmhds` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 a
 
 set mytile_delete_arrays=0;
 DROP TABLE tmhds;
+
+
+--echo # DATE, VARCHAR
+CREATE TABLE tmhds2 (d1 date dimension=1 tile_extent="10.0",
+    d2 varchar(255) dimension=1, a int
+) ENGINE=mytile;
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-01-01 00:00:00', "jan", 1);
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-02-01 00:00:00', "feb", 2);
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-03-01 00:00:00', "mar", 3);
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-04-01 00:00:00', "apr", 4);
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-05-01 00:00:00', "may", 5);
+INSERT INTO tmhds2 (d1, d2, a) VALUES ('2020-06-01 00:00:00', "jun", 6);
+
+explain select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access (Sorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=6;
+explain select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access (Unsorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
+set join_cache_level=6;
+explain select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access Hash (Sorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=8;
+explain select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+--echo # Batch Key Access Hash (Unsorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
+set join_cache_level=8;
+explain select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+# Run join
+select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
+
+set mytile_delete_arrays=0;
+DROP TABLE tmhds2;

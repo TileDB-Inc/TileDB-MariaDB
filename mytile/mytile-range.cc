@@ -817,9 +817,19 @@ void tile::update_range_from_key_for_super_range(
         range, key, key_offset, start_key);
 
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return update_range_from_key_for_super_range<int64_t>(
         range, key, key_offset, start_key);
 
@@ -878,9 +888,19 @@ int8_t tile::compare_typed_buffers(const void *lhs, const void *rhs,
     return compare_typed_buffers<uint32_t>(lhs, rhs, size);
 
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return compare_typed_buffers<int64_t>(lhs, rhs, size);
 
   case tiledb_datatype_t::TILEDB_UINT64:

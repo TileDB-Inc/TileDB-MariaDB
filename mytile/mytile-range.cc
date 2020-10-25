@@ -165,10 +165,19 @@ tile::merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
     return merge_ranges<uint32_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
   case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return merge_ranges<int64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_UINT64:
@@ -223,10 +232,19 @@ std::shared_ptr<tile::range> tile::merge_ranges_to_super(
     return merge_ranges_to_super<uint32_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
   case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return merge_ranges_to_super<int64_t>(ranges);
 
   case tiledb_datatype_t::TILEDB_UINT64:
@@ -377,25 +395,25 @@ void tile::setup_range(THD *thd, const std::shared_ptr<range> &range,
                                  static_cast<uint32_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return setup_range<int64_t>(thd, range,
                                 static_cast<int64_t *>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_UINT64:
     return setup_range<uint64_t>(thd, range,
                                  static_cast<uint64_t *>(non_empty_domain));
-
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
-    return setup_range<int64_t>(thd, range,
-                                static_cast<int64_t *>(non_empty_domain));
-
-  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-    return setup_range<int64_t>(thd, range,
-                                static_cast<int64_t *>(non_empty_domain));
-
-  case tiledb_datatype_t::TILEDB_DATETIME_US:
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    return setup_range<int64_t>(thd, range,
-                                static_cast<int64_t *>(non_empty_domain));
 
   default: {
     const char *datatype_str;
@@ -450,10 +468,19 @@ int tile::set_range_from_item_consts(THD *thd,
                                                cmp_type, range, datatype);
     break;
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
   case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     tile::set_range_from_item_consts<int64_t>(thd, lower_const, upper_const,
                                               cmp_type, range, datatype);
     break;
@@ -511,9 +538,19 @@ tile::get_unique_non_contained_in_ranges(
     return get_unique_non_contained_in_ranges<uint32_t>(in_ranges, main_range);
 
   case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
     return get_unique_non_contained_in_ranges<int64_t>(in_ranges, main_range);
 
   case tiledb_datatype_t::TILEDB_UINT64:
@@ -736,9 +773,19 @@ std::vector<std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     }
 
     case tiledb_datatype_t::TILEDB_INT64:
-    case tiledb_datatype_t::TILEDB_DATETIME_DAY:
     case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-    case tiledb_datatype_t::TILEDB_DATETIME_NS: {
+    case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+    case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+    case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+    case tiledb_datatype_t::TILEDB_DATETIME_HR:
+    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+    case tiledb_datatype_t::TILEDB_DATETIME_MS:
+    case tiledb_datatype_t::TILEDB_DATETIME_US:
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+    case tiledb_datatype_t::TILEDB_DATETIME_PS:
+    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+    case tiledb_datatype_t::TILEDB_DATETIME_AS: {
       ranges.push_back(build_range_from_key<int64_t>(
           key + key_offset, length, last_key, find_flag, start_key, datatype));
       key_offset += datatype_size;

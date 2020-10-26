@@ -246,3 +246,58 @@ column1	column2
 2020-07-20 06:00:00	jul
 2020-08-20 07:00:00	aug
 DROP TABLE dt;
+CREATE TABLE datetime_dimensions ENGINE=mytile uri='/home/ubuntu/mytile_server/mysql-test/plugin/mytile/mytile/test_data/tiledb_arrays/2.0/datetime_dimensions';;
+SELECT * FROM datetime_dimensions;
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_y = 2020;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_y = 2020;
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition
+SELECT * FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+dt_pk	dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	a1
+1	2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	a
+set mytile_delete_arrays=0;
+DROP TABLE `datetime_dimensions`;
+set mytile_delete_arrays=1;

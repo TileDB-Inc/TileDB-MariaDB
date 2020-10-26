@@ -130,3 +130,36 @@ SELECT * from dt WHERE column1 > '2020-01-01 00:00:00' AND column1 <= '2020-05-2
 SELECT * from dt WHERE column1 >= '2020-06-20 05:00:00' AND column1 <= '2020-10-20 09:00:00';
 SELECT * from dt WHERE column1 > '2020-02-20 01:00:00' AND column1 < '2020-09-20 08:00:00';
 DROP TABLE dt;
+
+#echo external array - datetime dimensions
+#echo TODO month week ps fs as
+--eval CREATE TABLE datetime_dimensions ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/datetime_dimensions';
+SELECT * FROM datetime_dimensions;
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_y = 2020;
+SELECT * FROM datetime_dimensions WHERE dt_y = 2020;
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+SELECT * FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+SELECT * FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+SELECT * FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+SELECT * FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+SELECT * FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+SELECT * FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+SELECT * FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+
+set mytile_delete_arrays=0;
+DROP TABLE `datetime_dimensions`;
+set mytile_delete_arrays=1;

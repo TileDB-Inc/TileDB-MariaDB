@@ -1274,7 +1274,6 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
 
-      //TODO : why do we have to do this?
       if (TileDBDateTimeType(dim_type)) {
         cmp_type = TIME_RESULT;
       }
@@ -1302,7 +1301,6 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    //TODO : why do we have to do this?
     if (TileDBDateTimeType(dim_type)) {
       cmp_type = TIME_RESULT;
     }
@@ -1338,7 +1336,6 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    //TODO : why do we have to do this?
     if (TileDBDateTimeType(dim_type)) {
       cmp_type = TIME_RESULT;
     }

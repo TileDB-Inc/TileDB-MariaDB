@@ -420,15 +420,13 @@ int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
       case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
         MYSQL_TIME diff_time;
         calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-        adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
-        return diff_time.year * 12 + diff_time.month;
+        int64_t year_diff = diff_time.hour / (24 * 365);
+        return year_diff * 12;
       }
       case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
         MYSQL_TIME diff_time;
         calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-        adjust_time_range_with_warn(thd, &diff_time, TIME_SECOND_PART_DIGITS);
-        uint64_t daynr = calc_daynr(diff_time.year, diff_time.month, diff_time.day);
-        return diff_time.year * 52 + daynr / 7;
+        return diff_time.hour / (7 * 24);
       }
       case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
         uint32_t not_used;
@@ -474,7 +472,7 @@ int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
       case tiledb_datatype_t::TILEDB_DATETIME_FS:
         return (seconds * 1000000 + microseconds) * 1000000000;
       case tiledb_datatype_t::TILEDB_DATETIME_AS:
-        return (seconds * 1000000 + microseconds) * 1000000000;
+        return (seconds * 1000000 + microseconds) * 1000000000000;
       default:
         my_printf_error(ER_UNKNOWN_ERROR,
           "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",

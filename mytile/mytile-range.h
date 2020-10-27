@@ -43,6 +43,7 @@
 #include <log.h>
 #include <tiledb/tiledb>
 #include <unordered_set>
+#include "mytile.h"
 #include "utils.h"
 
 namespace tile {
@@ -59,7 +60,8 @@ typedef struct range_struct {
   uint64_t upper_value_size;
 } range;
 
-int set_range_from_item_consts(Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd,
+                               Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
                                std::shared_ptr<tile::range> &range,
@@ -910,10 +912,12 @@ int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
 }
 
 template <typename T>
-int set_range_from_item_consts(Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd,
+                               Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
-                               std::shared_ptr<range> &range) {
+                               std::shared_ptr<range> &range,
+                               tiledb_datatype_t datatype) {
   DBUG_ENTER("<T> tile::set_range_from_item_costs");
 
   switch (cmp_type) {
@@ -968,13 +972,57 @@ int set_range_from_item_consts(Item_basic_constant *lower_const,
     }
     break;
   }
-    // TODO: support time
-    //                        case TIME_RESULT:
-    //                            pp->Type= TYPE_DATE;
-    //                            pp->Value= PlugSubAlloc(g, NULL,
-    //                            sizeof(int));
-    //                            *((int*)pp->Value)= (int)
-    //                            Temporal_hybrid(pval).to_longlong(); break;
+  case TIME_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_INT64;
+    if (lower_const != nullptr) {
+      MYSQL_TIME mysql_time;
+      if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
+        mysql_time = { static_cast<uint32_t>(lower_const->val_int()),
+                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+      } else { 
+        lower_const->get_date(thd, &mysql_time, date_mode_t(0));
+      }
+
+      int64_t lower = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
+      // If we have greater than, lets make it greater than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::GT_FUNC) {
+        range->operation_type = Item_func::GE_FUNC;
+        lower += 1;
+      }
+
+      range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->lower_value.get()) = static_cast<T>(lower);
+      range->lower_value_size = sizeof(T);
+    }
+
+    if (upper_const != nullptr) {
+      MYSQL_TIME mysql_time;
+      if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
+        mysql_time = { static_cast<uint32_t>(upper_const->val_int()),
+                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+      } else {
+        upper_const->get_date(thd, &mysql_time, date_mode_t(0));
+      }
+
+      int64_t upper = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
+      // If we have less than, lets make it less than or equal
+      // TileDB ranges are inclusive
+      if (range->operation_type == Item_func::LT_FUNC) {
+        range->operation_type = Item_func::LE_FUNC;
+        upper -= 1;
+      }
+
+      range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(sizeof(T)), &std::free);
+      *static_cast<T *>(range->upper_value.get()) = static_cast<T>(upper);
+      range->upper_value_size = sizeof(T);
+    }
+    break;
+  }
   case REAL_RESULT:
   case DECIMAL_RESULT: {
     range->datatype = tiledb_datatype_t::TILEDB_FLOAT64;

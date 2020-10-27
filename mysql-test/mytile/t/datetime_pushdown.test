@@ -1,0 +1,179 @@
+--echo #
+--echo # The purpose of this test is to validate MyTile pushdown of datetime conditions
+--echo #
+
+#echo datetime eq / in
+CREATE TABLE dt (
+  column1 datetime(6) dimension=1 tile_extent="10",
+  column2 BLOB
+) ENGINE=mytile;
+INSERT INTO dt VALUES ('2020-10-20 00:00:00.000000','aHR0cHM6Ly9naXRodWIuY29tL1NoZWxudXR0Mi9jcnVuY2g=');
+INSERT INTO dt VALUES ('2020-10-20 01:00:00.000000','dmFsdWUy');
+INSERT INTO dt VALUES ('2020-10-20 02:00:00.000000','dmFsdWU');
+
+SELECT * FROM dt;
+
+EXPLAIN SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
+SELECT column1, column2 FROM dt WHERE column1 = '2020-10-20 02:00:00.000000';
+
+EXPLAIN SELECT column2 FROM dt WHERE column1 IN ('2020-10-20 00:00:00.000000','2020-10-20 02:00:00.000000') ORDER BY column1 asc;
+SELECT column2 FROM dt WHERE column1 IN ('2020-10-20 00:00:00.000000','2020-10-20 02:00:00.000000') ORDER BY column1 asc;
+
+SELECT * FROM dt WHERE column2 = 'dmFsdWU';
+DROP TABLE dt;
+
+#echo timestamp eq / in
+CREATE TABLE ts (
+  column1 timestamp(3) dimension=1 tile_extent="10",
+  column2 VARCHAR(255)
+) ENGINE=mytile;
+
+INSERT INTO ts VALUES ('2020-10-20 00:00:00.123','first');
+INSERT INTO ts VALUES ('2020-10-21 01:00:00.456','second');
+INSERT INTO ts VALUES ('2020-10-22 02:00:00.789','third');
+
+SELECT * FROM ts;
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.123';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.123';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.1230';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-20 00:00:00.1230';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.456';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.456';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.45600';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-21 01:00:00.45600';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789';
+
+EXPLAIN SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789000';
+SELECT column1, column2 FROM ts WHERE column1 = '2020-10-22 02:00:00.789000';
+
+EXPLAIN SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '2020-10-22 02:00:00.789') ORDER BY column1 asc;
+SELECT column2 FROM ts WHERE column1 IN ('2020-10-20 00:00:00.123', '2020-10-22 02:00:00.789') ORDER BY column1 asc;
+DROP TABLE ts;
+
+#echo date eq / in
+CREATE TABLE d (
+  column1 date dimension=1 tile_extent="10",
+  column2 int
+) ENGINE=mytile;
+INSERT INTO d VALUES ('1970-12-31',1970);
+INSERT INTO d VALUES ('2000-06-11',2000);
+INSERT INTO d VALUES ('2020-10-23',2020);
+
+SELECT * from d;
+
+EXPLAIN SELECT * FROM d WHERE column1 = '1970-12-31';
+SELECT * FROM d WHERE column1 = '1970-12-31';
+
+EXPLAIN SELECT * FROM d WHERE column1 = '2000-06-11';
+SELECT * FROM d WHERE column1 = '2000-06-11';
+
+EXPLAIN SELECT * FROM d WHERE column1 = '2020-10-23';
+SELECT * FROM d WHERE column1 = '2020-10-23';
+
+EXPLAIN SELECT * from d WHERE column1 IN ('1970-12-31', '2000-06-11', '2020-10-23');
+SELECT * from d WHERE column1 IN ('1970-12-31', '2000-06-11', '2020-10-23');
+DROP TABLE d;
+
+#echo year eq / in
+CREATE TABLE y (
+  column1 year dimension=1 tile_extent="10",
+  column2 int
+) ENGINE=mytile;
+INSERT INTO y VALUES (1970,1970);
+INSERT INTO y VALUES (2000,2000);
+INSERT INTO y VALUES (2050,2050);
+
+SELECT * from y;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 1970;
+SELECT * FROM y WHERE column1 = 1970;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 2000;
+SELECT * FROM y WHERE column1 = 2000;
+
+EXPLAIN SELECT * FROM y WHERE column1 = 2050;
+SELECT * FROM y WHERE column1 = 2050;
+
+EXPLAIN SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+SELECT * from y WHERE column1 IN (1970, 2000, 2050);
+DROP TABLE y;
+
+#echo ranges
+CREATE TABLE dt (
+  column1 datetime(0) dimension=1 tile_extent="10",
+  column2 VARCHAR(255)
+) ENGINE=mytile;
+INSERT INTO dt VALUES ('2020-01-01 00:00:00','jan');
+INSERT INTO dt VALUES ('2020-02-20 01:00:00','feb');
+INSERT INTO dt VALUES ('2020-03-20 02:00:00','mar');
+INSERT INTO dt VALUES ('2020-04-20 02:00:00','apr');
+INSERT INTO dt VALUES ('2020-05-20 04:00:00','may');
+INSERT INTO dt VALUES ('2020-06-20 05:00:00','jun');
+INSERT INTO dt VALUES ('2020-07-20 06:00:00','jul');
+INSERT INTO dt VALUES ('2020-08-20 07:00:00','aug');
+INSERT INTO dt VALUES ('2020-09-20 08:00:00','sep');
+INSERT INTO dt VALUES ('2020-10-20 09:00:00','oct');
+
+SELECT * from dt WHERE column1 > '2020-01-01 00:00:00';
+SELECT * from dt WHERE column1 < '2020-10-20 09:00:00';
+
+SELECT * from dt WHERE column1 >= '2020-01-01 00:00:00';
+SELECT * from dt WHERE column1 <= '2020-10-20 09:00:00';
+
+SELECT * from dt WHERE column1 > '2020-01-01 00:00:00' AND column1 <= '2020-05-20 04:00:00';
+SELECT * from dt WHERE column1 >= '2020-06-20 05:00:00' AND column1 <= '2020-10-20 09:00:00';
+SELECT * from dt WHERE column1 > '2020-02-20 01:00:00' AND column1 < '2020-09-20 08:00:00';
+DROP TABLE dt;
+
+#echo external array - datetime dimensions
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE datetime_dimensions ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/datetime_dimensions';
+
+EXPLAIN SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;
+SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;
+
+EXPLAIN SELECT dt_m FROM datetime_dimensions WHERE dt_m = '2029-12-17 00:00:00.000000';
+SELECT dt_m FROM datetime_dimensions WHERE dt_m = '2029-12-17 00:00:00.000000';
+
+EXPLAIN SELECT dt_w FROM datetime_dimensions WHERE dt_w = '2017-11-30 00:00:00.000000';
+SELECT dt_w FROM datetime_dimensions WHERE dt_w = '2017-11-30 00:00:00.000000';
+
+EXPLAIN SELECT dt_d FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+SELECT dt_d FROM datetime_dimensions WHERE dt_d = '2020-10-25';
+
+EXPLAIN SELECT dt_hr FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+SELECT dt_hr FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
+
+EXPLAIN SELECT dt_min FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+SELECT dt_min FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
+
+EXPLAIN SELECT dt_s FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+SELECT dt_s FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT dt_ms FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+SELECT dt_ms FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT dt_us FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+SELECT dt_us FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT dt_ns FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+SELECT dt_ns FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
+
+EXPLAIN SELECT dt_ps FROM datetime_dimensions WHERE dt_ps = '1970-01-01 00:00:00.012300';
+SELECT dt_ps FROM datetime_dimensions WHERE dt_ps = '1970-01-01 00:00:00.012300';
+
+EXPLAIN SELECT dt_fs FROM datetime_dimensions WHERE dt_fs = '1970-01-01 00:00:00.012300';
+SELECT dt_fs FROM datetime_dimensions WHERE dt_fs = '1970-01-01 00:00:00.012300';
+
+EXPLAIN SELECT dt_as FROM datetime_dimensions WHERE dt_as = '1970-01-01 00:00:00.012300';
+SELECT dt_as FROM datetime_dimensions WHERE dt_as = '1970-01-01 00:00:00.012300';
+
+set mytile_delete_arrays=0;
+DROP TABLE datetime_dimensions;
+set mytile_delete_arrays=1;

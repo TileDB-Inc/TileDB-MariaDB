@@ -133,7 +133,6 @@ DROP TABLE dt;
 
 #echo external array - datetime dimensions
 --eval CREATE TABLE datetime_dimensions ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/datetime_dimensions';
-SELECT * FROM datetime_dimensions;
 
 EXPLAIN SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;
 SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;

@@ -409,37 +409,27 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
 
 int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
                                        tiledb_datatype_t datatype) {
-  if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR  ||
-      datatype == tiledb_datatype_t::TILEDB_DATETIME_MONTH ||
-      datatype == tiledb_datatype_t::TILEDB_DATETIME_WEEK  ||
-      datatype == tiledb_datatype_t::TILEDB_DATETIME_DAY) {
-    switch(datatype) {
-      case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-        return mysql_time.year - 1970;
-      }
-      case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
-        MYSQL_TIME diff_time;
-        calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-        int64_t year_diff = diff_time.hour / (24 * 365);
-        return year_diff * 12;
-      }
-      case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
-        MYSQL_TIME diff_time;
-        calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
-        return diff_time.hour / (7 * 24);
-      }
-      case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
-        uint32_t not_used;
-        // Since we are only using the day portion we want to ignore any TZ
-        // conversions by assuming it is already in UTC
-        my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
-        return seconds / (60 * 60 * 24);
-      }
-      default:
-        my_printf_error(ER_UNKNOWN_ERROR,
-          "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",
-          ME_ERROR_LOG | ME_FATAL);
-    }
+  if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
+    return mysql_time.year - 1970;
+
+  } else if (datatype ==  tiledb_datatype_t::TILEDB_DATETIME_MONTH) {
+    MYSQL_TIME diff_time;
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    int64_t year_diff = diff_time.hour / (24 * 365);
+    return year_diff * 12;
+
+  } else if (datatype == tiledb_datatype_t::TILEDB_DATETIME_WEEK) {
+    MYSQL_TIME diff_time;
+    calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
+    return diff_time.hour / (7 * 24);
+
+  } else if (datatype == tiledb_datatype_t::TILEDB_DATETIME_DAY) {
+    uint32_t not_used;
+    // Since we are only using the day portion we want to ignore any TZ
+    // conversions by assuming it is already in UTC
+    my_time_t seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
+    return seconds / (60 * 60 * 24);
+
   } else {
     my_time_t seconds = 0;
     // if we only have the time part

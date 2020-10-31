@@ -275,10 +275,16 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
     }
     case TILEDB_FLOAT32: {
       auto v = static_cast<const float*>(value);
+      if (std::isnan(*v)) {
+        return std::to_string(0.0f);
+      }
       return std::to_string(*v);
     }
     case TILEDB_FLOAT64: {
       auto v = static_cast<const double*>(value);
+      if (std::isnan(*v)) {
+        return std::to_string(0.0f);
+      }
       return std::to_string(*v);
     }
     case TILEDB_DATETIME_YEAR:

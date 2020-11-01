@@ -6,6 +6,7 @@
 #define MYSQL_SERVER 1
 
 #include "my_global.h" /* ulonglong */
+#include "mytile-errors.h"
 #include "mytile-buffer.h"
 #include <field.h>
 #include <mysqld_error.h> /* ER_UNKNOWN_ERROR */
@@ -36,8 +37,6 @@ struct ha_field_option_struct {
 namespace tile {
 typedef struct ::ha_table_option_struct ha_table_option_struct;
 typedef struct ::ha_field_option_struct ha_field_option_struct;
-
-enum errors { ERR_WRITE_FLUSH_NEEDED = 1000 };
 
 /**
  * Converts a mysql type to a tiledb_datatype_t

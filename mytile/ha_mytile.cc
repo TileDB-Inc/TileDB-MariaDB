@@ -39,6 +39,7 @@
 #define MYSQL_SERVER 1
 
 #include "ha_mytile.h"
+#include "mytile-errors.h"
 #include "mytile-discovery.h"
 #include "mytile-sysvars.h"
 #include "mytile-metadata.h"
@@ -298,12 +299,12 @@ int tile::mytile::close(void) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "close error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
-    DBUG_RETURN(-20);
+    DBUG_RETURN(ERR_CLOSE_TILEDB);
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "close error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, uri.c_str(), e.what());
-    DBUG_RETURN(-21);
+    DBUG_RETURN(ERR_CLOSE_OTHER);
   }
   DBUG_RETURN(0);
 }
@@ -426,16 +427,16 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       if (field->option_struct->dimension ||
           primaryKeyParts.find(field->field_name.str) !=
               primaryKeyParts.end()) {
-        domain.add_dimension(create_field_dimension(context, field));
-      } else { // Else this is treated as a dimension
-        /* XXX: this would be a breaking change but prevents
-         * implicit default fill values
-        if (has_default_value && !has_not_null) {
-          my_printf_error(ER_UNKNOWN_ERROR, "Attribute %s default value requires NOT NULL clause",
-                          ME_ERROR_LOG | ME_FATAL, field->field_name);
-          DBUG_RETURN(-9);
+        try {
+          domain.add_dimension(create_field_dimension(context, field));
+        } catch (const std::exception &e) {
+          // Log errors
+          my_printf_error(ER_UNKNOWN_ERROR, 
+                          "[create_array] error creating dimension for table %s : %s",
+                          ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+          DBUG_RETURN(ERR_CREATE_DIM_OTHER);
         }
-        */
+      } else {
         tiledb::FilterList filter_list(context);
         if (field->option_struct->filters != nullptr) {
           filter_list =
@@ -509,7 +510,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     } catch (tiledb::TileDBError &e) {
       my_printf_error(ER_UNKNOWN_ERROR, "Error in building schema %s",
                       ME_ERROR_LOG | ME_FATAL, e.what());
-      DBUG_RETURN(-10);
+      DBUG_RETURN(ERR_BUILD_SCHEMA);
     }
 
     try {
@@ -528,12 +529,12 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     } catch (tiledb::TileDBError &e) {
       my_printf_error(ER_UNKNOWN_ERROR, "Error in creating array %s",
                       ME_ERROR_LOG | ME_FATAL, e.what());
-      DBUG_RETURN(-11);
+      DBUG_RETURN(ERR_CREATE_ARRAY);
     }
   } catch (tiledb::TileDBError &e) {
     my_printf_error(ER_UNKNOWN_ERROR, "Error in creating table %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());
-    DBUG_RETURN(-12);
+    DBUG_RETURN(ERR_CREATE_TABLE);
   }
   DBUG_RETURN(rc);
 }
@@ -572,7 +573,7 @@ uint64_t tile::mytile::computeRecordsUB() {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Error in calculating upper bound for records %s",
                     ME_ERROR_LOG | ME_FATAL, e.what());
-    DBUG_RETURN(-23);
+    DBUG_RETURN(ERR_CALC_UPPER_BOUND);
   }
 
   uint64_t num_of_records = max_size / size_of_record;
@@ -787,14 +788,14 @@ int tile::mytile::init_scan(THD *thd) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -111;
+    rc = ERR_INIT_SCAN_TILEDB;
     // clear out failed query details
     rnd_end();
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -112;
+    rc = ERR_INIT_SCAN_OTHER;
     // clear out failed query details
     rnd_end();
   }
@@ -908,12 +909,12 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[scan_rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -121;
+    rc = ERR_SCAN_RND_ROW_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[scan_rnd_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -122;
+    rc = ERR_SCAN_RND_ROW_OTHER;
   }
 
   // Reset bitmap to original
@@ -1132,12 +1133,12 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_pos] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    DBUG_RETURN(-113);
+    DBUG_RETURN(ERR_RND_POS_TILEDB);
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[rnd_pos] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    DBUG_RETURN(-114);
+    DBUG_RETURN(ERR_RND_POS_OTHER);
   }
   DBUG_RETURN(rnd_next(buf));
 }
@@ -1466,11 +1467,11 @@ int tile::mytile::delete_table(const char *name) {
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     sql_print_error("delete_table error for table %s : %s", name, e.what());
-    DBUG_RETURN(-25);
+    DBUG_RETURN(ERR_DELETE_TABLE_TILEDB);
   } catch (const std::exception &e) {
     // Log errors
     sql_print_error("delete_table error for table %s : %s", name, e.what());
-    DBUG_RETURN(-26);
+    DBUG_RETURN(ERR_DELETE_TABLE_OTHER);
   }
   DBUG_RETURN(0);
 }
@@ -1609,12 +1610,12 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -131;
+    rc = ERR_TILE_TO_FIELDS_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[tileToFields] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -132;
+    rc = ERR_TILE_TO_FIELDS_OTHER;
   }
 
   DBUG_RETURN(rc);
@@ -1640,13 +1641,13 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
     sql_print_error(
         "[mysql_row_to_tiledb_buffers] write error for table %s : %s",
         this->uri.c_str(), e.what());
-    error = -101;
+    error = ERR_ROW_TO_TILEDB_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     sql_print_error(
         "[mysql_row_to_tiledb_buffers] write error for table %s : %s",
         this->uri.c_str(), e.what());
-    error = -102;
+    error = ERR_ROW_TO_TILEDB_OTHER;
   }
 
   DBUG_RETURN(error);
@@ -1705,13 +1706,13 @@ int tile::mytile::finalize_write() {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "[finalize_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -301;
+    rc = ERR_FINALIZE_WRITE_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR,
                     "[finalize_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -302;
+    rc = ERR_FINALIZE_WRITE_OTHER;
   }
   DBUG_RETURN(rc);
 }
@@ -1768,12 +1769,12 @@ int tile::mytile::flush_write() {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[flush_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -311;
+    rc = ERR_FLUSH_WRITE_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[flush_write] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -312;
+    rc = ERR_FLUSH_WRITE_OTHER;
   }
 
   DBUG_RETURN(rc);
@@ -1811,12 +1812,12 @@ int tile::mytile::write_row(const uchar *buf) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[write_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -201;
+    rc = ERR_WRITE_ROW_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[write_row] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -202;
+    rc = ERR_WRITE_ROW_OTHER;
   }
 
   // Reset bitmap to original
@@ -2304,13 +2305,13 @@ begin:
     my_printf_error(ER_UNKNOWN_ERROR,
                     "[index_read_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -131;
+    rc = ERR_INDEX_READ_SCAN_TILEDB;
   } catch (const std::exception &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR,
                     "[index_read_scan] error for table %s : %s",
                     ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = -132;
+    rc = ERR_INDEX_READ_SCAN_OTHER;
   }
 
   // Reset bitmap to original

@@ -1629,7 +1629,10 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
       if (field->is_null()) {
-        error = HA_ERR_UNSUPPORTED;
+        sql_print_error(
+          "[mysql_row_to_tiledb_buffers] write error for table %s : field null not supported",
+          this->uri.c_str());
+        error = HA_ERR_GENERIC;
       } else {
         std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
         error =
@@ -1801,6 +1804,11 @@ int tile::mytile::write_row(const uchar *buf) {
         DBUG_RETURN(rc);
 
       DBUG_RETURN(write_row(buf));
+    }
+    if (rc) {
+      // Reset bitmap to original
+      tmp_restore_column_map(table->read_set, original_bitmap);
+      DBUG_RETURN(rc);
     }
     this->record_index++;
     auto domain = this->array_schema->domain();

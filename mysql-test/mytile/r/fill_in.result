@@ -15,18 +15,6 @@ dim0	dim1	attr0	attr1	attr2
 2	3	12345	abc	12.345
 4	5	12345	abc	12.345
 DROP TABLE t1;
-# single attribute no explicit default
-CREATE TABLE t2 (
-dim0 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
-attr0 integer
-) engine=MyTile array_type='SPARSE' coordinate_filters="NONE" offset_filters="POSITIVE_DELTA=128";
-INSERT INTO t2 (dim0, attr0) VALUES (0, 1);
-INSERT INTO t2 (dim0) VALUES (2);
-SELECT * FROM t2;
-dim0	attr0
-0	1
-2	0
-DROP TABLE t2;
 # default and non-default
 CREATE TABLE t3 (
 dim0 integer DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",

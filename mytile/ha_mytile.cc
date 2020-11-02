@@ -1633,6 +1633,7 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
           "[mysql_row_to_tiledb_buffers] write error for table %s : field null not supported",
           this->uri.c_str());
         error = HA_ERR_GENERIC;
+        DBUG_RETURN(error);
       } else {
         std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
         error =

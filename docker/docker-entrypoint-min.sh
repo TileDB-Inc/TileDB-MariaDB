@@ -8,5 +8,7 @@ shopt -s nullglob
 /opt/server/bin/mariadb -e "CREATE USER 'tile'@'%' IDENTIFIED BY 'tile';"
 /opt/server/bin/mariadb -e "GRANT ALL PRIVILEGES ON *.* TO 'tile'@'%' WITH GRANT OPTION"
 /opt/server/bin/mariadb -e "FLUSH PRIVILEGES"
+killall mariadbd
+/opt/server/bin/mariadbd --datadir=/var/lib/mysql
 
 exec "$@"

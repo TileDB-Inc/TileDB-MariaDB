@@ -80,7 +80,8 @@ RUN mkdir build_deps && cd build_deps \
  && cd /tmp && rm -r build_deps
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
- && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf
+ && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
+ && cp /tmp/mytile/docker/docker-entrypoint-min.sh /usr/local/bin/docker-entrypoint-min.sh
 
 # Install curl after building tiledb
 RUN apt-get update && apt-get install -y \
@@ -118,6 +119,11 @@ RUN set -ex; \
 # don't reverse lookup hostnames, they are usually another container
   echo '[mysqld]\nskip-host-cache\nskip-name-resolve' > /etc/mysql/conf.d/docker.cnf
 
+RUN chmod +x /usr/local/bin/docker-entrypoint-min.sh
+
+# backwards compat
+RUN ln -s usr/local/bin/docker-entrypoint-min.sh 
+
 ENV PATH="${PATH}:/opt/server/bin:/opt/server/scripts"
 
 # Set defaults for initializing the server
@@ -143,4 +149,6 @@ USER mysql
 
 EXPOSE 3306
 
-ENTRYPOINT ["/opt/server/bin/mariadbd", "--datadir=/var/lib/mysql"]
+ENTRYPOINT ["docker-entrypoint-min.sh"]
+
+CMD ["/opt/server/bin/mariadbd", "--datadir=/var/lib/mysql"]

@@ -150,5 +150,3 @@ USER mysql
 EXPOSE 3306
 
 ENTRYPOINT ["docker-entrypoint-min.sh"]
-
-CMD ["/opt/server/bin/mariadbd", "--datadir=/var/lib/mysql"]

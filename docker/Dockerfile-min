@@ -128,12 +128,13 @@ ENV PATH="${PATH}:/opt/server/bin:/opt/server/scripts"
 
 # Set defaults for initializing the server
 ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
+#ENV MYSQL_ROOT_PASSWORD=tiledb
 
 ENV MYSQL_DATABASE=test
 
 RUN mkdir /var/log/mysql
 
-RUN cd /opt/server && ./scripts/mariadb-install-db --datadir=/var/lib/mysql
+RUN cd /opt/server && ./scripts/mariadb-install-db --auth-root-authentication-method=normal --datadir=/var/lib/mysql
 
 RUN chown -R mysql:mysql /var/lib/mysql
 
@@ -149,4 +150,4 @@ USER mysql
 
 EXPOSE 3306
 
-ENTRYPOINT ["docker-entrypoint-min.sh"]
+CMD ["/opt/server/bin/mariadbd", "--datadir=/var/lib/mysql"]

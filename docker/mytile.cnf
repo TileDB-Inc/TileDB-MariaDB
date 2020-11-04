@@ -12,6 +12,7 @@ pid-file=/tmp/mariadb.pid
 temp-pool
 plugin-load=ha_mytile
 default-storage-engine=aria
+bind-address = 0.0.0.0
 
 # Where you want to have your database
 datadir=/var/lib/mysql

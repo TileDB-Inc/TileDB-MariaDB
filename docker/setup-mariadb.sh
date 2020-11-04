@@ -7,8 +7,8 @@ for i in {30..0}; do
   if /opt/server/bin/mariadb -u root -e "SELECT 1;" &> /dev/null; then
     break
   fi
-  echo 'MariaDB starting.....'
-  sleep 0.1
+  echo 'MariaDB starting...'
+  sleep 1
 done
 
 /opt/server/bin/mariadb -u root -e "CREATE USER 'root'@'%';"
@@ -17,4 +17,11 @@ done
 /opt/server/bin/mariadb -u root -e "FLUSH TABLES;"
 
 killall mariadbd
-sleep 5
+
+for i in {30..0}; do
+  if ! pgrep mariadbd &> /dev/null; then
+    break
+  fi
+  echo 'MariaDB shutting down...'
+  sleep 1
+done

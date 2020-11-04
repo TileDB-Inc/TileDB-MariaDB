@@ -1,7 +1,6 @@
 #!/bin/bash
-set -eo pipefail
-shopt -s nullglob
 
+/opt/server/scripts/mariadb-install-db --auth-root-authentication-method=normal --datadir=/var/lib/mysql
 /opt/server/bin/mariadbd --datadir=/var/lib/mysql &
 
 for i in {30..0}; do
@@ -15,6 +14,7 @@ done
 /opt/server/bin/mariadb -u root -e "CREATE USER 'root'@'%';"
 /opt/server/bin/mariadb -u root -e "GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;"
 /opt/server/bin/mariadb -u root -e "FLUSH PRIVILEGES;"
-sleep infinity
+/opt/server/bin/mariadb -u root -e "FLUSH TABLES;"
 
-exec "$@"
+killall mariadbd
+sleep 5

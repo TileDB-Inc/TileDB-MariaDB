@@ -2051,7 +2051,15 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
                                          uint64_t index) {
   auto domain = this->array_schema->domain();
   int key_position = 0;
-  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+
+  const KEY* key_info = table->key_info;
+
+  for (uint64_t key_part_index = 0;
+       key_part_index < key_info->user_defined_key_parts;
+       key_part_index++) {
+
+    const KEY_PART_INFO* key_part_info = &(key_info->key_part[key_part_index]);
+    uint64_t dim_idx = key_part_info->field->field_index;
     tiledb::Dimension dimension = domain.dimension(dim_idx);
 
     for (auto &dim_buffer : this->buffers) {
@@ -2361,8 +2369,9 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
                                           bool start_key,
                                           enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
-  std::vector<std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(key, key_len, find_flag, start_key,
+  std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
+      tile::build_ranges_from_key(table->key_info, key, key_len,
+                                  find_flag, start_key,
                                   this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
@@ -2373,8 +2382,11 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
     this->pushdown_in_ranges.resize(this->ndim);
 
     // Copy shared pointer to main range pushdown
-    for (uint64_t i = 0; i < ranges_from_keys.size(); i++) {
-      this->pushdown_ranges[i].push_back(ranges_from_keys[i]);
+    for (uint64_t i = 0; i < this->ndim; i++) {
+      auto range = ranges_from_keys[i];
+      if (range.get() != nullptr) {
+        this->pushdown_ranges[i].push_back(range);
+      }
     }
   }
   DBUG_RETURN(0);

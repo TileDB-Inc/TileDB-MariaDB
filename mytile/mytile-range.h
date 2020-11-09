@@ -633,7 +633,7 @@ build_range_from_key(const uchar *key, uint length, const bool last_key,
     default:
       my_printf_error(
           ER_UNKNOWN_ERROR,
-          "Unsupported Item_func::functype in build_ranges_from_key",
+          "Unsupported Item_func::functype in build_range_from_key",
           ME_ERROR_LOG | ME_FATAL);
       break;
     }

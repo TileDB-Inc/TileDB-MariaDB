@@ -36,3 +36,44 @@ SELECT * FROM t1 WHERE col0 = 2;
 SELECT * FROM t1 WHERE col0 = 3;
 SELECT * FROM t1 WHERE col0 = 10;
 DROP TABLE t1;
+
+--echo ch # 3770 reversed key order
+CREATE TABLE t2 (
+col0 int dimension=1 tile_extent="10",
+col1 int dimension=1 tile_extent="10",
+PRIMARY KEY(col1, col0)
+) ENGINE=mytile;
+
+INSERT INTO t2 (col0, col1) VALUES (12345, 54321);
+
+SELECT * FROM t2 WHERE col1 = 54321;
+SELECT * FROM t2 WHERE col1 = 54321 AND col0 = 12345;
+SELECT * FROM t2 WHERE col0 = 12345;
+DROP TABLE t2;
+
+--echo ch # 3770 mixed key order
+CREATE TABLE t3 (
+col0 int dimension=1 tile_extent="10",
+col1 int dimension=1 tile_extent="10",
+col2 int dimension=1 tile_extent="10",
+col3 int dimension=1 tile_extent="10",
+col4 int dimension=1 tile_extent="10",
+PRIMARY KEY(col3, col4, col2, col0, col1)
+) ENGINE=mytile;
+
+INSERT INTO t3 VALUES (0, 1, 2, 3, 4);
+INSERT INTO t3 VALUES (5, 6, 7, 8, 9);
+
+SELECT * FROM t3;
+SELECT * FROM t3 WHERE col3 = 3;
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4;
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2;
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2 AND col0 = 0;
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2 AND col0 = 0 AND col1 = 1;
+
+SELECT * FROM t3 WHERE col0 = 5;
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6;
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7;
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7 AND col3 = 8;
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7 AND col3 = 8 AND col4 = 9;
+DROP TABLE t3;

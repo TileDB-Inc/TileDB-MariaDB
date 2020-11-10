@@ -2018,7 +2018,7 @@ int tile::mytile::index_end() {
 
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
-  DBUG_ENTER("tile::mytile::index_read_map");
+  DBUG_ENTER("tile::mytile::index_read");
   // If no conditions or index have been pushed, use key scan info to push a
   // range down
   if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
@@ -2032,7 +2032,7 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
     // Index scans are expected in row major order
     this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   }
-  DBUG_RETURN(index_read_scan(key, key_len, find_flag));
+  DBUG_RETURN(index_read_scan(key, key_len, find_flag, false /* reset */));
 }
 
 int tile::mytile::index_first(uchar *buf) {
@@ -2167,7 +2167,8 @@ int8_t tile::mytile::compare_key_to_dim(const uchar *key,
 }
 
 int tile::mytile::index_read_scan(const uchar *key, uint key_len,
-                                  enum ha_rkey_function find_flag) {
+                                  enum ha_rkey_function find_flag,
+                                  bool reset) {
   DBUG_ENTER("tile::mytile::index_read_scan");
   int rc = 0;
   const char *query_status;
@@ -2176,6 +2177,7 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
   // We have to check this here and not in rnd_init because
   // only index_read_scan can return empty
   if (this->empty_read) {
+    if (reset) index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -2191,6 +2193,7 @@ begin:
   if (this->query_complete()) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+    if (reset) index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -2224,6 +2227,7 @@ begin:
                    status == tiledb::Query::Status::COMPLETE) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          if (reset) index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
@@ -2262,6 +2266,7 @@ begin:
           if (this->records_read == this->record_index) {
             // Reset bitmap to original
             dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            if (reset) index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
           }
 
@@ -2271,6 +2276,7 @@ begin:
           if (restarted_scan) {
             // Reset bitmap to original
             dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            if (reset) index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
           }
 
@@ -2299,6 +2305,7 @@ begin:
         if (compare_key_to_dims(key, key_len, this->record_index) > 0) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          if (reset) index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
 
@@ -2333,6 +2340,7 @@ begin:
 
   // Reset bitmap to original
   dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  if (reset) index_end();
   DBUG_RETURN(rc);
 }
 
@@ -2357,7 +2365,7 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
 
-  DBUG_RETURN(index_read_scan(key, key_len, find_flag));
+  DBUG_RETURN(index_read_scan(key, key_len, find_flag, true /* reset */));
 }
 
 ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,

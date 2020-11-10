@@ -720,8 +720,7 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
     uint64_t datatype_size = tiledb_datatype_size(datatype);
 
-    if (dim_idx == domain.ndim() - 1 ||
-        key_offset + datatype_size == length) {
+    if (key_offset + datatype_size >= length) {
       last_key = true;
     }
 

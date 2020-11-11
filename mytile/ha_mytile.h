@@ -654,8 +654,8 @@ private:
    * @param find_flag equality condition of last key
    * @return
    */
-  int reset_pushdowns_for_key(const uchar *key, uint key_len, bool start_key,
-                              enum ha_rkey_function find_flag);
+  int set_pushdowns_for_key(const uchar *key, uint key_len, bool start_key,
+                            enum ha_rkey_function find_flag);
 
   /**
    * Build MRR ranges from current handle mrr details

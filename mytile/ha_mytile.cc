@@ -2019,19 +2019,15 @@ int tile::mytile::index_end() {
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read");
-  // If no conditions or index have been pushed, use key scan info to push a
-  // range down
-  if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
-      this->query_complete()) {
-    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
-    int rc = init_scan(this->ha_thd());
+  // reset or add pushdowns for this key
+  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+  int rc = init_scan(this->ha_thd());
 
-    if (rc)
-      DBUG_RETURN(rc);
+  if (rc)
+    DBUG_RETURN(rc);
 
-    // Index scans are expected in row major order
-    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
-  }
+  // Index scans are expected in row major order
+  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, false /* reset */));
 }
 
@@ -2351,10 +2347,8 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   uint key_len = calculate_key_len(table, idx, key, keypart_map);
 
-  // If no conditions or index have been pushed, use key scan info to push a
-  // range down
-  if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())
-    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
+  // reset or add pushdowns for this key
+  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
 
   // If we are doing an index scan we need to use row-major order to get the
   // results in the expected order
@@ -2373,9 +2367,9 @@ ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
   return (ha_rows)10000;
 }
 
-int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
-                                          bool start_key,
-                                          enum ha_rkey_function find_flag) {
+int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
+                                        bool start_key,
+                                        enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
       tile::build_ranges_from_key(table->key_info, key, key_len,
@@ -2383,11 +2377,13 @@ int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
                                   this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
-    this->pushdown_ranges.clear();
-    this->pushdown_in_ranges.clear();
+    if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) {
+      this->pushdown_ranges.clear();
+      this->pushdown_in_ranges.clear();
 
-    this->pushdown_ranges.resize(this->ndim);
-    this->pushdown_in_ranges.resize(this->ndim);
+      this->pushdown_ranges.resize(this->ndim);
+      this->pushdown_in_ranges.resize(this->ndim);
+    }
 
     // Copy shared pointer to main range pushdown
     for (uint64_t i = 0; i < this->ndim; i++) {

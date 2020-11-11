@@ -42,6 +42,7 @@
 #include "mytile-sysvars.h"
 #include <handler.h>
 #include <memory>
+#include <map>
 #include <tiledb/tiledb>
 
 #include "handler.h"   /* handler */

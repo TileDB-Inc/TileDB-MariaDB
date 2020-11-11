@@ -34,6 +34,7 @@
 
 #define MYSQL_SERVER 1 // required for THD class
 
+#include <map>
 #include <my_global.h>    /* ulonglong */
 #include <my_decimal.h>   // string2my_decimal
 #include <mysqld_error.h> /* ER_UNKNOWN_ERROR */

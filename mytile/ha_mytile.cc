@@ -663,7 +663,7 @@ int tile::mytile::init_scan(THD *thd) {
       log_debug(thd, "pushdown of ranges for query on table %s",
                 this->table->s->table_name.str);
 
-      // Loop over dimensions and build rangers for that dimension
+      // Loop over dimensions and build ranges for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain.dimension(dim_idx);
 

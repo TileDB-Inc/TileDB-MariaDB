@@ -548,7 +548,7 @@ build_ranges_from_key(const KEY* key_info, const uchar *key,
  */
 template <typename T>
 std::shared_ptr<tile::range>
-build_range_from_key(const uchar *key, uint length, const bool last_key,
+build_range_from_key(const uchar *key, uint length, const bool use_find_flag,
                      enum ha_rkey_function find_flag, const bool start_key,
                      tiledb_datatype_t datatype, uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
@@ -558,7 +558,7 @@ build_range_from_key(const uchar *key, uint length, const bool last_key,
   // Cast key to array of type T
   const T *key_typed = reinterpret_cast<const T *>(key);
   // Handle all keys but the last one
-  if (!last_key) {
+  if (!use_find_flag) {
     // Initialize range
     std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
         tile::range{std::unique_ptr<void, decltype(&std::free)>(

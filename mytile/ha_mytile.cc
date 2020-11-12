@@ -2377,10 +2377,10 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                   this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
-    if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) {
+    if (this->query_complete() ||
+       (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())) {
       this->pushdown_ranges.clear();
       this->pushdown_in_ranges.clear();
-
       this->pushdown_ranges.resize(this->ndim);
       this->pushdown_in_ranges.resize(this->ndim);
     }

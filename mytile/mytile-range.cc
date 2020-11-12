@@ -720,9 +720,9 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
     uint64_t datatype_size = tiledb_datatype_size(datatype);
 
-    if (key_offset + datatype_size >= length) {
-      last_key = true;
-    }
+    // XXX: find_flag can apply to each key part
+    // if (key_offset + datatype_size >= length)
+    last_key = true;
 
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {

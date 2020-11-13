@@ -502,10 +502,12 @@ public:
    * @param key key to find
    * @param key_len length of key indicating the key parts
    * @param find_flag
+   * @param reset clean up as if index_end were called
    * @return
    */
   int index_read_scan(const uchar *key, uint key_len,
-                      enum ha_rkey_function find_flag);
+                      enum ha_rkey_function find_flag,
+                      bool reset);
 
   /**
    * Read "first" row

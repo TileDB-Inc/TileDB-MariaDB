@@ -62,6 +62,7 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
  && git config --global user.name "Your Name"
 
 # Install tiledb using 2.0 release
+# TODO change branch after release cut
 RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b erica/ch3693/minimized-docker mytile \
  && mkdir build_deps && cd build_deps \
  && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \

@@ -543,108 +543,89 @@ build_ranges_from_key(const KEY* key_info, const uchar *key,
  * @param key
  * @param length
  * @param find_flag
+ * @param start_key
  * @param datatype
  * @return
  */
 template <typename T>
 std::shared_ptr<tile::range>
-build_range_from_key(const uchar *key, uint length, const bool use_find_flag,
-                     enum ha_rkey_function find_flag, const bool start_key,
-                     tiledb_datatype_t datatype, uint64_t size = sizeof(T)) {
+build_range_from_key(const uchar *key, uint length,
+                     enum ha_rkey_function find_flag,
+                     const bool start_key,
+                     tiledb_datatype_t datatype,
+                     uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
 
   // Cast key to array of type T
   const T *key_typed = reinterpret_cast<const T *>(key);
-  // Handle all keys but the last one
-  if (!use_find_flag) {
-    // Initialize range
-    std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
-        tile::range{std::unique_ptr<void, decltype(&std::free)>(
-                        std::malloc(size), &std::free),
-                    std::unique_ptr<void, decltype(&std::free)>(
-                        std::malloc(size), &std::free),
-                    Item_func::EQ_FUNC, datatype, size, size});
 
-    // Copy value into range settings
-    // We can set lower/upper to key value because enforces equality for all key
-    // parts except the last that is set which is handled below
-    memcpy(range->lower_value.get(), key_typed, size);
-    memcpy(range->upper_value.get(), key_typed, size);
+  std::shared_ptr<tile::range> range =
+      std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                      &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                      &std::free),
+          find_flag_to_func(find_flag, start_key), datatype, size, size});
 
-    return range;
-  } else {
+  T lower = *key_typed;
+  T upper = *key_typed;
 
-    // Handle the last dimension
-    std::shared_ptr<tile::range> last_dimension_range =
-        std::make_shared<tile::range>(tile::range{
-            std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
-                                                        &std::free),
-            std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
-                                                        &std::free),
-            find_flag_to_func(find_flag, start_key), datatype, size, size});
-
-    T lower = *key_typed;
-    T upper = *key_typed;
-
-    // The last key part, is where a range operation might be specified
-    // So for this last dimension we must check to see if we need to set the
-    // lower or upper bound and if we need to convert from greater/less than to
-    // the greater/less than or equal to format.
-    switch (last_dimension_range->operation_type) {
-    // If we have greater than, lets make it greater than or equal
-    // TileDB ranges are inclusive
-    case Item_func::GT_FUNC: {
-      last_dimension_range->operation_type = Item_func::GE_FUNC;
-      if (std::is_floating_point<T>()) {
-        lower = std::nextafter(lower, std::numeric_limits<T>::max());
-      } else if (std::is_arithmetic<T>()) {
-        lower += 1;
-      }
-      memcpy(last_dimension_range->lower_value.get(), &lower, size);
-      last_dimension_range->upper_value = nullptr;
-      break;
+  // we must check to see if we need to set the lower or upper bound
+  // and if we need to convert from greater/less than to
+  // the greater/less than or equal to format.
+  switch (range->operation_type) {
+  // If we have greater than, lets make it greater than or equal
+  // TileDB ranges are inclusive
+  case Item_func::GT_FUNC: {
+    range->operation_type = Item_func::GE_FUNC;
+    if (std::is_floating_point<T>()) {
+      lower = std::nextafter(lower, std::numeric_limits<T>::max());
+    } else if (std::is_arithmetic<T>()) {
+      lower += 1;
     }
-    case Item_func::GE_FUNC: {
-      memcpy(last_dimension_range->lower_value.get(), &lower, size);
-      last_dimension_range->upper_value = nullptr;
-      break;
-    }
-    case Item_func::LT_FUNC: {
-      // If we have less than, lets make it less than or equal
-      // TileDB ranges are inclusive
-      last_dimension_range->operation_type = Item_func::LE_FUNC;
-      if (std::is_floating_point<T>()) {
-        upper = std::nextafter(lower, std::numeric_limits<T>::min());
-      } else if (std::is_arithmetic<T>()) {
-        upper -= 1;
-      }
-      memcpy(last_dimension_range->upper_value.get(), &upper, size);
-      last_dimension_range->lower_value = nullptr;
-      break;
-    }
-    case Item_func::LE_FUNC: {
-      memcpy(last_dimension_range->upper_value.get(), &upper, size);
-      last_dimension_range->lower_value = nullptr;
-      break;
-    }
-    case Item_func::EQ_FUNC: {
-      memcpy(last_dimension_range->lower_value.get(), &lower, size);
-      memcpy(last_dimension_range->upper_value.get(), &upper, size);
-      break;
-    }
-    default:
-      my_printf_error(
-          ER_UNKNOWN_ERROR,
-          "Unsupported Item_func::functype in build_range_from_key",
-          ME_ERROR_LOG | ME_FATAL);
-      break;
-    }
-
-    return last_dimension_range;
+    memcpy(range->lower_value.get(), &lower, size);
+    range->upper_value = nullptr;
+    break;
   }
-  return nullptr;
+  case Item_func::GE_FUNC: {
+    memcpy(range->lower_value.get(), &lower, size);
+    range->upper_value = nullptr;
+    break;
+  }
+  case Item_func::LT_FUNC: {
+    // If we have less than, lets make it less than or equal
+    // TileDB ranges are inclusive
+    range->operation_type = Item_func::LE_FUNC;
+    if (std::is_floating_point<T>()) {
+      upper = std::nextafter(lower, std::numeric_limits<T>::min());
+    } else if (std::is_arithmetic<T>()) {
+      upper -= 1;
+    }
+    memcpy(range->upper_value.get(), &upper, size);
+    range->lower_value = nullptr;
+    break;
+  }
+  case Item_func::LE_FUNC: {
+    memcpy(range->upper_value.get(), &upper, size);
+    range->lower_value = nullptr;
+    break;
+  }
+  case Item_func::EQ_FUNC: {
+    memcpy(range->lower_value.get(), &lower, size);
+    memcpy(range->upper_value.get(), &upper, size);
+    break;
+  }
+  default:
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unsupported Item_func::functype in build_range_from_key",
+        ME_ERROR_LOG | ME_FATAL);
+    break;
+  }
+
+  return range;
 }
 /**
  * Update a range struct with a new key value. This will expand the super range

@@ -703,7 +703,6 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     return {};
 
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges;
-  bool use_find_flag = false;
   uint64_t key_offset = 0;
 
   for (uint64_t key_part_index = 0;
@@ -720,62 +719,59 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
     uint64_t datatype_size = tiledb_datatype_size(datatype);
 
-    // XXX: ch 3799 find_flag can apply to each key part
-    use_find_flag = true;
-
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {
       ranges[dim_idx] = build_range_from_key<double>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_FLOAT32: {
       ranges[dim_idx] = build_range_from_key<float>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT8: {
       ranges[dim_idx] = build_range_from_key<int8_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT8: {
       ranges[dim_idx] = build_range_from_key<uint8_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT16: {
       ranges[dim_idx] = build_range_from_key<int16_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT16: {
       ranges[dim_idx] = build_range_from_key<uint16_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT32: {
       ranges[dim_idx] = build_range_from_key<int32_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT32: {
       ranges[dim_idx] = build_range_from_key<uint32_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
@@ -795,14 +791,14 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
       ranges[dim_idx] = build_range_from_key<int64_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT64: {
       ranges[dim_idx] = build_range_from_key<uint64_t>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype);
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
@@ -812,7 +808,7 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
           *reinterpret_cast<const uint16_t *>(key + key_offset);
       key_offset += sizeof(uint16_t);
       ranges[dim_idx] = build_range_from_key<char>(
-          key + key_offset, length, use_find_flag, find_flag, start_key, datatype,
+          key + key_offset, length, find_flag, start_key, datatype,
           char_length);
       key_offset += sizeof(char) * char_length;
       break;

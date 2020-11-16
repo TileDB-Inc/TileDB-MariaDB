@@ -2370,7 +2370,7 @@ ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
 int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                         bool start_key,
                                         enum ha_rkey_function find_flag) {
-  DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
+  DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
       tile::build_ranges_from_key(table->key_info, key, key_len,
                                   find_flag, start_key,

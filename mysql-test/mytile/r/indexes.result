@@ -56,3 +56,175 @@ col0
 SELECT * FROM t1 WHERE col0 = 10;
 col0
 DROP TABLE t1;
+ch # 3770 reversed key order
+CREATE TABLE t2 (
+col0 int dimension=1 tile_extent="10",
+col1 int dimension=1 tile_extent="10",
+PRIMARY KEY(col1, col0)
+) ENGINE=mytile;
+INSERT INTO t2 (col0, col1) VALUES (12345, 54321);
+SELECT * FROM t2 WHERE col1 = 54321;
+col0	col1
+12345	54321
+SELECT * FROM t2 WHERE col1 = 54321 AND col0 = 12345;
+col0	col1
+12345	54321
+SELECT * FROM t2 WHERE col0 = 12345;
+col0	col1
+12345	54321
+DROP TABLE t2;
+ch # 3770 mixed key order
+CREATE TABLE t3 (
+col0 int dimension=1 tile_extent="10",
+col1 int dimension=1 tile_extent="10",
+col2 int dimension=1 tile_extent="10",
+col3 int dimension=1 tile_extent="10",
+col4 int dimension=1 tile_extent="10",
+PRIMARY KEY(col3, col4, col2, col0, col1)
+) ENGINE=mytile;
+INSERT INTO t3 VALUES (0, 1, 2, 3, 4);
+INSERT INTO t3 VALUES (5, 6, 7, 8, 9);
+SELECT * FROM t3;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+5	6	7	8	9
+SELECT * FROM t3 WHERE col3 = 3;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2 AND col0 = 0;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+SELECT * FROM t3 WHERE col3 = 3 AND col4 = 4 AND col2 = 2 AND col0 = 0 AND col1 = 1;
+col0	col1	col2	col3	col4
+0	1	2	3	4
+SELECT * FROM t3 WHERE col0 = 5;
+col0	col1	col2	col3	col4
+5	6	7	8	9
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6;
+col0	col1	col2	col3	col4
+5	6	7	8	9
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7;
+col0	col1	col2	col3	col4
+5	6	7	8	9
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7 AND col3 = 8;
+col0	col1	col2	col3	col4
+5	6	7	8	9
+SELECT * FROM t3 WHERE col0 = 5 AND col1 = 6 AND col2 = 7 AND col3 = 8 AND col4 = 9;
+col0	col1	col2	col3	col4
+5	6	7	8	9
+DROP TABLE t3;
+ch # 3799 mixed index / pushed condition / key order
+CREATE TABLE t4 (
+col0 int dimension=1 tile_extent="10",
+col1 int dimension=1 tile_extent="10",
+PRIMARY KEY(col1, col0)
+) ENGINE=mytile;
+INSERT INTO t4 (col0, col1) VALUES (0, 0);
+INSERT INTO t4 (col0, col1) VALUES (0, 1);
+INSERT INTO t4 (col0, col1) VALUES (0, 2);
+INSERT INTO t4 (col0, col1) VALUES (0, 3);
+INSERT INTO t4 (col0, col1) VALUES (0, 4);
+INSERT INTO t4 (col0, col1) VALUES (1, 0);
+INSERT INTO t4 (col0, col1) VALUES (1, 1);
+INSERT INTO t4 (col0, col1) VALUES (1, 2);
+INSERT INTO t4 (col0, col1) VALUES (1, 3);
+INSERT INTO t4 (col0, col1) VALUES (1, 4);
+INSERT INTO t4 (col0, col1) VALUES (2, 0);
+INSERT INTO t4 (col0, col1) VALUES (2, 1);
+INSERT INTO t4 (col0, col1) VALUES (2, 2);
+INSERT INTO t4 (col0, col1) VALUES (2, 3);
+INSERT INTO t4 (col0, col1) VALUES (2, 4);
+select * from t4 where col1 = 0 AND col0 > 0;
+col0	col1
+1	0
+2	0
+DROP TABLE t4;
+ch # 3799 find flags
+CREATE TABLE t5 (
+col0 int NOT NULL dimension=1 tile_extent="10",
+col1 int NOT NULL dimension=1 tile_extent="10",
+attr int,
+PRIMARY KEY (col0, col1)
+) ENGINE=MyTile;
+INSERT INTO t5 VALUES(1, 1, 1);
+INSERT INTO t5 VALUES(1, 2, 2);
+INSERT INTO t5 VALUES(1, 3, 3);
+INSERT INTO t5 VALUES(1, 4, 4);
+INSERT INTO t5 VALUES(2, 1, 5);
+INSERT INTO t5 VALUES(2, 2, 6);
+INSERT INTO t5 VALUES(2, 3, 7);
+INSERT INTO t5 VALUES(2, 4, 8);
+INSERT INTO t5 VALUES(3, 1, 9);
+INSERT INTO t5 VALUES(3, 2, 10);
+INSERT INTO t5 VALUES(3, 3, 11);
+INSERT INTO t5 VALUES(3, 4, 12);
+INSERT INTO t5 VALUES(4, 1, 13);
+INSERT INTO t5 VALUES(4, 2, 14);
+INSERT INTO t5 VALUES(4, 3, 15);
+INSERT INTO t5 VALUES(4, 4, 16);
+SELECT * FROM t5 WHERE col0 >= 1 AND col0 < 4;
+col0	col1	attr
+1	1	1
+1	2	2
+1	3	3
+1	4	4
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+SELECT * FROM t5 WHERE col0 > 1 AND col0 <= 3;
+col0	col1	attr
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+SELECT * FROM t5 WHERE col0 >= 1 AND col0 < 4 AND col1 >= 1 AND col1 < 4;
+col0	col1	attr
+1	1	1
+1	2	2
+1	3	3
+2	1	5
+2	2	6
+2	3	7
+3	1	9
+3	2	10
+3	3	11
+MRR issue?
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 >= 1 AND col1 < 4;
+MRR issue (strange)
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 101;
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 100;
+col0	col1	attr
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+MRR issue (from...)
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 3;
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 3;
+col0	col1	attr
+2	1	5
+2	2	6
+2	3	7
+3	1	9
+3	2	10
+3	3	11
+DROP TABLE t5;

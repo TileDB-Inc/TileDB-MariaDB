@@ -663,7 +663,7 @@ int tile::mytile::init_scan(THD *thd) {
       log_debug(thd, "pushdown of ranges for query on table %s",
                 this->table->s->table_name.str);
 
-      // Loop over dimensions and build rangers for that dimension
+      // Loop over dimensions and build ranges for that dimension
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain.dimension(dim_idx);
 
@@ -2019,19 +2019,15 @@ int tile::mytile::index_end() {
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read");
-  // If no conditions or index have been pushed, use key scan info to push a
-  // range down
-  if ((!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges()) ||
-      this->query_complete()) {
-    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
-    int rc = init_scan(this->ha_thd());
+  // reset or add pushdowns for this key
+  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+  int rc = init_scan(this->ha_thd());
 
-    if (rc)
-      DBUG_RETURN(rc);
+  if (rc)
+    DBUG_RETURN(rc);
 
-    // Index scans are expected in row major order
-    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
-  }
+  // Index scans are expected in row major order
+  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, false /* reset */));
 }
 
@@ -2051,7 +2047,15 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
                                          uint64_t index) {
   auto domain = this->array_schema->domain();
   int key_position = 0;
-  for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
+
+  const KEY* key_info = table->key_info;
+
+  for (uint64_t key_part_index = 0;
+       key_part_index < key_info->user_defined_key_parts;
+       key_part_index++) {
+
+    const KEY_PART_INFO* key_part_info = &(key_info->key_part[key_part_index]);
+    uint64_t dim_idx = key_part_info->field->field_index;
     tiledb::Dimension dimension = domain.dimension(dim_idx);
 
     for (auto &dim_buffer : this->buffers) {
@@ -2343,10 +2347,8 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   uint key_len = calculate_key_len(table, idx, key, keypart_map);
 
-  // If no conditions or index have been pushed, use key scan info to push a
-  // range down
-  if (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())
-    this->reset_pushdowns_for_key(key, key_len, true, find_flag);
+  // reset or add pushdowns for this key
+  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
 
   // If we are doing an index scan we need to use row-major order to get the
   // results in the expected order
@@ -2365,24 +2367,30 @@ ha_rows tile::mytile::records_in_range(uint inx, key_range *min_key,
   return (ha_rows)10000;
 }
 
-int tile::mytile::reset_pushdowns_for_key(const uchar *key, uint key_len,
-                                          bool start_key,
-                                          enum ha_rkey_function find_flag) {
-  DBUG_ENTER("tile::mytile::reset_pushdowns_for_key");
-  std::vector<std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(key, key_len, find_flag, start_key,
+int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
+                                        bool start_key,
+                                        enum ha_rkey_function find_flag) {
+  DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
+  std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
+      tile::build_ranges_from_key(table->key_info, key, key_len,
+                                  find_flag, start_key,
                                   this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
-    this->pushdown_ranges.clear();
-    this->pushdown_in_ranges.clear();
-
-    this->pushdown_ranges.resize(this->ndim);
-    this->pushdown_in_ranges.resize(this->ndim);
+    if (this->query_complete() ||
+       (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())) {
+      this->pushdown_ranges.clear();
+      this->pushdown_in_ranges.clear();
+      this->pushdown_ranges.resize(this->ndim);
+      this->pushdown_in_ranges.resize(this->ndim);
+    }
 
     // Copy shared pointer to main range pushdown
-    for (uint64_t i = 0; i < ranges_from_keys.size(); i++) {
-      this->pushdown_ranges[i].push_back(ranges_from_keys[i]);
+    for (uint64_t i = 0; i < this->ndim; i++) {
+      auto range = ranges_from_keys[i];
+      if (range.get() != nullptr) {
+        this->pushdown_ranges[i].push_back(range);
+      }
     }
   }
   DBUG_RETURN(0);

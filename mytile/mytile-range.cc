@@ -693,81 +693,85 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag,
   return Item_func::Functype::EQ_FUNC;
 }
 
-std::vector<std::shared_ptr<tile::range>> tile::build_ranges_from_key(
-    const uchar *key, uint length, enum ha_rkey_function find_flag,
-    const bool start_key, const tiledb::Domain &domain) {
+std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
+    const KEY* key_info, const uchar *key, uint length,
+    enum ha_rkey_function find_flag, const bool start_key,
+    const tiledb::Domain &domain) {
+
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
 
-  std::vector<std::shared_ptr<tile::range>> ranges;
-  bool last_key = false;
+  std::map<uint64_t,std::shared_ptr<tile::range>> ranges;
   uint64_t key_offset = 0;
-  for (uint64_t dim_index = 0; dim_index < domain.ndim(); ++dim_index) {
-    if (key_offset >= length)
+
+  for (uint64_t key_part_index = 0;
+       key_part_index < key_info->user_defined_key_parts;
+       key_part_index++) {
+
+    if (key_offset >= length) {
       break;
-
-    tiledb_datatype_t datatype = domain.dimension(dim_index).type();
-    uint64_t datatype_size = tiledb_datatype_size(datatype);
-
-    if (dim_index == domain.ndim() - 1 ||
-        key_offset + datatype_size == length) {
-      last_key = true;
     }
+
+    const KEY_PART_INFO* key_part_info = &(key_info->key_part[key_part_index]);
+    uint64_t dim_idx = key_part_info->field->field_index;
+
+    tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
+    uint64_t datatype_size = tiledb_datatype_size(datatype);
 
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {
-      ranges.push_back(build_range_from_key<double>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<double>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_FLOAT32: {
-      ranges.push_back(build_range_from_key<float>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<float>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT8: {
-      ranges.push_back(build_range_from_key<int8_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<int8_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT8: {
-      ranges.push_back(build_range_from_key<uint8_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<uint8_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT16: {
-      ranges.push_back(build_range_from_key<int16_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<int16_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT16: {
-      ranges.push_back(build_range_from_key<uint16_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<uint16_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT32: {
-      ranges.push_back(build_range_from_key<int32_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<int32_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT32: {
-      ranges.push_back(build_range_from_key<uint32_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<uint32_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
@@ -786,15 +790,15 @@ std::vector<std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     case tiledb_datatype_t::TILEDB_DATETIME_PS:
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-      ranges.push_back(build_range_from_key<int64_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<int64_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT64: {
-      ranges.push_back(build_range_from_key<uint64_t>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype));
+      ranges[dim_idx] = build_range_from_key<uint64_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }
@@ -803,9 +807,9 @@ std::vector<std::shared_ptr<tile::range>> tile::build_ranges_from_key(
       const uint16_t char_length =
           *reinterpret_cast<const uint16_t *>(key + key_offset);
       key_offset += sizeof(uint16_t);
-      ranges.push_back(build_range_from_key<char>(
-          key + key_offset, length, last_key, find_flag, start_key, datatype,
-          char_length));
+      ranges[dim_idx] = build_range_from_key<char>(
+          key + key_offset, length, find_flag, start_key, datatype,
+          char_length);
       key_offset += sizeof(char) * char_length;
       break;
     }

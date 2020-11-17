@@ -523,7 +523,8 @@ Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag,
 /**
  *
  * Takes a key and find_flag and converts to a map of index->range.
- * @param key_info
+ * @param thd
+ * @param table
  * @param key
  * @param length
  * @param find_flag
@@ -532,7 +533,7 @@ Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag,
  * @return
  */
 std::map<uint64_t,std::shared_ptr<tile::range>>
-build_ranges_from_key(const KEY* key_info, const uchar *key,
+build_ranges_from_key(THD* thd, const TABLE* table, const uchar *key,
                       uint length, enum ha_rkey_function find_flag,
                       const bool start_key,
                       const tiledb::Domain &domain);

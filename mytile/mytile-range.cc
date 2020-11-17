@@ -694,13 +694,15 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag,
 }
 
 std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
-    const KEY* key_info, const uchar *key, uint length,
+    THD* thd, const TABLE* table, const uchar *key, uint length,
     enum ha_rkey_function find_flag, const bool start_key,
     const tiledb::Domain &domain) {
 
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
+
+  const KEY* key_info = table->key_info;
 
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges;
   uint64_t key_offset = 0;
@@ -776,9 +778,18 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
       break;
     }
 
-    case tiledb_datatype_t::TILEDB_INT64:
+    case tiledb_datatype_t::TILEDB_INT64: {
+      ranges[dim_idx] = build_range_from_key<int64_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
+      key_offset += datatype_size;
+      break;
+    }
+
+    //TODO
     case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+    //TODO
     case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+    //TODO
     case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
     case tiledb_datatype_t::TILEDB_DATETIME_DAY:
     case tiledb_datatype_t::TILEDB_DATETIME_HR:
@@ -790,8 +801,14 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     case tiledb_datatype_t::TILEDB_DATETIME_PS:
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+      MYSQL_TIME mysql_time;
+      longlong t = my_datetime_packed_from_binary(key,
+                   table->field[dim_idx]->decimals());
+      TIME_from_longlong_datetime_packed(&mysql_time, t);
+      int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
       ranges[dim_idx] = build_range_from_key<int64_t>(
-          key + key_offset, length, find_flag, start_key, datatype);
+          (uchar*)&xs, length, find_flag, start_key, datatype);
       key_offset += datatype_size;
       break;
     }

@@ -2063,7 +2063,7 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
         continue;
       } else { // buffer for dimension was found
         uint64_t dim_key_length = 0;
-        uint64_t dim_comparison = compare_key_to_dim(
+        uint64_t dim_comparison = compare_key_to_dim(dim_idx,
             key + key_position, &dim_key_length, index, dim_buffer);
         key_position += dim_key_length;
         if (dim_comparison != 0) {
@@ -2080,7 +2080,8 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
   return 0;
 }
 
-int8_t tile::mytile::compare_key_to_dim(const uchar *key,
+int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
+                                        const uchar *key,
                                         uint64_t *dim_key_length,
                                         const uint64_t index,
                                         const std::shared_ptr<buffer> &buf) {
@@ -2114,8 +2115,12 @@ int8_t tile::mytile::compare_key_to_dim(const uchar *key,
   case TILEDB_UINT64:
     return compare_key_to_dim<uint64>(key, *dim_key_length, fixed_buff_pointer);
   case TILEDB_INT64:
+    return compare_key_to_dim<int64>(key, *dim_key_length, fixed_buff_pointer);
+  //TODO
   case TILEDB_DATETIME_YEAR:
+  //TODO
   case TILEDB_DATETIME_MONTH:
+  //TODO
   case TILEDB_DATETIME_WEEK:
   case TILEDB_DATETIME_DAY:
   case TILEDB_DATETIME_HR:
@@ -2126,8 +2131,14 @@ int8_t tile::mytile::compare_key_to_dim(const uchar *key,
   case TILEDB_DATETIME_NS:
   case TILEDB_DATETIME_PS:
   case TILEDB_DATETIME_FS:
-  case TILEDB_DATETIME_AS:
-    return compare_key_to_dim<int64>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_DATETIME_AS: {
+    MYSQL_TIME mysql_time;
+    longlong t = my_datetime_packed_from_binary(key,
+                 table->field[dim_idx]->decimals());
+    TIME_from_longlong_datetime_packed(&mysql_time, t);
+    int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    return compare_key_to_dim<int64>((uchar*)&xs, *dim_key_length, fixed_buff_pointer);
+  }
   case TILEDB_STRING_ASCII: {
     const uint16_t char_length = *reinterpret_cast<const uint16_t *>(key);
     uint64_t key_offset = sizeof(uint16_t);
@@ -2372,7 +2383,7 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                         enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(table->key_info, key, key_len,
+      tile::build_ranges_from_key(ha_thd(), table, key, key_len,
                                   find_flag, start_key,
                                   this->array_schema->domain());
 

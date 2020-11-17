@@ -2119,15 +2119,14 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   case TILEDB_DATETIME_YEAR: {
     // XXX: for some reason maria uses year offset from 1900 here
     MYSQL_TIME mysql_time = {
-      1900 + *((uint32_t*)(key)),
+      1900U + *((uint8_t*)(key)),
       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
     };
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    *dim_key_length = sizeof(uint8_t);
     return compare_key_to_dim<int64>((uchar*)&xs, *dim_key_length, fixed_buff_pointer);
   }
-  //TODO
   case TILEDB_DATETIME_MONTH:
-  //TODO
   case TILEDB_DATETIME_WEEK:
   case TILEDB_DATETIME_DAY:
   case TILEDB_DATETIME_HR:
@@ -2140,10 +2139,16 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   case TILEDB_DATETIME_FS:
   case TILEDB_DATETIME_AS: {
     MYSQL_TIME mysql_time;
-    longlong t = my_datetime_packed_from_binary(key,
-                 table->field[dim_idx]->decimals());
-    TIME_from_longlong_datetime_packed(&mysql_time, t);
+    Field* field = table->field[dim_idx];
+
+    uchar* tmp = field->ptr;
+    field->ptr = (uchar*)key;
+    field->get_date(&mysql_time, date_mode_t(0));
+    field->ptr = tmp;
+
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    // TODO:
+    *dim_key_length = 7;
     return compare_key_to_dim<int64>((uchar*)&xs, *dim_key_length, fixed_buff_pointer);
   }
   case TILEDB_STRING_ASCII: {

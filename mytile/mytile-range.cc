@@ -785,11 +785,20 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
       break;
     }
 
-    //TODO
-    case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-    //TODO
+    case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+      // XXX: for some reason maria uses year offset from 1900 here
+      MYSQL_TIME mysql_time = {
+        1900 + *((uint32_t*)(key + key_offset)),
+        0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
+      };
+      int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
+      ranges[dim_idx] = build_range_from_key<int64_t>(
+          (uchar*)&xs, length, find_flag, start_key, datatype);
+      key_offset += datatype_size;
+      break;
+    }
     case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
-    //TODO
     case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
     case tiledb_datatype_t::TILEDB_DATETIME_DAY:
     case tiledb_datatype_t::TILEDB_DATETIME_HR:
@@ -802,8 +811,10 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
       MYSQL_TIME mysql_time;
-      longlong t = my_datetime_packed_from_binary(key,
-                   table->field[dim_idx]->decimals());
+      longlong t = my_datetime_packed_from_binary(
+                     key + key_offset,
+                     table->field[dim_idx]->decimals()
+                   );
       TIME_from_longlong_datetime_packed(&mysql_time, t);
       int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 

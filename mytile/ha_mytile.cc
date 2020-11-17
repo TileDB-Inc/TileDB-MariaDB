@@ -2116,8 +2116,15 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
     return compare_key_to_dim<uint64>(key, *dim_key_length, fixed_buff_pointer);
   case TILEDB_INT64:
     return compare_key_to_dim<int64>(key, *dim_key_length, fixed_buff_pointer);
-  //TODO
-  case TILEDB_DATETIME_YEAR:
+  case TILEDB_DATETIME_YEAR: {
+    // XXX: for some reason maria uses year offset from 1900 here
+    MYSQL_TIME mysql_time = {
+      1900 + *((uint32_t*)(key)),
+      0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
+    };
+    int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    return compare_key_to_dim<int64>((uchar*)&xs, *dim_key_length, fixed_buff_pointer);
+  }
   //TODO
   case TILEDB_DATETIME_MONTH:
   //TODO

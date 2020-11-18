@@ -461,7 +461,7 @@ public:
 
   int8_t compare_key_to_dim(const uint64_t dim_idx,
                             const uchar *key,
-                            uint64_t *dim_key_length,
+                            uint64_t key_part_len,
                             const uint64_t index,
                             const std::shared_ptr<buffer> &buf);
 

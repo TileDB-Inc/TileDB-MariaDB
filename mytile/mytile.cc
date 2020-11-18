@@ -955,8 +955,8 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
     MYSQL_TIME year={ static_cast<uint32_t>(field->val_int()),
                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
-    int64_t xs = MysqlTimeToTileDBTimeVal(thd, year, buff->type);
 
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, year, buff->type);
     return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
@@ -991,8 +991,8 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
     MYSQL_TIME mysql_time;
     field->get_date(&mysql_time, date_mode_t(0));
-    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
 
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
     return set_buffer_from_field<int64_t>(xs, buff, i);
   }
   default: {

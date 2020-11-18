@@ -2062,10 +2062,9 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
       if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
-        uint64_t dim_key_length = 0;
-        uint64_t dim_comparison = compare_key_to_dim(
-            key + key_position, &dim_key_length, index, dim_buffer);
-        key_position += dim_key_length;
+        uint64_t dim_comparison = compare_key_to_dim(dim_idx,
+            key + key_position, key_part_info->length, index, dim_buffer);
+        key_position += key_part_info->length;
         if (dim_comparison != 0) {
           return dim_comparison;
         }
@@ -2080,8 +2079,9 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
   return 0;
 }
 
-int8_t tile::mytile::compare_key_to_dim(const uchar *key,
-                                        uint64_t *dim_key_length,
+int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
+                                        const uchar *key,
+                                        uint64_t key_part_len,
                                         const uint64_t index,
                                         const std::shared_ptr<buffer> &buf) {
 
@@ -2090,31 +2090,38 @@ int8_t tile::mytile::compare_key_to_dim(const uchar *key,
   void *fixed_buff_pointer =
       (static_cast<char *>(buf->buffer) + index * datatype_size);
 
-  *dim_key_length = datatype_size;
-
   switch (buf->type) {
 
   case TILEDB_FLOAT32:
-    return compare_key_to_dim<float>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<float>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_FLOAT64:
-    return compare_key_to_dim<double>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<double>(key, key_part_len, fixed_buff_pointer);
     //  case TILEDB_CHAR:
   case TILEDB_INT8:
-    return compare_key_to_dim<int8>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<int8>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT8:
-    return compare_key_to_dim<uint8>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<uint8>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT16:
-    return compare_key_to_dim<int16>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<int16>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT16:
-    return compare_key_to_dim<uint16>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<uint16>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT32:
-    return compare_key_to_dim<int32>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<int32>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT32:
-    return compare_key_to_dim<uint32>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<uint32>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT64:
-    return compare_key_to_dim<uint64>(key, *dim_key_length, fixed_buff_pointer);
+    return compare_key_to_dim<uint64>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT64:
-  case TILEDB_DATETIME_YEAR:
+    return compare_key_to_dim<int64>(key, key_part_len, fixed_buff_pointer);
+  case TILEDB_DATETIME_YEAR: {
+    // XXX: for some reason maria uses year offset from 1900 here
+    MYSQL_TIME mysql_time = {
+      1900U + *((uint8_t*)(key)),
+      0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
+    };
+    int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    return compare_key_to_dim<int64>((uchar*)&xs, key_part_len, fixed_buff_pointer);
+  }
   case TILEDB_DATETIME_MONTH:
   case TILEDB_DATETIME_WEEK:
   case TILEDB_DATETIME_DAY:
@@ -2126,12 +2133,21 @@ int8_t tile::mytile::compare_key_to_dim(const uchar *key,
   case TILEDB_DATETIME_NS:
   case TILEDB_DATETIME_PS:
   case TILEDB_DATETIME_FS:
-  case TILEDB_DATETIME_AS:
-    return compare_key_to_dim<int64>(key, *dim_key_length, fixed_buff_pointer);
+  case TILEDB_DATETIME_AS: {
+    MYSQL_TIME mysql_time;
+    Field* field = table->field[dim_idx];
+
+    uchar* tmp = field->ptr;
+    field->ptr = (uchar*)key;
+    field->get_date(&mysql_time, date_mode_t(0));
+    field->ptr = tmp;
+
+    int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
+    return compare_key_to_dim<int64>((uchar*)&xs, key_part_len, fixed_buff_pointer);
+  }
   case TILEDB_STRING_ASCII: {
     const uint16_t char_length = *reinterpret_cast<const uint16_t *>(key);
     uint64_t key_offset = sizeof(uint16_t);
-    *dim_key_length = key_offset + char_length;
 
     uint64_t end_position = index + 1;
     uint64_t start_position = 0;
@@ -2372,7 +2388,7 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                         enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(table->key_info, key, key_len,
+      tile::build_ranges_from_key(ha_thd(), table, key, key_len,
                                   find_flag, start_key,
                                   this->array_schema->domain());
 

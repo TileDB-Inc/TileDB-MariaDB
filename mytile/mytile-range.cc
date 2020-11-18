@@ -694,13 +694,15 @@ Item_func::Functype tile::find_flag_to_func(enum ha_rkey_function find_flag,
 }
 
 std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
-    const KEY* key_info, const uchar *key, uint length,
+    THD* thd, const TABLE* table, const uchar *key, uint length,
     enum ha_rkey_function find_flag, const bool start_key,
     const tiledb::Domain &domain) {
 
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
     return {};
+
+  const KEY* key_info = table->key_info;
 
   std::map<uint64_t,std::shared_ptr<tile::range>> ranges;
   uint64_t key_offset = 0;
@@ -717,67 +719,84 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     uint64_t dim_idx = key_part_info->field->field_index;
 
     tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
-    uint64_t datatype_size = tiledb_datatype_size(datatype);
 
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {
       ranges[dim_idx] = build_range_from_key<double>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_FLOAT32: {
       ranges[dim_idx] = build_range_from_key<float>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT8: {
       ranges[dim_idx] = build_range_from_key<int8_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT8: {
       ranges[dim_idx] = build_range_from_key<uint8_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT16: {
       ranges[dim_idx] = build_range_from_key<int16_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT16: {
       ranges[dim_idx] = build_range_from_key<uint16_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT32: {
       ranges[dim_idx] = build_range_from_key<int32_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT32: {
       ranges[dim_idx] = build_range_from_key<uint32_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 
-    case tiledb_datatype_t::TILEDB_INT64:
-    case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+    case tiledb_datatype_t::TILEDB_INT64: {
+      ranges[dim_idx] = build_range_from_key<int64_t>(
+          key + key_offset, length, find_flag, start_key, datatype);
+      key_offset += key_part_info->length;
+      break;
+    }
+
+    case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+      // XXX: for some reason maria uses year offset from 1900 here
+      MYSQL_TIME mysql_time = {
+        1900U + *((uint8_t*)(key + key_offset)),
+        0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
+      };
+      int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
+      ranges[dim_idx] = build_range_from_key<int64_t>(
+          (uchar*)&xs, length, find_flag, start_key, datatype);
+      key_offset += key_part_info->length;
+      break;
+    }
     case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
     case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
     case tiledb_datatype_t::TILEDB_DATETIME_DAY:
@@ -790,16 +809,25 @@ std::map<uint64_t,std::shared_ptr<tile::range>> tile::build_ranges_from_key(
     case tiledb_datatype_t::TILEDB_DATETIME_PS:
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
     case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+      MYSQL_TIME mysql_time;
+      Field* field = key_part_info->field;
+
+      uchar* tmp = field->ptr;
+      field->ptr = (uchar*)(key + key_offset);
+      field->get_date(&mysql_time, date_mode_t(0));
+      field->ptr = tmp;
+      int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
       ranges[dim_idx] = build_range_from_key<int64_t>(
-          key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+          (uchar*)&xs, length, find_flag, start_key, datatype);
+      key_offset += key_part_info->length;
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT64: {
       ranges[dim_idx] = build_range_from_key<uint64_t>(
           key + key_offset, length, find_flag, start_key, datatype);
-      key_offset += datatype_size;
+      key_offset += key_part_info->length;
       break;
     }
 

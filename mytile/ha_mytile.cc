@@ -317,7 +317,16 @@ bool tile::mytile::field_has_default_value(Field *field) const {
   DBUG_RETURN(!has_no_default_value);
 }
 
-uint64_t tile::mytile::get_default_value_size(const void *value,
+bool tile::mytile::field_is_nullable(Field *field) const {
+  DBUG_ENTER("tile::field_is_nullable");
+
+  bool has_not_null = field->flags &
+                      NOT_NULL_FLAG;
+
+  DBUG_RETURN(!has_not_null);
+}
+
+uint64_t tile::mytile::get_default_value_size(const void* value,
                                               tiledb_datatype_t type) const {
   DBUG_ENTER("tile::get_default_value_size");
   uint64_t size = 0;
@@ -443,6 +452,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
       bool has_default_value = field_has_default_value(field);
+      bool is_nullable = field_is_nullable(field);
 
       // we currently ignore default values for dimensions
       // If the field has the dimension flag set or it is part of the primary
@@ -450,6 +460,13 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       if (field->option_struct->dimension ||
           primaryKeyParts.find(field->field_name.str) !=
               primaryKeyParts.end()) {
+        if (is_nullable) {
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "[create_array] error creating dimension for table %s : %s",
+                          ME_ERROR_LOG | ME_FATAL, this->uri.c_str(),
+                          "nullable dimensions are not allowed");
+          DBUG_RETURN(ERR_CREATE_DIM_NULL);
+        }
         try {
           domain.add_dimension(create_field_dimension(context, field));
         } catch (const std::exception &e) {
@@ -469,6 +486,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
         tiledb::Attribute attr =
             create_field_attribute(context, field, filter_list);
+
+        attr.set_nullable(is_nullable);
 
         if (has_default_value) {
           std::shared_ptr<buffer> buff = std::make_shared<buffer>();
@@ -1180,6 +1199,11 @@ void tile::mytile::position(const uchar *record) {
 void tile::mytile::dealloc_buffer(std::shared_ptr<buffer> buff) const {
   DBUG_ENTER("tile::mytile::dealloc_buffer");
 
+  if (buff->validity_buffer != nullptr) {
+    free(buff->validity_buffer);
+    buff->validity_buffer = nullptr;
+  }
+
   if (buff->offset_buffer != nullptr) {
     free(buff->offset_buffer);
     buff->offset_buffer = nullptr;
@@ -1554,16 +1578,29 @@ void tile::mytile::alloc_buffers(uint64_t size) {
       }
     } else { // attribute
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
+
+      uint8_t *validity_buffer = nullptr;
       uint64_t *offset_buffer = nullptr;
       auto data_buffer = alloc_buffer(attr.type(), size);
+
       buff->fixed_size_elements = attr.cell_val_num();
+
+      uint8_t nullable = 0;
+      tiledb_attribute_get_nullable(ctx.ptr().get(), attr.ptr().get(), &nullable);
+      if (nullable) {
+        validity_buffer = static_cast<uint8_t *>(
+          alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size));
+        buff->validity_buffer_size = size;
+        buff->allocated_validity_buffer_size = size;
+      }
       if (attr.variable_sized()) {
         offset_buffer = static_cast<uint64_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+          alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
         buff->offset_buffer_size = size;
         buff->allocated_offset_buffer_size = size;
       }
 
+      buff->validity_buffer = validity_buffer;
       buff->offset_buffer = offset_buffer;
       buff->buffer = data_buffer;
       buff->type = attr.type();
@@ -1582,15 +1619,30 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
     if (buff == nullptr)
       continue;
 
-    if (buff->offset_buffer != nullptr) {
-      this->ctx.handle_error(tiledb_query_set_buffer_var(
-          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-          buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-          &buff->buffer_size));
+    if (buff->validity_buffer != nullptr) {
+      if (buff->offset_buffer != nullptr) {
+        this->ctx.handle_error(tiledb_query_set_buffer_var_nullable(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->offset_buffer, &buff->offset_buffer_size,
+            buff->buffer, &buff->buffer_size,
+            buff->validity_buffer, &buff->validity_buffer_size));
+      } else {
+        this->ctx.handle_error(tiledb_query_set_buffer_nullable(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->buffer, &buff->buffer_size,
+            buff->validity_buffer, &buff->validity_buffer_size));
+      }
     } else {
-      this->ctx.handle_error(tiledb_query_set_buffer(
-          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-          buff->buffer, &buff->buffer_size));
+      if (buff->offset_buffer != nullptr) {
+        this->ctx.handle_error(tiledb_query_set_buffer_var(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
+            &buff->buffer_size));
+      } else {
+        this->ctx.handle_error(tiledb_query_set_buffer(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->buffer, &buff->buffer_size));
+      }
     }
   }
 }
@@ -1639,17 +1691,8 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
-      if (field->is_null()) {
-        sql_print_error("[mysql_row_to_tiledb_buffers] write error for table "
-                        "%s : field null not supported",
-                        this->uri.c_str());
-        error = HA_ERR_GENERIC;
-        DBUG_RETURN(error);
-      } else {
-        std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
-        error =
-            set_buffer_from_field(field, buffer, this->record_index, ha_thd());
-      }
+      std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
+      error = set_buffer_from_field(field, buffer, this->record_index, ha_thd());
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -1755,15 +1798,30 @@ int tile::mytile::flush_write() {
   try {
 
     for (auto &buff : this->buffers) {
-      if (buff->offset_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_buffer_var(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-            &buff->buffer_size));
+      if (buff->validity_buffer != nullptr) {
+        if (buff->offset_buffer != nullptr) {
+          this->ctx.handle_error(tiledb_query_set_buffer_var_nullable(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+              buff->offset_buffer, &buff->offset_buffer_size,
+              buff->buffer, &buff->buffer_size,
+              buff->validity_buffer, &buff->validity_buffer_size));
+        } else {
+          this->ctx.handle_error(tiledb_query_set_buffer_nullable(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+              buff->buffer, &buff->buffer_size,
+              buff->validity_buffer, &buff->validity_buffer_size));
+        }
       } else {
-        this->ctx.handle_error(tiledb_query_set_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->buffer, &buff->buffer_size));
+        if (buff->offset_buffer != nullptr) {
+          this->ctx.handle_error(tiledb_query_set_buffer_var(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+              buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
+              &buff->buffer_size));
+        } else {
+          this->ctx.handle_error(tiledb_query_set_buffer(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+              buff->buffer, &buff->buffer_size));
+        }
       }
     }
 

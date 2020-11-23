@@ -865,6 +865,15 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 }
 int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                                 uint64_t i, THD *thd) {
+
+  if (buff->validity_buffer != nullptr) {
+    if (field->is_null()) {
+      buff->validity_buffer[i] = 0;
+    } else {
+      buff->validity_buffer[i] = 1;
+    }
+  }
+
   switch (buff->type) {
 
   /** 8-bit signed integer */

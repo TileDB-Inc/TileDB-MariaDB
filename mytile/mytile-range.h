@@ -515,10 +515,13 @@ std::vector<std::shared_ptr<tile::range>> get_unique_non_contained_in_ranges(
 /**
  * Converts from key find flag enum to functype used by ranges
  * @param find_flag
+ * @param start_key
+ * @param last_key_part
  * @return
  */
 Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag,
-                                      const bool start_key);
+                                      const bool start_key,
+                                      const bool last_key_part);
 
 /**
  *
@@ -545,6 +548,7 @@ build_ranges_from_key(THD* thd, const TABLE* table, const uchar *key,
  * @param length
  * @param find_flag
  * @param start_key
+ * @param last_key_part
  * @param datatype
  * @return
  */
@@ -553,6 +557,7 @@ std::shared_ptr<tile::range>
 build_range_from_key(const uchar *key, uint length,
                      enum ha_rkey_function find_flag,
                      const bool start_key,
+                     const bool last_key_part,
                      tiledb_datatype_t datatype,
                      uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
@@ -568,7 +573,8 @@ build_range_from_key(const uchar *key, uint length,
                                                       &std::free),
           std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
                                                       &std::free),
-          find_flag_to_func(find_flag, start_key), datatype, size, size});
+          find_flag_to_func(find_flag, start_key, last_key_part),
+                            datatype, size, size});
 
   T lower = *key_typed;
   T upper = *key_typed;
@@ -634,11 +640,14 @@ build_range_from_key(const uchar *key, uint length,
  * @param range range to modify
  * @param key key to add/include in super range
  * @param key_offset offset of key
+ * @param start_key
+ * @param last_key_part
  * @param datatype
  */
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
                                            const bool start_key,
+                                           const bool last_key_part,
                                            tiledb_datatype_t datatype);
 
 /**
@@ -647,12 +656,15 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
  * @param range
  * @param key
  * @param key_offset offset of key
+ * @param start_key
+ * @param last_key_part
  * @param key_length length of key
  */
 template <typename T>
 void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
                                            const bool start_key,
+                                           const bool last_key_part,
                                            uint64_t key_length = sizeof(T)) {
   auto tmp_key = std::unique_ptr<void, decltype(&std::free)>(
       std::malloc(key_length), &std::free);
@@ -660,7 +672,7 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
   memcpy(tmp_key.get(), key_pushed, key_length);
   T *key_value = reinterpret_cast<T *>(tmp_key.get());
 
-  auto operation_type = find_flag_to_func(key.flag, start_key);
+  auto operation_type = find_flag_to_func(key.flag, start_key, last_key_part);
   switch (operation_type) {
   // If we have greater than, lets make it greater than or equal
   // TileDB ranges are inclusive

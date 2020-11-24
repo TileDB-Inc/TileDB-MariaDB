@@ -134,15 +134,11 @@ SELECT * FROM t5 WHERE col0 > 1 AND col0 <= 3;
 
 SELECT * FROM t5 WHERE col0 >= 1 AND col0 < 4 AND col1 >= 1 AND col1 < 4;
 
---echo MRR issue?
---echo SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 >= 1 AND col1 < 4;
-
---echo MRR issue (strange)
---echo SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 101;
+--echo ch # 3836
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 >= 1 AND col1 < 4;
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 101;
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 100;
-
---echo MRR issue (from...)
---echo SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 3;
+SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 3;
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 3;
 
 DROP TABLE t5;

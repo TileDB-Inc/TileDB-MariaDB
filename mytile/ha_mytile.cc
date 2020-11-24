@@ -2447,20 +2447,28 @@ int tile::mytile::build_mrr_ranges() {
         if (key_offset >= mrr_cur_range.start_key.length)
           break;
 
-        auto &range = tmp_ranges[i];
-
+        uint64_t key_len = 0;
+        bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
-        update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
-                                              key_offset, true, datatype);
-        // Move the key offset
+
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
               mrr_cur_range.start_key.key + key_offset);
-          key_offset += sizeof(uint16_t);
-          key_offset += char_length;
+          key_len += sizeof(uint16_t);
+          key_len += char_length;
         } else {
-          key_offset += tiledb_datatype_size(datatype);
+          key_len += tiledb_datatype_size(datatype);
         }
+
+        if (key_offset + key_len >= mrr_cur_range.start_key.length)
+          last_key_part = true;
+
+        auto &range = tmp_ranges[i];
+        update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
+                                              key_offset, true /* start_key */,
+                                              last_key_part,
+                                              datatype);
+        key_offset += key_len;
       }
     }
 
@@ -2469,24 +2477,33 @@ int tile::mytile::build_mrr_ranges() {
     if (mrr_cur_range.end_key.key != nullptr) {
       uint64_t key_offset = 0;
       for (uint64_t i = 0; i < this->ndim; i++) {
+
         // Exit when we've reached the end of the key
         if (key_offset >= mrr_cur_range.end_key.length)
           break;
 
-        auto &range = tmp_ranges[i];
-
+        uint64_t key_len = 0;
+        bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
-        update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
-                                              key_offset, false, datatype);
-        // Move the key offset
+
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
               mrr_cur_range.end_key.key + key_offset);
-          key_offset += sizeof(uint16_t);
-          key_offset += char_length;
+          key_len += sizeof(uint16_t);
+          key_len += char_length;
         } else {
-          key_offset += tiledb_datatype_size(datatype);
+          key_len += tiledb_datatype_size(datatype);
         }
+
+        if (key_offset + key_len >= mrr_cur_range.end_key.length)
+          last_key_part = true;
+
+        auto &range = tmp_ranges[i];
+        update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
+                                              key_offset, false /* start_key */,
+                                              last_key_part,
+                                              datatype);
+        key_offset += key_len;
       }
     }
   }

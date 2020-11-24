@@ -203,10 +203,25 @@ col0	col1	attr
 3	1	9
 3	2	10
 3	3	11
-MRR issue?
+ch # 3836
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 >= 1 AND col1 < 4;
-MRR issue (strange)
+col0	col1	attr
+2	1	5
+2	2	6
+2	3	7
+3	1	9
+3	2	10
+3	3	11
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 101;
+col0	col1	attr
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 100;
 col0	col1	attr
 2	1	5
@@ -217,8 +232,12 @@ col0	col1	attr
 3	2	10
 3	3	11
 3	4	12
-MRR issue (from...)
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 < 3;
+col0	col1	attr
+2	1	5
+2	2	6
+3	1	9
+3	2	10
 SELECT * FROM t5 WHERE col0 <= 3 AND col0 >= 2 AND col1 <= 3;
 col0	col1	attr
 2	1	5

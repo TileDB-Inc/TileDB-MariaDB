@@ -249,82 +249,89 @@ DROP TABLE dt;
 CREATE TABLE datetime_dimensions ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/datetime_dimensions';;
 EXPLAIN SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	ref	PRIMARY	PRIMARY	1	const	1	Using index
 SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;
 dt_y
 2020
 EXPLAIN SELECT dt_m FROM datetime_dimensions WHERE dt_m = '2029-12-17 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_m FROM datetime_dimensions WHERE dt_m = '2029-12-17 00:00:00.000000';
 dt_m
 2029-12-17 00:00:00.000000
 EXPLAIN SELECT dt_w FROM datetime_dimensions WHERE dt_w = '2017-11-30 00:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_w FROM datetime_dimensions WHERE dt_w = '2017-11-30 00:00:00.000000';
 dt_w
 2017-11-30 00:00:00.000000
 EXPLAIN SELECT dt_d FROM datetime_dimensions WHERE dt_d = '2020-10-25';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_d FROM datetime_dimensions WHERE dt_d = '2020-10-25';
 dt_d
 2020-10-25
 EXPLAIN SELECT dt_hr FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_hr FROM datetime_dimensions WHERE dt_hr = '2020-10-25 13:00:00.000000';
 dt_hr
 2020-10-25 13:00:00.000000
 EXPLAIN SELECT dt_min FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_min FROM datetime_dimensions WHERE dt_min = '2020-10-25 13:07:00.000000';
 dt_min
 2020-10-25 13:07:00.000000
 EXPLAIN SELECT dt_s FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_s FROM datetime_dimensions WHERE dt_s = '2020-10-25 13:07:18.000000';
 dt_s
 2020-10-25 13:07:18.000000
 EXPLAIN SELECT dt_ms FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_ms FROM datetime_dimensions WHERE dt_ms = '2020-10-25 13:07:18.000000';
 dt_ms
 2020-10-25 13:07:18.000000
 EXPLAIN SELECT dt_us FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_us FROM datetime_dimensions WHERE dt_us = '2020-10-25 13:07:18.000000';
 dt_us
 2020-10-25 13:07:18.000000
 EXPLAIN SELECT dt_ns FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_ns FROM datetime_dimensions WHERE dt_ns = '2020-10-25 13:07:18.000000';
 dt_ns
 2020-10-25 13:07:18.000000
 EXPLAIN SELECT dt_ps FROM datetime_dimensions WHERE dt_ps = '1970-01-01 00:00:00.012300';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_ps FROM datetime_dimensions WHERE dt_ps = '1970-01-01 00:00:00.012300';
 dt_ps
 1970-01-01 00:00:00.012300
 EXPLAIN SELECT dt_fs FROM datetime_dimensions WHERE dt_fs = '1970-01-01 00:00:00.012300';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_fs FROM datetime_dimensions WHERE dt_fs = '1970-01-01 00:00:00.012300';
 dt_fs
 1970-01-01 00:00:00.012300
 EXPLAIN SELECT dt_as FROM datetime_dimensions WHERE dt_as = '1970-01-01 00:00:00.012300';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	89	NULL	2	Using where with pushed condition; Using index
+1	SIMPLE	datetime_dimensions	index	NULL	PRIMARY	81	NULL	2	Using where with pushed condition; Using index
 SELECT dt_as FROM datetime_dimensions WHERE dt_as = '1970-01-01 00:00:00.012300';
 dt_as
 1970-01-01 00:00:00.012300
+ch 3675 dates as key
+EXPLAIN SELECT * FROM datetime_dimensions WHERE dt_y = 2020 AND dt_m = '2029-12-17 00:00:00.000000' AND dt_w = '2017-11-30 00:00:00.000000' AND dt_d = '2020-10-25' AND dt_hr = '2020-10-25 13:00:00.000000' AND dt_min = '2020-10-25 13:07:00.000000' AND dt_s = '2020-10-25 13:07:18.000000' AND dt_ms = '2020-10-25 13:07:18.000000' AND dt_us = '2020-10-25 13:07:18.000000' AND dt_ns = '2020-10-25 13:07:18.000000' AND dt_ps = '1970-01-01 00:00:00.012300' AND dt_fs = '1970-01-01 00:00:00.012300' AND dt_as = '1970-01-01 00:00:00.012300';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	datetime_dimensions	const	PRIMARY	PRIMARY	81	const,const,const,const,const,const,const,const,const,const,const,const,const	1	
+SELECT * FROM datetime_dimensions WHERE dt_y = 2020 AND dt_m = '2029-12-17 00:00:00.000000' AND dt_w = '2017-11-30 00:00:00.000000' AND dt_d = '2020-10-25' AND dt_hr = '2020-10-25 13:00:00.000000' AND dt_min = '2020-10-25 13:07:00.000000' AND dt_s = '2020-10-25 13:07:18.000000' AND dt_ms = '2020-10-25 13:07:18.000000' AND dt_us = '2020-10-25 13:07:18.000000' AND dt_ns = '2020-10-25 13:07:18.000000' AND dt_ps = '1970-01-01 00:00:00.012300' AND dt_fs = '1970-01-01 00:00:00.012300' AND dt_as = '1970-01-01 00:00:00.012300';
+dt_y	dt_m	dt_w	dt_d	dt_hr	dt_min	dt_s	dt_ms	dt_us	dt_ns	dt_ps	dt_fs	dt_as	a1
+2020	2029-12-17 00:00:00.000000	2017-11-30 00:00:00.000000	2020-10-25	2020-10-25 13:00:00.000000	2020-10-25 13:07:00.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	2020-10-25 13:07:18.000000	1970-01-01 00:00:00.012300	1970-01-01 00:00:00.012300	1970-01-01 00:00:00.012300	a
 set mytile_delete_arrays=0;
 DROP TABLE datetime_dimensions;
 set mytile_delete_arrays=1;

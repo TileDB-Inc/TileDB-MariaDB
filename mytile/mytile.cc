@@ -712,6 +712,15 @@ int tile::set_datetime_field(THD *thd, Field *field, uint64_t seconds,
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                     uint64_t i) {
 
+  if (buff->validity_buffer != nullptr) {
+    if (buff->validity_buffer[i] == 0) {
+      field->set_null();
+      return 0;
+    }
+  }
+
+  field->set_notnull();
+
   const char *str;
   tiledb_datatype_to_str(buff->type, &str);
   switch (buff->type) {

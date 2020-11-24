@@ -460,6 +460,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       if (field->option_struct->dimension ||
           primaryKeyParts.find(field->field_name.str) !=
               primaryKeyParts.end()) {
+        /* allow for backward compatability - we will catch nulls here on insert
         if (is_nullable) {
           my_printf_error(ER_UNKNOWN_ERROR,
                           "[create_array] error creating dimension for table %s : %s",
@@ -467,6 +468,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
                           "nullable dimensions are not allowed");
           DBUG_RETURN(ERR_CREATE_DIM_NULL);
         }
+        */
         try {
           domain.add_dimension(create_field_dimension(context, field));
         } catch (const std::exception &e) {
@@ -1661,7 +1663,9 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
         continue;
       }
       uint64_t index = orignal_index;
-      field->set_notnull();
+
+      // TODO: is this ok (set in set_field)
+      //field->set_notnull();
 
       if (dimensions_only) {
         continue;
@@ -1691,6 +1695,15 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
   try {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
+
+      if (field->is_null() && field->option_struct->dimension) {
+        sql_print_error(
+          "[mysql_row_to_tiledb_buffers] write error for table %s : %s",
+          this->uri.c_str(), "dimension null not supported");
+        error = ERR_ROW_TO_TILEDB_DIM_NULL;
+        DBUG_RETURN(error);
+      }
+
       std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
       error = set_buffer_from_field(field, buffer, this->record_index, ha_thd());
     }

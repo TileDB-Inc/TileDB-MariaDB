@@ -369,12 +369,14 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
     buff->allocated_offset_buffer_size = size;
   }
 
+  buff->validity_buffer = nullptr;
   buff->offset_buffer = offset_buffer;
   buff->buffer = data_buffer;
   buff->type = attr->type();
 
-  set_buffer_from_field(table_arg->s->field[field_idx], buff,
-                        this->record_index, ha_thd());
+  set_buffer_from_field(table_arg->s->field[field_idx],
+                        buff, this->record_index, ha_thd(),
+                        false /* check null */);
 
   DBUG_VOID_RETURN;
 }
@@ -1702,7 +1704,8 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
       }
 
       std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
-      error = set_buffer_from_field(field, buffer, this->record_index, ha_thd());
+      error = set_buffer_from_field(field, buffer, this->record_index,
+                                    ha_thd(), true /* check null */);
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors

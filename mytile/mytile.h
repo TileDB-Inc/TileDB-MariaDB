@@ -402,7 +402,6 @@ int set_string_buffer_from_field(Field *field,
   buff->offset_buffer_size += sizeof(uint64_t);
   buff->offset_buffer[i] = start;
 
-
   // TODO : does bulk insert need to be done on someting other than i
   if (buff->validity_buffer != nullptr) {
     if (field_null) {
@@ -410,12 +409,12 @@ int set_string_buffer_from_field(Field *field,
       if (res->length() == 0) {
         memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
         buff->buffer_size += 1;
-        memset(buff->validity_buffer + i, (uint8_t)0, 1);
+        memset(buff->validity_buffer + start, (uint8_t)0, 1);
       } else {
-        memset(buff->validity_buffer + i, (uint8_t)0, res->length());
+        memset(buff->validity_buffer + start, (uint8_t)0, res->length());
       }
     } else {
-      memset(buff->validity_buffer + i, (uint8_t)1, res->length());
+      memset(buff->validity_buffer + start, (uint8_t)1, res->length());
     }
   }
 
@@ -512,10 +511,11 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
  * @param buff
  * @param i
  * @param thd
+ * @param check_null
  * @return
  */
 int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
-                          uint64_t i, THD *thd);
+                          uint64_t i, THD *thd, bool check_null);
 
 /**
  * parse filter list

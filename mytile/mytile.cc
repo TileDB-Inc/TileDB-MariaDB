@@ -788,6 +788,14 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+    // TODO: this is ugly - move it somewhere
+    if (buff->validity_buffer != nullptr) {
+      if (buff->validity_buffer[i] == 0) {
+        field->set_null();
+        return 0;
+      }
+    }
+    field->set_notnull();
     return field->store(static_cast<uint64_t *>(buff->buffer)[i] + 1970, false);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
@@ -873,9 +881,9 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   return 0;
 }
 int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
-                                uint64_t i, THD *thd) {
+                                uint64_t i, THD *thd, bool check_null) {
 
-  bool field_null = field->is_null();
+  bool field_null = check_null ? field->is_null() : false;
 
   switch (buff->type) {
 

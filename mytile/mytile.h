@@ -126,6 +126,12 @@ tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field);
 
 // -- helpers --
 
+/**
+ * parse_value
+ * @tparam T
+ * @param s
+ * @return
+ */
 template <typename T> T parse_value(const std::string &s) {
   T result;
   std::istringstream ss(s);
@@ -141,6 +147,12 @@ template <typename T> T parse_value(const std::string &s) {
   return result;
 }
 
+/**
+ * get dim domain
+ * @tparam T
+ * @param field
+ * @return
+ */
 template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
   std::array<T, 2> domain = {std::numeric_limits<T>::lowest(),
                              std::numeric_limits<T>::max()};
@@ -152,6 +164,14 @@ template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
   return domain;
 }
 
+/**
+ * create dim
+ * @tparam T
+ * @param ctx
+ * @param field
+ * @param datatype
+ * @return
+ */
 template <typename T>
 tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
                              tiledb_datatype_t datatype) {
@@ -168,25 +188,41 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
                                    domain.data(), &tile_extent);
 }
 
+/**
+ * alloc buffer
+ * @param type
+ * @param size
+ * @return
+ */
 void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
 
+/**
+ * alloc buffer
+ * @tparam T
+ * @param size
+ * @return
+ */
 template <typename T> T *alloc_buffer(uint64_t size) {
   return static_cast<T *>(malloc(size));
 }
 
 /**
- *
+ * set field from datetime type
  * @param thd
  * @param field
+ * @param buff
+ * @param i
  * @param seconds
  * @param second_part
+ * @param type
  * @return
  */
-int set_datetime_field(THD *thd, Field *field, uint64_t seconds,
-                       uint64_t second_part, enum_mysql_timestamp_type type);
+int set_datetime_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
+                       uint64_t i, uint64_t seconds, uint64_t second_part,
+                       enum_mysql_timestamp_type type);
 
 /**
- * Set field, stores the value from a tiledb read in the mariadb field
+ * Set field from type
  * @param thd
  * @param field
  * @param buff
@@ -197,20 +233,22 @@ int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
               uint64_t i);
 
 /**
- * Handle variable length varchars
+ * Set field from var string
  * @tparam T
  * @param field
- * @param offset_buffer
- * @param offset_buffer_size
- * @param buffer
+ * @param buff
  * @param i
  * @param charset_info
  */
 template <typename T>
-int set_string_field(Field *field, const uint64_t *offset_buffer,
-                     uint64_t offset_buffer_size, T *buffer,
-                     uint64_t buffer_size, uint64_t i,
-                     charset_info_st *charset_info) {
+int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
+                     uint64_t i, charset_info_st *charset_info) {
+
+  const uint64_t *offset_buffer = buff->offset_buffer;
+  uint64_t offset_buffer_size = buff->offset_buffer_size;
+  T *buffer = static_cast<T *>(buff->buffer);
+  uint64_t buffer_size = buff->buffer_size;
+
   uint64_t end_position = i + 1;
   uint64_t start_position = 0;
   // If its not the first value, we need to see where the previous position
@@ -218,6 +256,16 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
   if (i > 0) {
     start_position = offset_buffer[i];
   }
+
+  // If the first byte is marked invalid, this is a null field
+  if (buff->validity_buffer != nullptr) {
+    if (buff->validity_buffer[start_position] == 0) {
+      field->set_null();
+      return 0;
+    }
+  }
+  field->set_notnull();
+
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
   if (i >= (offset_buffer_size / sizeof(uint64_t)) - 1) {
@@ -231,46 +279,99 @@ int set_string_field(Field *field, const uint64_t *offset_buffer,
 }
 
 /**
- * Handle fixed size (1) varchar
+ * Set field from fixed size (1) varchar
  * @tparam T
  * @param field
- * @param buffer
+ * @param buff
  * @param i
  * @param charset_info
  */
 template <typename T>
-int set_string_field(Field *field, T *buffer, uint64_t fixed_size_elements,
+int set_fixed_string_field(Field *field, std::shared_ptr<buffer> &buff,
                      uint64_t i, charset_info_st *charset_info) {
+  if (buff->validity_buffer != nullptr) {
+    if (buff->validity_buffer[i] == 0) {
+      field->set_null();
+      return 0;
+    }
+  }
+  field->set_notnull();
+
+  T* buffer = static_cast<T *>(buff->buffer);
+  uint64_t fixed_size_elements = buff->fixed_size_elements;
+
   return field->store(reinterpret_cast<char *>(&buffer[i]), fixed_size_elements,
                       charset_info);
 }
 
+/**
+ * Set field from string
+ * @tparam T
+ * @param field
+ * @param buff
+ * @param i
+ * @param charset_info
+ */
 template <typename T>
 int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
                      charset_info_st *charset_info) {
   if (buff->offset_buffer == nullptr) {
-    return set_string_field<T>(field, static_cast<T *>(buff->buffer),
-                               buff->fixed_size_elements, i, charset_info);
+    return set_fixed_string_field<T>(field, buff, i, charset_info);
   }
-  return set_string_field<T>(
-      field, buff->offset_buffer, buff->offset_buffer_size,
-      static_cast<T *>(buff->buffer), buff->buffer_size, i, charset_info);
+  return set_var_string_field<T>(field, buff, i, charset_info);
 }
 
-template <typename T> int set_field(Field *field, uint64_t i, void *buffer) {
+/**
+ * Set field from type
+ * @tparam T
+ * @param field
+ * @param i
+ * @param buff
+ * @return
+ */
+template <typename T> int set_field(Field *field, uint64_t i,
+                                    std::shared_ptr<buffer> &buff) {
+  if (buff->validity_buffer != nullptr) {
+    if (buff->validity_buffer[i] == 0) {
+      field->set_null();
+      return 0;
+    }
+  }
+  field->set_notnull();
+
+  void *buffer = buff->buffer;
   T val = static_cast<T *>(buffer)[i];
   if (std::is_floating_point<T>())
     return field->store(val);
   return field->store(val, std::is_signed<T>());
 }
 
+/**
+ * Set field from type
+ * @tparam T
+ * @param field
+ * @param buff
+ * @param i
+ * @return
+ */
 template <typename T>
 int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
-  return set_field<T>(field, i, buff->buffer);
+  return set_field<T>(field, i, buff);
 }
 
+/**
+ * Set string buffer from field
+ * @tparam T
+ * @param field
+ * @param field_null
+ * @param buff
+ * @param i
+ * @return
+ */
 template <typename T>
-int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
+int set_string_buffer_from_field(Field *field,
+                                 bool field_null,
+                                 std::shared_ptr<buffer> &buff,
                                  uint64_t i) {
 
   // Validate we are not over the offset size
@@ -301,11 +402,38 @@ int set_string_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   buff->offset_buffer_size += sizeof(uint64_t);
   buff->offset_buffer[i] = start;
 
+
+  // TODO : does bulk insert need to be done on someting other than i
+  if (buff->validity_buffer != nullptr) {
+    if (field_null) {
+      // XXX : zero length single cell writes are not supported (write some trash)
+      if (res->length() == 0) {
+        memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
+        buff->buffer_size += 1;
+        memset(buff->validity_buffer + i, (uint8_t)0, 1);
+      } else {
+        memset(buff->validity_buffer + i, (uint8_t)0, res->length());
+      }
+    } else {
+      memset(buff->validity_buffer + i, (uint8_t)1, res->length());
+    }
+  }
+
   return 0;
 }
 
+/**
+ * Set fixed string buffer from field
+ * @tparam T
+ * @param field
+ * @param field_null
+ * @param buff
+ * @param i
+ * @return
+ */
 template <typename T>
 int set_fixed_string_buffer_from_field(Field *field,
+                                       bool field_null,
                                        std::shared_ptr<buffer> &buff,
                                        uint64_t i) {
 
@@ -332,11 +460,29 @@ int set_fixed_string_buffer_from_field(Field *field,
 
   buff->buffer_size += buff->fixed_size_elements * sizeof(char);
 
+  // TODO : since this is fixed is this ok?
+  if (buff->validity_buffer != nullptr) {
+    if (field_null) {
+      buff->validity_buffer[i] = 0;
+    } else {
+      buff->validity_buffer[i] = 1;
+    }
+  }
+
   return 0;
 }
 
+/**
+ * Set buffer from field
+ * @tparam T
+ * @param val
+ * @param field_null
+ * @param buff
+ * @param i
+ * @return
+ */
 template <typename T>
-int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
+int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff, uint64_t i) {
 
   // Validate there is enough space on the buffer to copy the field into
   if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >
@@ -348,15 +494,45 @@ int set_buffer_from_field(T val, std::shared_ptr<buffer> &buff, uint64_t i) {
       buff->buffer)[(i * buff->fixed_size_elements) + buff->buffer_offset] =
       val;
   buff->buffer_size += sizeof(T);
+
+  if (buff->validity_buffer != nullptr) {
+    if (field_null) {
+      buff->validity_buffer[i] = 0;
+    } else {
+      buff->validity_buffer[i] = 1;
+    }
+  }
+
   return 0;
 }
 
+/**
+ * Set buffer from field
+ * @param field
+ * @param buff
+ * @param i
+ * @param thd
+ * @return
+ */
 int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
                           uint64_t i, THD *thd);
 
+/**
+ * parse filter list
+ * @param ctx
+ * @param filter_csv
+ * @return
+ */
 tiledb::FilterList parse_filter_list(tiledb::Context &ctx,
                                      const char *filter_csv);
+
+/**
+ * filter list to string
+ * @param filter_list
+ * @return
+ */
 std::string filter_list_to_str(const tiledb::FilterList &filter_list);
+
 // -- end helpers --
 
 /**

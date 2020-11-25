@@ -1638,8 +1638,8 @@ void tile::mytile::alloc_read_buffers(uint64_t size) {
       if (buff->offset_buffer != nullptr) {
         this->ctx.handle_error(tiledb_query_set_buffer_var(
             this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-            &buff->buffer_size));
+            buff->offset_buffer, &buff->offset_buffer_size,
+            buff->buffer, &buff->buffer_size));
       } else {
         this->ctx.handle_error(tiledb_query_set_buffer(
             this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
@@ -1663,9 +1663,6 @@ int tile::mytile::tileToFields(uint64_t orignal_index, bool dimensions_only,
         continue;
       }
       uint64_t index = orignal_index;
-
-      // TODO: is this ok (set in set_field)
-      //field->set_notnull();
 
       if (dimensions_only) {
         continue;
@@ -1828,8 +1825,8 @@ int tile::mytile::flush_write() {
         if (buff->offset_buffer != nullptr) {
           this->ctx.handle_error(tiledb_query_set_buffer_var(
               this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-              buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-              &buff->buffer_size));
+              buff->offset_buffer, &buff->offset_buffer_size,
+              buff->buffer, &buff->buffer_size));
         } else {
           this->ctx.handle_error(tiledb_query_set_buffer(
               this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),

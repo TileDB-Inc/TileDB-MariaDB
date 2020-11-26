@@ -1,0 +1,186 @@
+This tests nullable attributes in MyTile
+simple int
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 int NULL
+) ENGINE=mytile;
+INSERT INTO t0 VALUES (0, 0);
+INSERT INTO t0 VALUES (1, null);
+SELECT * FROM t0;
+dim0	attr1
+0	0
+1	NULL
+INSERT INTO t0 VALUES (2, 2);
+INSERT INTO t0 VALUES (3, null);
+INSERT INTO t0 VALUES (4, 4);
+INSERT INTO t0 VALUES (5, null);
+SELECT * FROM t0;
+dim0	attr1
+0	0
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+INSERT INTO t0 VALUES (6, 6);
+SELECT * FROM t0;
+dim0	attr1
+0	0
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+6	6
+DROP TABLE t0;
+fixed string
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 CHAR(10)
+) ENGINE=mytile;
+INSERT INTO t0 VALUES (0, null);
+INSERT INTO t0 VALUES (1, null);
+INSERT INTO t0 VALUES (2, null);
+SELECT * FROM t0;
+dim0	attr1
+0	NULL
+1	NULL
+2	NULL
+INSERT INTO t0 VALUES (3, '0123456789');
+INSERT INTO t0 VALUES (4, 'abcdefghij');
+INSERT INTO t0 VALUES (5, 'klmnopqrst');
+SELECT * FROM t0;
+dim0	attr1
+0	NULL
+1	NULL
+2	NULL
+3	0123456789
+4	abcdefghij
+5	klmnopqrst
+INSERT INTO t0 VALUES (6, null);
+INSERT INTO t0 VALUES (7, null);
+INSERT INTO t0 VALUES (8, null);
+SELECT * FROM t0;
+dim0	attr1
+0	NULL
+1	NULL
+2	NULL
+3	0123456789
+4	abcdefghij
+5	klmnopqrst
+6	NULL
+7	NULL
+8	NULL
+INSERT INTO t0 VALUES (9, '012');
+INSERT INTO t0 VALUES (10, 'abcd');
+INSERT INTO t0 VALUES (11, 'klmno');
+SELECT * FROM t0;
+dim0	attr1
+0	NULL
+1	NULL
+2	NULL
+3	0123456789
+4	abcdefghij
+5	klmnopqrst
+6	NULL
+7	NULL
+8	NULL
+9	012
+10	abcd
+11	klmno
+INSERT INTO t0 VALUES (12, null);
+SELECT * FROM t0;
+dim0	attr1
+0	NULL
+1	NULL
+2	NULL
+3	0123456789
+4	abcdefghij
+5	klmnopqrst
+6	NULL
+7	NULL
+8	NULL
+9	012
+10	abcd
+11	klmno
+12	NULL
+DROP TABLE t0;
+var string
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 varchar(255) NULL
+) ENGINE=mytile;
+INSERT INTO t0 VALUES (0, 'a');
+INSERT INTO t0 VALUES (1, 'b');
+INSERT INTO t0 VALUES (2, 'c');
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+INSERT INTO t0 VALUES (3, null);
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+3	NULL
+INSERT INTO t0 VALUES (4, 'abc');
+INSERT INTO t0 VALUES (5, 'def');
+INSERT INTO t0 VALUES (6, 'ghi');
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+3	NULL
+4	abc
+5	def
+6	ghi
+INSERT INTO t0 VALUES (7, null);
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+3	NULL
+4	abc
+5	def
+6	ghi
+7	NULL
+INSERT INTO t0 VALUES (8, '0');
+INSERT INTO t0 VALUES (9, '012345');
+INSERT INTO t0 VALUES (10, '0123456789');
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+3	NULL
+4	abc
+5	def
+6	ghi
+7	NULL
+8	0
+9	012345
+10	0123456789
+INSERT INTO t0 VALUES (11, null);
+INSERT INTO t0 VALUES (12, null);
+SELECT * FROM t0;
+dim0	attr1
+0	a
+1	b
+2	c
+3	NULL
+4	abc
+5	def
+6	ghi
+7	NULL
+8	0
+9	012345
+10	0123456789
+11	NULL
+12	NULL
+DROP TABLE t0;
+mixed
+datatypes

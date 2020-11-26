@@ -1,0 +1,90 @@
+--echo This tests nullable attributes in MyTile
+
+--echo simple int
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 int NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 0);
+INSERT INTO t0 VALUES (1, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, 2);
+INSERT INTO t0 VALUES (3, null);
+INSERT INTO t0 VALUES (4, 4);
+INSERT INTO t0 VALUES (5, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (6, 6);
+SELECT * FROM t0;
+DROP TABLE t0;
+
+--echo fixed string
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 CHAR(10)
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, null);
+INSERT INTO t0 VALUES (1, null);
+INSERT INTO t0 VALUES (2, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, '0123456789');
+INSERT INTO t0 VALUES (4, 'abcdefghij');
+INSERT INTO t0 VALUES (5, 'klmnopqrst');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (6, null);
+INSERT INTO t0 VALUES (7, null);
+INSERT INTO t0 VALUES (8, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (9, '012');
+INSERT INTO t0 VALUES (10, 'abcd');
+INSERT INTO t0 VALUES (11, 'klmno');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (12, null);
+SELECT * FROM t0;
+DROP TABLE t0;
+
+--echo var string
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr1 varchar(255) NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 'a');
+INSERT INTO t0 VALUES (1, 'b');
+INSERT INTO t0 VALUES (2, 'c');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 'abc');
+INSERT INTO t0 VALUES (5, 'def');
+INSERT INTO t0 VALUES (6, 'ghi');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (7, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (8, '0');
+INSERT INTO t0 VALUES (9, '012345');
+INSERT INTO t0 VALUES (10, '0123456789');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (11, null);
+INSERT INTO t0 VALUES (12, null);
+SELECT * FROM t0;
+DROP TABLE t0;
+
+--echo mixed
+
+--echo datatypes

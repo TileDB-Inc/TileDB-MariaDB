@@ -4,7 +4,7 @@
 
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 int NULL
+attr0 int NULL
 ) ENGINE=mytile;
 
 INSERT INTO t0 VALUES (0, 0);
@@ -25,7 +25,7 @@ DROP TABLE t0;
 
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 CHAR(10)
+attr0 CHAR(10)
 ) ENGINE=mytile;
 
 INSERT INTO t0 VALUES (0, null);
@@ -56,7 +56,7 @@ DROP TABLE t0;
 
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 varchar(255) NULL
+attr0 varchar(255) NULL
 ) ENGINE=mytile;
 
 INSERT INTO t0 VALUES (0, 'a');
@@ -87,4 +87,59 @@ DROP TABLE t0;
 
 --echo mixed
 
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 int NOT NULL,
+attr1 int NULL,
+attr2 varchar(128) NOT NULL,
+attr3 varchar(128) NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 123, 123, 'abc', 'abc');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (1, 123, null, 'abc', null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, 123, null, 'abc', 'def');
+INSERT INTO t0 VALUES (3, 123, 456, 'abc', null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 789, 789, 'ghi', 'ghi');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (5, 789, null, 'ghi', null);
+SELECT * FROM t0;
+DROP TABLE t0;
+
 --echo datatypes
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 year,
+attr1 float,
+attr2 double,
+attr3 bool,
+attr4 DateTime(0),
+attr5 DateTime(6),
+attr6 TimeStamp(0),
+attr7 TimeStamp(6),
+attr8 blob,
+attr9 text
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 2020, 3.14, 3.14159, true, '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', 'bl0b', 'text');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (1, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, 2019, 3.0, 3.01, false, '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', 'bl0b2', 'text2');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 2018, 3.0, 3.01, false, '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', 'bl0b3', 'text3');
+SELECT * FROM t0;
+DROP TABLE t0;

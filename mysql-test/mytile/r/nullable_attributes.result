@@ -2,12 +2,12 @@ This tests nullable attributes in MyTile
 simple int
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 int NULL
+attr0 int NULL
 ) ENGINE=mytile;
 INSERT INTO t0 VALUES (0, 0);
 INSERT INTO t0 VALUES (1, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	0
 1	NULL
 INSERT INTO t0 VALUES (2, 2);
@@ -15,7 +15,7 @@ INSERT INTO t0 VALUES (3, null);
 INSERT INTO t0 VALUES (4, 4);
 INSERT INTO t0 VALUES (5, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	0
 1	NULL
 2	2
@@ -24,7 +24,7 @@ dim0	attr1
 5	NULL
 INSERT INTO t0 VALUES (6, 6);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	0
 1	NULL
 2	2
@@ -36,13 +36,13 @@ DROP TABLE t0;
 fixed string
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 CHAR(10)
+attr0 CHAR(10)
 ) ENGINE=mytile;
 INSERT INTO t0 VALUES (0, null);
 INSERT INTO t0 VALUES (1, null);
 INSERT INTO t0 VALUES (2, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	NULL
 1	NULL
 2	NULL
@@ -50,7 +50,7 @@ INSERT INTO t0 VALUES (3, '0123456789');
 INSERT INTO t0 VALUES (4, 'abcdefghij');
 INSERT INTO t0 VALUES (5, 'klmnopqrst');
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	NULL
 1	NULL
 2	NULL
@@ -61,7 +61,7 @@ INSERT INTO t0 VALUES (6, null);
 INSERT INTO t0 VALUES (7, null);
 INSERT INTO t0 VALUES (8, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	NULL
 1	NULL
 2	NULL
@@ -75,7 +75,7 @@ INSERT INTO t0 VALUES (9, '012');
 INSERT INTO t0 VALUES (10, 'abcd');
 INSERT INTO t0 VALUES (11, 'klmno');
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	NULL
 1	NULL
 2	NULL
@@ -90,7 +90,7 @@ dim0	attr1
 11	klmno
 INSERT INTO t0 VALUES (12, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	NULL
 1	NULL
 2	NULL
@@ -108,19 +108,19 @@ DROP TABLE t0;
 var string
 CREATE TABLE t0 (
 dim0 int dimension=1 tile_extent="10",
-attr1 varchar(255) NULL
+attr0 varchar(255) NULL
 ) ENGINE=mytile;
 INSERT INTO t0 VALUES (0, 'a');
 INSERT INTO t0 VALUES (1, 'b');
 INSERT INTO t0 VALUES (2, 'c');
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
 INSERT INTO t0 VALUES (3, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
@@ -129,7 +129,7 @@ INSERT INTO t0 VALUES (4, 'abc');
 INSERT INTO t0 VALUES (5, 'def');
 INSERT INTO t0 VALUES (6, 'ghi');
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
@@ -139,7 +139,7 @@ dim0	attr1
 6	ghi
 INSERT INTO t0 VALUES (7, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
@@ -152,7 +152,7 @@ INSERT INTO t0 VALUES (8, '0');
 INSERT INTO t0 VALUES (9, '012345');
 INSERT INTO t0 VALUES (10, '0123456789');
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
@@ -167,7 +167,7 @@ dim0	attr1
 INSERT INTO t0 VALUES (11, null);
 INSERT INTO t0 VALUES (12, null);
 SELECT * FROM t0;
-dim0	attr1
+dim0	attr0
 0	a
 1	b
 2	c
@@ -183,4 +183,90 @@ dim0	attr1
 12	NULL
 DROP TABLE t0;
 mixed
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 int NOT NULL,
+attr1 int NULL,
+attr2 varchar(128) NOT NULL,
+attr3 varchar(128) NULL
+) ENGINE=mytile;
+INSERT INTO t0 VALUES (0, 123, 123, 'abc', 'abc');
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3
+0	123	123	abc	abc
+INSERT INTO t0 VALUES (1, 123, null, 'abc', null);
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3
+0	123	123	abc	abc
+1	123	NULL	abc	NULL
+INSERT INTO t0 VALUES (2, 123, null, 'abc', 'def');
+INSERT INTO t0 VALUES (3, 123, 456, 'abc', null);
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3
+0	123	123	abc	abc
+1	123	NULL	abc	NULL
+2	123	NULL	abc	def
+3	123	456	abc	NULL
+INSERT INTO t0 VALUES (4, 789, 789, 'ghi', 'ghi');
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3
+0	123	123	abc	abc
+1	123	NULL	abc	NULL
+2	123	NULL	abc	def
+3	123	456	abc	NULL
+4	789	789	ghi	ghi
+INSERT INTO t0 VALUES (5, 789, null, 'ghi', null);
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3
+0	123	123	abc	abc
+1	123	NULL	abc	NULL
+2	123	NULL	abc	def
+3	123	456	abc	NULL
+4	789	789	ghi	ghi
+5	789	NULL	ghi	NULL
+DROP TABLE t0;
 datatypes
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 year,
+attr1 float,
+attr2 double,
+attr3 bool,
+attr4 DateTime(0),
+attr5 DateTime(6),
+attr6 TimeStamp(0),
+attr7 TimeStamp(6),
+attr8 blob,
+attr9 text
+) ENGINE=mytile;
+INSERT INTO t0 VALUES (0, 2020, 3.14, 3.14159, true, '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', 'bl0b', 'text');
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3	attr4	attr5	attr6	attr7	attr8	attr9
+0	2020	3.14	3.14159	1	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	bl0b	text
+INSERT INTO t0 VALUES (1, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3	attr4	attr5	attr6	attr7	attr8	attr9
+0	2020	3.14	3.14159	1	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	bl0b	text
+1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+INSERT INTO t0 VALUES (2, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3	attr4	attr5	attr6	attr7	attr8	attr9
+0	2020	3.14	3.14159	1	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	bl0b	text
+1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+INSERT INTO t0 VALUES (3, 2019, 3.0, 3.01, false, '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', 'bl0b2', 'text2');
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3	attr4	attr5	attr6	attr7	attr8	attr9
+0	2020	3.14	3.14159	1	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	bl0b	text
+1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	2019	3	3.01	0	2020-12-01 12:34:56	2020-12-01 12:34:56.123456	2020-12-01 12:34:56	2020-12-01 12:34:56.123456	bl0b2	text2
+INSERT INTO t0 VALUES (4, 2018, 3.0, 3.01, false, '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', 'bl0b3', 'text3');
+SELECT * FROM t0;
+dim0	attr0	attr1	attr2	attr3	attr4	attr5	attr6	attr7	attr8	attr9
+0	2020	3.14	3.14159	1	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	2020-11-30 12:34:56	2020-11-30 12:34:56.123456	bl0b	text
+1	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+3	2019	3	3.01	0	2020-12-01 12:34:56	2020-12-01 12:34:56.123456	2020-12-01 12:34:56	2020-12-01 12:34:56.123456	bl0b2	text2
+4	2018	3	3.01	0	2020-12-02 12:34:56	2020-12-02 12:34:56.123456	2020-12-02 12:34:56	2020-12-02 12:34:56.123456	bl0b3	text3
+DROP TABLE t0;

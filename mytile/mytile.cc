@@ -691,18 +691,28 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   return 0;
 }
 
+bool tile::set_field_null_from_validity(std::shared_ptr<buffer> &buff,
+                                        Field *field,
+                                        uint64_t i) {
+  if (buff->validity_buffer != nullptr) {
+    if (buff->validity_buffer[i] == 0) {
+      field->set_null();
+      return true;
+    }
+  }
+  field->set_notnull();
+  return false;
+}
+
 int tile::set_datetime_field(THD *thd, Field *field,
                              std::shared_ptr<buffer> &buff,
                              uint64_t i, uint64_t seconds,
                              uint64_t second_part,
                              enum_mysql_timestamp_type type) {
-  if (buff->validity_buffer != nullptr) {
-    if (buff->validity_buffer[i] == 0) {
-      field->set_null();
-      return 0;
-    }
+
+  if (set_field_null_from_validity(buff, field, i)) {
+    return 0;
   }
-  field->set_notnull();
 
   MYSQL_TIME to;
   if (type != MYSQL_TIMESTAMP_DATE) {
@@ -788,14 +798,9 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    // TODO: this is ugly - move it somewhere
-    if (buff->validity_buffer != nullptr) {
-      if (buff->validity_buffer[i] == 0) {
-        field->set_null();
-        return 0;
-      }
+    if (set_field_null_from_validity(buff, field, i)) {
+      return 0;
     }
-    field->set_notnull();
     return field->store(static_cast<uint64_t *>(buff->buffer)[i] + 1970, false);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {

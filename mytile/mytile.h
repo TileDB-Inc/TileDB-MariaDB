@@ -207,6 +207,17 @@ template <typename T> T *alloc_buffer(uint64_t size) {
 }
 
 /**
+ * set field nullable from validity buffer
+ * @param buff
+ * @param field
+ * @param i
+ * @return true if null set
+ */
+bool set_field_null_from_validity(std::shared_ptr<buffer> &buff,
+                                  Field *field,
+                                  uint64_t i);
+
+/**
  * set field from datetime type
  * @param thd
  * @param field
@@ -258,13 +269,9 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
   }
 
   // If the first byte is marked invalid, this is a null field
-  if (buff->validity_buffer != nullptr) {
-    if (buff->validity_buffer[start_position] == 0) {
-      field->set_null();
-      return 0;
-    }
+  if (set_field_null_from_validity(buff, field, start_position)) {
+    return 0;
   }
-  field->set_notnull();
 
   // If the current position is equal to the number of results - 1 then we are
   // at the last varchar value
@@ -289,13 +296,9 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
 template <typename T>
 int set_fixed_string_field(Field *field, std::shared_ptr<buffer> &buff,
                      uint64_t i, charset_info_st *charset_info) {
-  if (buff->validity_buffer != nullptr) {
-    if (buff->validity_buffer[i] == 0) {
-      field->set_null();
-      return 0;
-    }
+  if (set_field_null_from_validity(buff, field, i)) {
+    return 0;
   }
-  field->set_notnull();
 
   T* buffer = static_cast<T *>(buff->buffer);
   uint64_t fixed_size_elements = buff->fixed_size_elements;
@@ -331,13 +334,9 @@ int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
  */
 template <typename T> int set_field(Field *field, uint64_t i,
                                     std::shared_ptr<buffer> &buff) {
-  if (buff->validity_buffer != nullptr) {
-    if (buff->validity_buffer[i] == 0) {
-      field->set_null();
-      return 0;
-    }
+  if (set_field_null_from_validity(buff, field, i)) {
+    return 0;
   }
-  field->set_notnull();
 
   void *buffer = buff->buffer;
   T val = static_cast<T *>(buffer)[i];
@@ -402,7 +401,6 @@ int set_string_buffer_from_field(Field *field,
   buff->offset_buffer_size += sizeof(uint64_t);
   buff->offset_buffer[i] = start;
 
-  // TODO : does bulk insert need to be done on someting other than i
   if (buff->validity_buffer != nullptr) {
     if (field_null) {
       // XXX : zero length single cell writes are not supported (write some trash)
@@ -459,12 +457,11 @@ int set_fixed_string_buffer_from_field(Field *field,
 
   buff->buffer_size += buff->fixed_size_elements * sizeof(char);
 
-  // TODO : since this is fixed is this ok?
   if (buff->validity_buffer != nullptr) {
     if (field_null) {
-      buff->validity_buffer[i] = 0;
+      memset(buff->validity_buffer + start, (uint8_t)0, buff->fixed_size_elements);
     } else {
-      buff->validity_buffer[i] = 1;
+      memset(buff->validity_buffer + start, (uint8_t)1, buff->fixed_size_elements);
     }
   }
 

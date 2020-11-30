@@ -232,3 +232,21 @@ SELECT * FROM t0 WHERE attr3 IS NULL;
 SELECT * FROM t0 WHERE attr3 IS NOT NULL;
 
 DROP TABLE t0;
+
+--echo external nullable example array
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE nullable_attributes ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.2/nullable_attributes';
+
+SHOW CREATE TABLE nullable_attributes;
+SELECT * FROM nullable_attributes;
+
+SELECT * FROM nullable_attributes WHERE a1 IS NULL;
+SELECT * FROM nullable_attributes WHERE a1 IS NOT NULL;
+
+SELECT * FROM nullable_attributes WHERE a2 IS NULL;
+SELECT * FROM nullable_attributes WHERE a2 IS NOT NULL;
+
+set mytile_delete_arrays=0;
+DROP TABLE `nullable_attributes`;
+set mytile_delete_arrays=1;

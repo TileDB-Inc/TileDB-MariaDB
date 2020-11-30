@@ -402,6 +402,11 @@ int set_string_buffer_from_field(Field *field,
   buff->offset_buffer[i] = start;
 
   if (buff->validity_buffer != nullptr) {
+    // Validate there is enough space on the validity buffer
+    if ((start + (res->length() == 0) ? 1 : res->length()) * sizeof(T) >
+         buff->allocated_validity_buffer_size) {
+      return ERR_WRITE_FLUSH_NEEDED;
+    }
     if (field_null) {
       // XXX : zero length single cell writes are not supported (write some trash)
       if (res->length() == 0) {
@@ -458,6 +463,11 @@ int set_fixed_string_buffer_from_field(Field *field,
   buff->buffer_size += buff->fixed_size_elements * sizeof(char);
 
   if (buff->validity_buffer != nullptr) {
+    // Validate there is enough space on the validity buffer
+    if ((start + buff->fixed_size_elements) * sizeof(T) >
+         buff->allocated_validity_buffer_size) {
+      return ERR_WRITE_FLUSH_NEEDED;
+    }
     if (field_null) {
       memset(buff->validity_buffer + start, (uint8_t)0, buff->fixed_size_elements);
     } else {
@@ -492,6 +502,10 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
   buff->buffer_size += sizeof(T);
 
   if (buff->validity_buffer != nullptr) {
+    // Validate there is enough space on the validity buffer
+    if (i > buff->allocated_validity_buffer_size) {
+      return ERR_WRITE_FLUSH_NEEDED;
+    }
     if (field_null) {
       buff->validity_buffer[i] = 0;
     } else {

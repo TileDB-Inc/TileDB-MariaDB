@@ -1741,6 +1741,7 @@ void tile::mytile::setup_write() {
   for (auto &buff : this->buffers) {
     buff->buffer_size = 0;
     buff->offset_buffer_size = 0;
+    buff->validity_buffer_size = 0;
   }
   // Reset bitmap to original
   tmp_restore_column_map(table->read_set, original_bitmap);
@@ -1850,6 +1851,7 @@ int tile::mytile::flush_write() {
     for (auto &buff : this->buffers) {
       buff->buffer_size = 0;
       buff->offset_buffer_size = 0;
+      buff->validity_buffer_size = 0;
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors

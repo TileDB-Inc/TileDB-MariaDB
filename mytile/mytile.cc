@@ -692,8 +692,7 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
 }
 
 bool tile::set_field_null_from_validity(std::shared_ptr<buffer> &buff,
-                                        Field *field,
-                                        uint64_t i) {
+                                        Field *field, uint64_t i) {
   if (buff->validity_buffer != nullptr) {
     if (buff->validity_buffer[i] == 0) {
       field->set_null();
@@ -705,9 +704,8 @@ bool tile::set_field_null_from_validity(std::shared_ptr<buffer> &buff,
 }
 
 int tile::set_datetime_field(THD *thd, Field *field,
-                             std::shared_ptr<buffer> &buff,
-                             uint64_t i, uint64_t seconds,
-                             uint64_t second_part,
+                             std::shared_ptr<buffer> &buff, uint64_t i,
+                             uint64_t seconds, uint64_t second_part,
                              enum_mysql_timestamp_type type) {
 
   if (set_field_null_from_validity(buff, field, i)) {
@@ -807,29 +805,35 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     // TODO: This isn't a good calculation we should fix it
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 365) / 12;
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATE);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 7);
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATE);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
     uint64_t seconds =
         static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24);
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATE);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_HR: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60);
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * 60;
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
     uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i];
-    return set_datetime_field(thd, field, buff, i, seconds, 0, MYSQL_TIMESTAMP_DATETIME);
+    return set_datetime_field(thd, field, buff, i, seconds, 0,
+                              MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MS: {
     uint64_t ms = static_cast<uint64_t *>(buff->buffer)[i];
@@ -841,7 +845,8 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case tiledb_datatype_t::TILEDB_DATETIME_US: {
     uint64_t us = static_cast<uint64_t *>(buff->buffer)[i];
     uint64_t seconds = us / 1000000;
-    return set_datetime_field(thd, field, buff, i, seconds, us - (seconds * 1000000),
+    return set_datetime_field(thd, field, buff, i, seconds,
+                              us - (seconds * 1000000),
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_NS: {
@@ -898,31 +903,38 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 
     /** 8-bit unsigned integer */
   case TILEDB_UINT8:
-    return set_buffer_from_field<uint8_t>(field->val_uint(), field_null, buff, i);
+    return set_buffer_from_field<uint8_t>(field->val_uint(), field_null, buff,
+                                          i);
 
     /** 16-bit signed integer */
   case TILEDB_INT16:
-    return set_buffer_from_field<int16_t>(field->val_int(), field_null, buff, i);
+    return set_buffer_from_field<int16_t>(field->val_int(), field_null, buff,
+                                          i);
 
     /** 16-bit unsigned integer */
   case TILEDB_UINT16:
-    return set_buffer_from_field<uint16_t>(field->val_uint(), field_null, buff, i);
+    return set_buffer_from_field<uint16_t>(field->val_uint(), field_null, buff,
+                                           i);
 
     /** 32-bit signed integer */
   case TILEDB_INT32:
-    return set_buffer_from_field<int32_t>(field->val_int(), field_null, buff, i);
+    return set_buffer_from_field<int32_t>(field->val_int(), field_null, buff,
+                                          i);
 
     /** 32-bit unsigned integer */
   case TILEDB_UINT32:
-    return set_buffer_from_field<uint32_t>(field->val_uint(), field_null, buff, i);
+    return set_buffer_from_field<uint32_t>(field->val_uint(), field_null, buff,
+                                           i);
 
     /** 64-bit signed integer */
   case TILEDB_INT64:
-    return set_buffer_from_field<int64_t>(field->val_int(), field_null, buff, i);
+    return set_buffer_from_field<int64_t>(field->val_int(), field_null, buff,
+                                          i);
 
     /** 64-bit unsigned integer */
   case TILEDB_UINT64:
-    return set_buffer_from_field<uint64_t>(field->val_uint(), field_null, buff, i);
+    return set_buffer_from_field<uint64_t>(field->val_uint(), field_null, buff,
+                                           i);
 
     /** 32-bit floating point value */
   case TILEDB_FLOAT32:
@@ -930,7 +942,8 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 
     /** 64-bit floating point value */
   case TILEDB_FLOAT64:
-    return set_buffer_from_field<double>(field->val_real(), field_null, buff, i);
+    return set_buffer_from_field<double>(field->val_real(), field_null, buff,
+                                         i);
 
     /** ASCII string */
   case TILEDB_STRING_ASCII:
@@ -946,35 +959,40 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<uint8_t>(field, field_null, buff, i);
 
-    return set_fixed_string_buffer_from_field<uint8_t>(field, field_null, buff, i);
+    return set_fixed_string_buffer_from_field<uint8_t>(field, field_null, buff,
+                                                       i);
 
   /** UTF-16 string */
   case TILEDB_STRING_UTF16:
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<uint16_t>(field, field_null, buff, i);
 
-    return set_fixed_string_buffer_from_field<uint16_t>(field, field_null, buff, i);
+    return set_fixed_string_buffer_from_field<uint16_t>(field, field_null, buff,
+                                                        i);
 
   /** UTF-32 string */
   case TILEDB_STRING_UTF32:
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<uint32_t>(field, field_null, buff, i);
 
-    return set_fixed_string_buffer_from_field<uint32_t>(field, field_null, buff, i);
+    return set_fixed_string_buffer_from_field<uint32_t>(field, field_null, buff,
+                                                        i);
   /** UCS2 string */
   case TILEDB_STRING_UCS2:
     return set_string_field<uint16_t>(field, buff, i, &my_charset_ucs2_bin);
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<uint16_t>(field, field_null, buff, i);
 
-    return set_fixed_string_buffer_from_field<uint16_t>(field, field_null, buff, i);
+    return set_fixed_string_buffer_from_field<uint16_t>(field, field_null, buff,
+                                                        i);
 
     /** UCS4 string */
   case TILEDB_STRING_UCS4:
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<uint32_t>(field, field_null, buff, i);
 
-    return set_fixed_string_buffer_from_field<uint32_t>(field, field_null, buff, i);
+    return set_fixed_string_buffer_from_field<uint32_t>(field, field_null, buff,
+                                                        i);
 
     /** This can be any datatype. Must store (type tag, value) pairs. */
     // case TILEDB_ANY:

@@ -293,7 +293,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         sql_string << " UNSIGNED";
 
       uint8_t nullable = 0;
-      tiledb_attribute_get_nullable(ctx.ptr().get(), attribute.ptr().get(), &nullable);
+      tiledb_attribute_get_nullable(ctx.ptr().get(), attribute.ptr().get(),
+                                    &nullable);
 
       if (nullable == 0) {
         sql_string << " NOT NULL ";

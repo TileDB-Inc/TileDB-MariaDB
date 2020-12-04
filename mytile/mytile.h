@@ -214,8 +214,7 @@ template <typename T> T *alloc_buffer(uint64_t size) {
  * @param i
  * @return true if null set
  */
-bool set_field_null_from_validity(std::shared_ptr<buffer> &buff,
-                                  Field *field,
+bool set_field_null_from_validity(std::shared_ptr<buffer> &buff, Field *field,
                                   uint64_t i);
 
 /**
@@ -254,7 +253,7 @@ int set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
  */
 template <typename T>
 int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
-                     uint64_t i, charset_info_st *charset_info) {
+                         uint64_t i, charset_info_st *charset_info) {
 
   const uint64_t *offset_buffer = buff->offset_buffer;
   uint64_t offset_buffer_size = buff->offset_buffer_size;
@@ -296,12 +295,12 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
  */
 template <typename T>
 int set_fixed_string_field(Field *field, std::shared_ptr<buffer> &buff,
-                     uint64_t i, charset_info_st *charset_info) {
+                           uint64_t i, charset_info_st *charset_info) {
   if (set_field_null_from_validity(buff, field, i)) {
     return 0;
   }
 
-  T* buffer = static_cast<T *>(buff->buffer);
+  T *buffer = static_cast<T *>(buff->buffer);
   uint64_t fixed_size_elements = buff->fixed_size_elements;
 
   return field->store(reinterpret_cast<char *>(&buffer[i]), fixed_size_elements,
@@ -333,8 +332,8 @@ int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
  * @param buff
  * @return
  */
-template <typename T> int set_field(Field *field, uint64_t i,
-                                    std::shared_ptr<buffer> &buff) {
+template <typename T>
+int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff) {
   if (set_field_null_from_validity(buff, field, i)) {
     return 0;
   }
@@ -369,10 +368,8 @@ int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
  * @return
  */
 template <typename T>
-int set_string_buffer_from_field(Field *field,
-                                 bool field_null,
-                                 std::shared_ptr<buffer> &buff,
-                                 uint64_t i) {
+int set_string_buffer_from_field(Field *field, bool field_null,
+                                 std::shared_ptr<buffer> &buff, uint64_t i) {
 
   // Validate we are not over the offset size
   if ((i * sizeof(uint64_t)) > buff->allocated_offset_buffer_size) {
@@ -405,11 +402,12 @@ int set_string_buffer_from_field(Field *field,
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
     if ((start + (res->length() == 0) ? 1 : res->length()) * sizeof(T) >
-         buff->allocated_validity_buffer_size) {
+        buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      // XXX : zero length single cell writes are not supported (write some trash)
+      // XXX : zero length single cell writes are not supported (write some
+      // trash)
       if (res->length() == 0) {
         memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
         buff->buffer_size += 1;
@@ -435,8 +433,7 @@ int set_string_buffer_from_field(Field *field,
  * @return
  */
 template <typename T>
-int set_fixed_string_buffer_from_field(Field *field,
-                                       bool field_null,
+int set_fixed_string_buffer_from_field(Field *field, bool field_null,
                                        std::shared_ptr<buffer> &buff,
                                        uint64_t i) {
 
@@ -466,13 +463,15 @@ int set_fixed_string_buffer_from_field(Field *field,
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
     if ((start + buff->fixed_size_elements) * sizeof(T) >
-         buff->allocated_validity_buffer_size) {
+        buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      memset(buff->validity_buffer + start, (uint8_t)0, buff->fixed_size_elements);
+      memset(buff->validity_buffer + start, (uint8_t)0,
+             buff->fixed_size_elements);
     } else {
-      memset(buff->validity_buffer + start, (uint8_t)1, buff->fixed_size_elements);
+      memset(buff->validity_buffer + start, (uint8_t)1,
+             buff->fixed_size_elements);
     }
   }
 
@@ -489,7 +488,8 @@ int set_fixed_string_buffer_from_field(Field *field,
  * @return
  */
 template <typename T>
-int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff, uint64_t i) {
+int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
+                          uint64_t i) {
 
   // Validate there is enough space on the buffer to copy the field into
   if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >

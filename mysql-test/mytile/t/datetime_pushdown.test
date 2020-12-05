@@ -2,6 +2,11 @@
 --echo # The purpose of this test is to validate MyTile pushdown of datetime conditions
 --echo #
 
+--source ../include/version.inc
+if ($major_version == 10 and $minor_version < 5) {
+  --skip This test has explain result differences in 10.5 or newer. We skip in 10.4
+}
+
 #echo datetime eq / in
 CREATE TABLE dt (
   column1 datetime(6) dimension=1 tile_extent="10",

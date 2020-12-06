@@ -379,6 +379,33 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
   int rc = 0;
 
   try {
+    std::unique_ptr<tiledb::ArraySchema> schema;
+    tiledb::VFS vfs(ctx);
+    // Get array uri from name or table option
+    std::string create_uri = name;
+
+    if ((strncmp(table_arg->s->table_name.str, "s3://", 5) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "azure://", 8) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "gcs://", 6) == 0) ||
+        (strncmp(table_arg->s->table_name.str, "tiledb://", 9) == 0))
+      create_uri = table_arg->s->table_name.str;
+
+    if (create_info->option_struct->array_uri != nullptr)
+      create_uri = create_info->option_struct->array_uri;
+
+    std::string encryption_key;
+    if (create_info->option_struct->encryption_key != nullptr) {
+      encryption_key =
+          std::string(create_info->option_struct->encryption_key);
+    }
+
+    if(check_array_exists(vfs, ctx, create_uri, encryption_key, schema) &&
+        sysvars::create_allow_subset_existing_array(ha_thd())) {
+      // Next we write the frm file to persist the newly created table
+      table_arg->s->write_frm_image();
+      DBUG_RETURN(rc);
+    }
+
     tiledb_array_type_t arrayType = TILEDB_SPARSE;
     if (create_info->option_struct->array_type == 1) {
       arrayType = TILEDB_SPARSE;
@@ -387,8 +414,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     }
 
     // Create array schema
-    std::unique_ptr<tiledb::ArraySchema> schema =
-        std::make_unique<tiledb::ArraySchema>(context, arrayType);
+    schema = std::make_unique<tiledb::ArraySchema>(context, arrayType);
 
     // Create domain
     tiledb::Domain domain(context);
@@ -492,18 +518,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       schema->set_tile_order(TILEDB_COL_MAJOR);
     }
 
-    // Get array uri from name or table option
-    std::string create_uri = name;
-
-    if ((strncmp(table_arg->s->table_name.str, "s3://", 5) == 0) ||
-        (strncmp(table_arg->s->table_name.str, "azure://", 8) == 0) ||
-        (strncmp(table_arg->s->table_name.str, "gcs://", 6) == 0) ||
-        (strncmp(table_arg->s->table_name.str, "tiledb://", 9) == 0))
-      create_uri = table_arg->s->table_name.str;
-
-    if (create_info->option_struct->array_uri != nullptr)
-      create_uri = create_info->option_struct->array_uri;
-
     // Check array schema
     try {
       schema->check();
@@ -514,11 +528,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     }
 
     try {
-      std::string encryption_key;
-      if (create_info->option_struct->encryption_key != nullptr) {
-        encryption_key =
-            std::string(create_info->option_struct->encryption_key);
-      }
       // Create the array on storage
       tiledb::Array::create(create_uri, *schema,
                             encryption_key.empty() ? TILEDB_NO_ENCRYPTION

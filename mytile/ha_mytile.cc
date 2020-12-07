@@ -370,13 +370,20 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
   }
 
   buff->validity_buffer = nullptr;
+
+  if (attr->nullable()) {
+    buff->validity_buffer = static_cast<uint8*>(alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size));
+    buff->validity_buffer_size = size;
+    buff->allocated_validity_buffer_size = size;
+  }
+
   buff->offset_buffer = offset_buffer;
   buff->buffer = data_buffer;
   buff->type = attr->type();
 
   set_buffer_from_field(table_arg->s->field[field_idx],
                         buff, this->record_index, ha_thd(),
-                        false /* check null */);
+                        attr->nullable());
 
   DBUG_VOID_RETURN;
 }
@@ -499,7 +506,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           uint64_t default_value_size =
               get_default_value_size(buff->buffer, buff->type);
           if (default_value_size > 0) {
-            attr.set_fill_value(buff->buffer, default_value_size);
+            if (is_nullable)
+              attr.set_fill_value(buff->buffer, default_value_size, buff->validity_buffer[0]);
+            else
+              attr.set_fill_value(buff->buffer, default_value_size);
           }
           dealloc_buffer(buff);
         }

@@ -316,7 +316,11 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
     case TILEDB_STRING_UCS4:
     case TILEDB_ANY: {
       auto v = reinterpret_cast<const char*>(value);
-      return std::string("'") + std::string(v, value_size) + std::string("'");
+      std::string s(v, value_size);
+      // If the string is the null character we have to us the escaped version
+      if (s[0] == '\0')
+        s = "\\0";
+      return std::string("'") + s + std::string("'");
     }
 
     default: {

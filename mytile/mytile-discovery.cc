@@ -240,14 +240,14 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
 
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
+      if (!MysqlBlobType(enum_field_types(mysql_type)) &&
+          TileDBTypeIsUnsigned(dim.type()))
+        sql_string << " UNSIGNED";
 
       if (schema->allows_dups()) {
         sql_string << " NOT NULL";
       }
 
-      if (!MysqlBlobType(enum_field_types(mysql_type)) &&
-          TileDBTypeIsUnsigned(dim.type()))
-        sql_string << " UNSIGNED";
 
       // Only set the domain and tile extent for non string dimensions
       if (dim.type() != TILEDB_STRING_ASCII) {
@@ -295,7 +295,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                                                        default_value,
                                                        default_value_size);
 
-      sql_string << " DEFAULT " << default_value_str;
+      if (!default_value_str.empty())
+        sql_string << " DEFAULT " << default_value_str;
 
       // Check for filters
       tiledb::FilterList filters = attribute.filter_list();

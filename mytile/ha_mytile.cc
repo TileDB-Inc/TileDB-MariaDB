@@ -895,7 +895,7 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
                    this->status == tiledb::Query::Status::COMPLETE) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-          DBUG_RETURN(rc);
+          DBUG_RETURN(HA_ERR_END_OF_FILE);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
     }

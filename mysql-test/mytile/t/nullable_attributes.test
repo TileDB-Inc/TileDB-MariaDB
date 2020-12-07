@@ -238,6 +238,7 @@ DROP TABLE t0;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE nullable_attributes ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.2/nullable_attributes';
 
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 SHOW CREATE TABLE nullable_attributes;
 SELECT * FROM nullable_attributes;
 

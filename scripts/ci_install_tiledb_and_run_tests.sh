@@ -12,15 +12,24 @@ git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_
 
 # Install TileDB using 2.0 release
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
-  mkdir build_deps && cd build_deps \
-  && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.1.2 && cd TileDB \
-  && mkdir -p build && cd build
 
-   # Configure and build TileDB
-   cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Debug .. \
-   && make -j$(nproc) \
-   && sudo make -C tiledb install \
-   && cd $original_dir
+  if [[ "$AGENT_OS" == "Linux" ]]; then
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.1.3/tiledb-linux-2.1.3-47bee7c-full.tar.gz \
+    && sudo tar -C /usr/local -xvf tiledb.tar.gz
+  elif [[ "$AGENT_OS" == "Darwin" ]]; then
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.1.3/tiledb-macos-2.1.3-47bee7c-full.tar.gz \
+    && sudo tar -C /usr/local -xvf tiledb.tar.gz
+  else
+    mkdir build_deps && cd build_deps \
+    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.1.2 && cd TileDB \
+    && mkdir -p build && cd build
+
+     # Configure and build TileDB
+     cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Debug .. \
+     && make -j$(nproc) \
+     && sudo make -C tiledb install \
+     && cd $original_dir
+   fi
 else # set superbuild flags
   export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations"
   export CXXFLAGS="${CXXFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"

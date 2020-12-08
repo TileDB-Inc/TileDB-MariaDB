@@ -103,6 +103,18 @@ static MYSQL_THDVAR_BOOL(compute_table_records,
                          "compute size of table (record count) on opening",
                          NULL, NULL, false);
 
+// Running a create table normally has two modes, assisted discovery or create new
+// This option allows for a third mode, which is you can specify the list of
+// columns in the create statement and if the array already exists MariaDB will
+// just only access the columns you've specified. This is a workaround for MariaDB
+// only allowing 4096 column in total. Now if your array has more columns then
+// mariadb can handle you an use this option to select a smaller subset for
+// querying
+static MYSQL_THDVAR_BOOL(create_allow_subset_existing_array,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "Allow registering a subset of column",
+                         NULL, NULL, false);
+
 const char *log_level_names[] = {"error", "warning", "info", "debug", NullS};
 
 TYPELIB log_level_typelib = {array_elements(log_level_names) - 1,
@@ -123,6 +135,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(enable_pushdown),
     MYSQL_SYSVAR(compute_table_records),
     MYSQL_SYSVAR(log_level),
+    MYSQL_SYSVAR(create_allow_subset_existing_array),
     NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
@@ -154,6 +167,10 @@ my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
 
 my_bool compute_table_records(THD *thd) {
   return THDVAR(thd, compute_table_records);
+}
+
+my_bool create_allow_subset_existing_array(THD *thd) {
+  return THDVAR(thd, create_allow_subset_existing_array);
 }
 
 LOG_LEVEL log_level(THD *thd) { return LOG_LEVEL(THDVAR(thd, log_level)); }

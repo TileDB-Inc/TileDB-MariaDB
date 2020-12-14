@@ -312,19 +312,18 @@ int tile::mytile::close(void) {
 bool tile::mytile::field_has_default_value(Field *field) const {
   DBUG_ENTER("tile::field_has_default_value");
 
-  bool has_no_default_value = field->flags &
-                              NO_DEFAULT_VALUE_FLAG;
+  bool has_no_default_value = field->flags & NO_DEFAULT_VALUE_FLAG;
 
   DBUG_RETURN(!has_no_default_value);
 }
 
-uint64_t tile::mytile::get_default_value_size(const void* value,
+uint64_t tile::mytile::get_default_value_size(const void *value,
                                               tiledb_datatype_t type) const {
   DBUG_ENTER("tile::get_default_value_size");
   uint64_t size = 0;
 
   if (type == TILEDB_STRING_ASCII) {
-    auto str = std::string(static_cast<const char*>(value));
+    auto str = std::string(static_cast<const char *>(value));
     size = str.size();
   } else {
     size = tiledb_datatype_size(type);
@@ -333,10 +332,9 @@ uint64_t tile::mytile::get_default_value_size(const void* value,
   DBUG_RETURN(size);
 }
 
-void tile::mytile::get_field_default_value(TABLE *table_arg, 
-                                      size_t field_idx, 
-                                      tiledb::Attribute *attr,
-                                      std::shared_ptr<buffer> buff) {
+void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
+                                           tiledb::Attribute *attr,
+                                           std::shared_ptr<buffer> buff) {
   DBUG_ENTER("tile::get_field_default_value");
 
   this->record_index = 0;
@@ -351,13 +349,13 @@ void tile::mytile::get_field_default_value(TABLE *table_arg,
   buff->allocated_buffer_size = size;
 
   uint64_t *offset_buffer = nullptr;
-  tiledb_datatype_t datatype = 
-    tile::mysqlTypeToTileDBType(table_arg->s->field[field_idx]->type(), false);
+  tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(
+      table_arg->s->field[field_idx]->type(), false);
   auto data_buffer = alloc_buffer(datatype, size);
   buff->fixed_size_elements = attr->cell_val_num();
   if (attr->variable_sized()) {
     offset_buffer = static_cast<uint64_t *>(
-         alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+        alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
     buff->offset_buffer_size = size;
     buff->allocated_offset_buffer_size = size;
   }
@@ -366,8 +364,8 @@ void tile::mytile::get_field_default_value(TABLE *table_arg,
   buff->buffer = data_buffer;
   buff->type = attr->type();
 
-  set_buffer_from_field(table_arg->s->field[field_idx],
-                            buff, this->record_index, ha_thd());
+  set_buffer_from_field(table_arg->s->field[field_idx], buff,
+                        this->record_index, ha_thd());
 
   DBUG_VOID_RETURN;
 }
@@ -395,11 +393,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
     std::string encryption_key;
     if (create_info->option_struct->encryption_key != nullptr) {
-      encryption_key =
-          std::string(create_info->option_struct->encryption_key);
+      encryption_key = std::string(create_info->option_struct->encryption_key);
     }
 
-    if(check_array_exists(vfs, ctx, create_uri, encryption_key, schema) &&
+    if (check_array_exists(vfs, ctx, create_uri, encryption_key, schema) &&
         sysvars::create_allow_subset_existing_array(ha_thd())) {
       // Next we write the frm file to persist the newly created table
       table_arg->s->write_frm_image();
@@ -457,9 +454,10 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           domain.add_dimension(create_field_dimension(context, field));
         } catch (const std::exception &e) {
           // Log errors
-          my_printf_error(ER_UNKNOWN_ERROR, 
-                          "[create_array] error creating dimension for table %s : %s",
-                          ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+          my_printf_error(
+              ER_UNKNOWN_ERROR,
+              "[create_array] error creating dimension for table %s : %s",
+              ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
           DBUG_RETURN(ERR_CREATE_DIM_OTHER);
         }
       } else {
@@ -475,8 +473,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         if (has_default_value) {
           std::shared_ptr<buffer> buff = std::make_shared<buffer>();
           get_field_default_value(table_arg, field_idx, &attr, buff);
-          uint64_t default_value_size = get_default_value_size(buff->buffer,
-                                                               buff->type); 
+          uint64_t default_value_size =
+              get_default_value_size(buff->buffer, buff->type);
           if (default_value_size > 0) {
             attr.set_fill_value(buff->buffer, default_value_size);
           }
@@ -1288,8 +1286,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         cmp_type = TIME_RESULT;
       }
 
-      int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const, cmp_type,
-                                           range, dim_type);
+      int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const,
+                                           cmp_type, range, dim_type);
 
       if (ret)
         DBUG_RETURN(func_item);
@@ -1315,10 +1313,10 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       cmp_type = TIME_RESULT;
     }
 
-    int ret =
-        set_range_from_item_consts(ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
-                                   dynamic_cast<Item_basic_constant *>(args[1]),
-                                   cmp_type, range, dim_type);
+    int ret = set_range_from_item_consts(
+        ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
+        dynamic_cast<Item_basic_constant *>(args[1]), cmp_type, range,
+        dim_type);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -1370,8 +1368,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
-    int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const, cmp_type,
-                                         range, dim_type);
+    int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const,
+                                         cmp_type, range, dim_type);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -1638,9 +1636,9 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
     for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
       if (field->is_null()) {
-        sql_print_error(
-          "[mysql_row_to_tiledb_buffers] write error for table %s : field null not supported",
-          this->uri.c_str());
+        sql_print_error("[mysql_row_to_tiledb_buffers] write error for table "
+                        "%s : field null not supported",
+                        this->uri.c_str());
         error = HA_ERR_GENERIC;
         DBUG_RETURN(error);
       } else {
@@ -2057,13 +2055,12 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
   auto domain = this->array_schema->domain();
   int key_position = 0;
 
-  const KEY* key_info = table->key_info;
+  const KEY *key_info = table->key_info;
 
   for (uint64_t key_part_index = 0;
-       key_part_index < key_info->user_defined_key_parts;
-       key_part_index++) {
+       key_part_index < key_info->user_defined_key_parts; key_part_index++) {
 
-    const KEY_PART_INFO* key_part_info = &(key_info->key_part[key_part_index]);
+    const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
     uint64_t dim_idx = key_part_info->field->field_index;
     tiledb::Dimension dimension = domain.dimension(dim_idx);
 
@@ -2071,8 +2068,9 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
       if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
-        uint64_t dim_comparison = compare_key_to_dim(dim_idx,
-            key + key_position, key_part_info->length, index, dim_buffer);
+        uint64_t dim_comparison =
+            compare_key_to_dim(dim_idx, key + key_position,
+                               key_part_info->length, index, dim_buffer);
         key_position += key_part_info->length;
         if (dim_comparison != 0) {
           return dim_comparison;
@@ -2089,8 +2087,7 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
 }
 
 int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
-                                        const uchar *key,
-                                        uint64_t key_part_len,
+                                        const uchar *key, uint64_t key_part_len,
                                         const uint64_t index,
                                         const std::shared_ptr<buffer> &buf) {
 
@@ -2124,12 +2121,11 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
     return compare_key_to_dim<int64>(key, key_part_len, fixed_buff_pointer);
   case TILEDB_DATETIME_YEAR: {
     // XXX: for some reason maria uses year offset from 1900 here
-    MYSQL_TIME mysql_time = {
-      1900U + *((uint8_t*)(key)),
-      0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME
-    };
+    MYSQL_TIME mysql_time = {1900U + *((uint8_t *)(key)), 0, 0, 0, 0, 0, 0, 0,
+                             MYSQL_TIMESTAMP_TIME};
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
-    return compare_key_to_dim<int64>((uchar*)&xs, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int64>((uchar *)&xs, key_part_len,
+                                     fixed_buff_pointer);
   }
   case TILEDB_DATETIME_MONTH:
   case TILEDB_DATETIME_WEEK:
@@ -2144,15 +2140,16 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   case TILEDB_DATETIME_FS:
   case TILEDB_DATETIME_AS: {
     MYSQL_TIME mysql_time;
-    Field* field = table->field[dim_idx];
+    Field *field = table->field[dim_idx];
 
-    uchar* tmp = field->ptr;
-    field->ptr = (uchar*)key;
+    uchar *tmp = field->ptr;
+    field->ptr = (uchar *)key;
     field->get_date(&mysql_time, date_mode_t(0));
     field->ptr = tmp;
 
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
-    return compare_key_to_dim<int64>((uchar*)&xs, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int64>((uchar *)&xs, key_part_len,
+                                     fixed_buff_pointer);
   }
   case TILEDB_STRING_ASCII: {
     const uint16_t char_length = *reinterpret_cast<const uint16_t *>(key);
@@ -2188,8 +2185,7 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
 }
 
 int tile::mytile::index_read_scan(const uchar *key, uint key_len,
-                                  enum ha_rkey_function find_flag,
-                                  bool reset) {
+                                  enum ha_rkey_function find_flag, bool reset) {
   DBUG_ENTER("tile::mytile::index_read_scan");
   int rc = 0;
   const char *query_status;
@@ -2198,7 +2194,8 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
   // We have to check this here and not in rnd_init because
   // only index_read_scan can return empty
   if (this->empty_read) {
-    if (reset) index_end();
+    if (reset)
+      index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -2214,7 +2211,8 @@ begin:
   if (this->query_complete()) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-    if (reset) index_end();
+    if (reset)
+      index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -2248,7 +2246,8 @@ begin:
                    status == tiledb::Query::Status::COMPLETE) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-          if (reset) index_end();
+          if (reset)
+            index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
@@ -2287,7 +2286,8 @@ begin:
           if (this->records_read == this->record_index) {
             // Reset bitmap to original
             dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-            if (reset) index_end();
+            if (reset)
+              index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
           }
 
@@ -2297,7 +2297,8 @@ begin:
           if (restarted_scan) {
             // Reset bitmap to original
             dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-            if (reset) index_end();
+            if (reset)
+              index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
           }
 
@@ -2326,7 +2327,8 @@ begin:
         if (compare_key_to_dims(key, key_len, this->record_index) > 0) {
           // Reset bitmap to original
           dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-          if (reset) index_end();
+          if (reset)
+            index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
 
@@ -2361,7 +2363,8 @@ begin:
 
   // Reset bitmap to original
   dbug_tmp_restore_column_map(table->write_set, original_bitmap);
-  if (reset) index_end();
+  if (reset)
+    index_end();
   DBUG_RETURN(rc);
 }
 
@@ -2396,14 +2399,13 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                         bool start_key,
                                         enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
-  std::map<uint64_t,std::shared_ptr<tile::range>> ranges_from_keys =
-      tile::build_ranges_from_key(ha_thd(), table, key, key_len,
-                                  find_flag, start_key,
-                                  this->array_schema->domain());
+  std::map<uint64_t, std::shared_ptr<tile::range>> ranges_from_keys =
+      tile::build_ranges_from_key(ha_thd(), table, key, key_len, find_flag,
+                                  start_key, this->array_schema->domain());
 
   if (!ranges_from_keys.empty()) {
     if (this->query_complete() ||
-       (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())) {
+        (!this->valid_pushed_ranges() && !this->valid_pushed_in_ranges())) {
       this->pushdown_ranges.clear();
       this->pushdown_in_ranges.clear();
       this->pushdown_ranges.resize(this->ndim);
@@ -2475,8 +2477,7 @@ int tile::mytile::build_mrr_ranges() {
         auto &range = tmp_ranges[i];
         update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
                                               key_offset, true /* start_key */,
-                                              last_key_part,
-                                              datatype);
+                                              last_key_part, datatype);
         key_offset += key_len;
       }
     }
@@ -2510,8 +2511,7 @@ int tile::mytile::build_mrr_ranges() {
         auto &range = tmp_ranges[i];
         update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
                                               key_offset, false /* start_key */,
-                                              last_key_part,
-                                              datatype);
+                                              last_key_part, datatype);
         key_offset += key_len;
       }
     }

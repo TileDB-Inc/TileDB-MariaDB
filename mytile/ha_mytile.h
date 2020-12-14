@@ -103,20 +103,19 @@ public:
    * @param value
    * @param type
    */
-  uint64_t get_default_value_size(const void* value,
+  uint64_t get_default_value_size(const void *value,
                                   tiledb_datatype_t type) const;
 
   /**
-   * get a buffer containing the default value of a field 
+   * get a buffer containing the default value of a field
    * @param table_arg
    * @param field_idx
    * @param attr
    * @param buff
    */
-  void get_field_default_value(TABLE *table_arg, 
-                          size_t field_idx, 
-                          tiledb::Attribute *attr,
-                          std::shared_ptr<buffer> buff);
+  void get_field_default_value(TABLE *table_arg, size_t field_idx,
+                               tiledb::Attribute *attr,
+                               std::shared_ptr<buffer> buff);
 
   /**
    * Create array functionality
@@ -361,15 +360,16 @@ public:
   void dealloc_buffers();
 
   /**
-   * Helper to get field attribute value specified as DEFAULT during table creation
+   * Helper to get field attribute value specified as DEFAULT during table
+   * creation
    * @param table_arg
    * @param field_idx
    * @param default_value
    * @param default_value_size
    */
   void get_field_default_value(TABLE *table_arg, size_t field_idx,
-                                void *&default_value,
-                                uint64_t &default_value_size) const;
+                               void *&default_value,
+                               uint64_t &default_value_size) const;
 
   /**
    *
@@ -459,10 +459,8 @@ public:
    */
   int8_t compare_key_to_dims(const uchar *key, uint key_length, uint64_t index);
 
-  int8_t compare_key_to_dim(const uint64_t dim_idx,
-                            const uchar *key,
-                            uint64_t key_part_len,
-                            const uint64_t index,
+  int8_t compare_key_to_dim(const uint64_t dim_idx, const uchar *key,
+                            uint64_t key_part_len, const uint64_t index,
                             const std::shared_ptr<buffer> &buf);
 
   template <typename T>
@@ -509,8 +507,7 @@ public:
    * @return
    */
   int index_read_scan(const uchar *key, uint key_len,
-                      enum ha_rkey_function find_flag,
-                      bool reset);
+                      enum ha_rkey_function find_flag, bool reset);
 
   /**
    * Read "first" row

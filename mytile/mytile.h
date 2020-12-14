@@ -58,8 +58,7 @@ int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value);
  * @param type
  * @param value
  */
-std::string TileDBTypeValueToString(tiledb_datatype_t type, 
-                                    const void *value,
+std::string TileDBTypeValueToString(tiledb_datatype_t type, const void *value,
                                     uint64_t value_size);
 
 /**
@@ -103,7 +102,7 @@ bool MysqlDatetimeType(enum_field_types type);
  * @param mysql_time
  * @return
  */
-int64_t MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
+int64_t MysqlTimeToTileDBTimeVal(THD *thd, const MYSQL_TIME &mysql_time,
                                  tiledb_datatype_t datatype);
 
 /**

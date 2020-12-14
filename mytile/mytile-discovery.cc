@@ -56,7 +56,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   std::stringstream sql_string;
   tiledb::Config config = build_config(thd);
   tiledb::Context ctx = build_context(config);
-  std::string array_uri;
+  std::pair<std::string, uint64_t> array_uri_timestamp("", UINT64_MAX);
   std::unique_ptr<tiledb::ArraySchema> schema;
 
   bool dimensions_are_keys = tile::sysvars::dimensions_are_keys(thd);
@@ -78,50 +78,53 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     // First try if the array_uri option is set
     if (info != nullptr && info->option_struct != nullptr &&
         info->option_struct->array_uri != nullptr) {
-      array_uri = info->option_struct->array_uri;
+      array_uri_timestamp =
+          get_real_uri_and_timestamp(info->option_struct->array_uri);
 
       // Check if @metadata is ending of uri, if so the user is trying to query
       // the metadata we need to remove the keyword for checking if the array
       // exists
-      if (tile::has_ending(array_uri, METADATA_ENDING)) {
-        array_uri =
-            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+      if (tile::has_ending(array_uri_timestamp.first, METADATA_ENDING)) {
+        array_uri_timestamp.first = array_uri_timestamp.first.substr(
+            0, array_uri_timestamp.first.length() - METADATA_ENDING.length());
         metadata_query = true;
+      } else {
       }
 
-      array_found =
-          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
+      array_found = check_array_exists(vfs, ctx, array_uri_timestamp.first,
+                                       encryption_key, schema);
       // Next try the table share if it is non-null
     } else if (ts != nullptr && ts->option_struct != nullptr &&
                ts->option_struct->array_uri != nullptr) {
-      array_uri = ts->option_struct->array_uri;
+      array_uri_timestamp =
+          get_real_uri_and_timestamp(ts->option_struct->array_uri);
 
       // Check if @metadata is ending of uri, if so the user is trying to query
       // the metadata we need to remove the keyword for checking if the array
       // exists
-      if (tile::has_ending(array_uri, METADATA_ENDING)) {
-        array_uri =
-            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+      if (tile::has_ending(array_uri_timestamp.first, METADATA_ENDING)) {
+        array_uri_timestamp.first = array_uri_timestamp.first.substr(
+            0, array_uri_timestamp.first.length() - METADATA_ENDING.length());
         metadata_query = true;
       }
 
-      array_found =
-          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
+      array_found = check_array_exists(vfs, ctx, array_uri_timestamp.first,
+                                       encryption_key, schema);
       // Lastly try accessing the name directly, the name might be a uri
     } else if (ts != nullptr) {
-      array_uri = ts->table_name.str;
+      array_uri_timestamp = get_real_uri_and_timestamp(ts->table_name.str);
 
       // Check if @metadata is ending of uri, if so the user is trying to query
       // the metadata we need to remove the keyword for checking if the array
       // exists
-      if (tile::has_ending(array_uri, METADATA_ENDING)) {
-        array_uri =
-            array_uri.substr(0, array_uri.length() - METADATA_ENDING.length());
+      if (tile::has_ending(array_uri_timestamp.first, METADATA_ENDING)) {
+        array_uri_timestamp.first = array_uri_timestamp.first.substr(
+            0, array_uri_timestamp.first.length() - METADATA_ENDING.length());
         metadata_query = true;
       }
 
-      array_found =
-          check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
+      array_found = check_array_exists(vfs, ctx, array_uri_timestamp.first,
+                                       encryption_key, schema);
 
       if (!array_found) {
         // If the name isn't a URI perhaps the array was created like a normal
@@ -130,8 +133,9 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         // We don't check for metadata here because in this case it isn't
         // supported, since the user is accessing by table name not uri they
         // can't give us the metadata keyword
-        array_uri =
+        std::string array_uri =
             std::string(ts->db.str) + PATH_SEPARATOR + ts->table_name.str;
+        array_uri_timestamp = get_real_uri_and_timestamp(array_uri);
         array_found =
             check_array_exists(vfs, ctx, array_uri, encryption_key, schema);
       }
@@ -144,7 +148,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   if (array_found) {
     if (schema == nullptr) {
       schema = std::make_unique<tiledb::ArraySchema>(
-          ctx, array_uri,
+          ctx, array_uri_timestamp.first,
           encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
           encryption_key);
     }
@@ -159,7 +163,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   }
 
   if (metadata_query) {
-    DBUG_RETURN(discover_array_metadata(thd, ts, info, array_uri,
+    DBUG_RETURN(discover_array_metadata(thd, ts, info,
+                                        array_uri_timestamp.first,
                                         std::move(schema), encryption_key));
   }
 
@@ -171,7 +176,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
 
     sql_string << "create table `" << ts->table_name.str << "` (";
 
-    table_options << "uri='" << array_uri << "'";
+    table_options << "uri='" << array_uri_timestamp.first << "'";
 
     if (schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
       table_options << " array_type='SPARSE'";
@@ -205,16 +210,16 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     }
 
     // Check for open_at
-    ulonglong open_at = UINT64_MAX;
-    if (info != nullptr && info->option_struct != nullptr) {
-      open_at = info->option_struct->open_at;
+    if (array_uri_timestamp.second == UINT64_MAX && info != nullptr &&
+        info->option_struct != nullptr) {
+      array_uri_timestamp.second = info->option_struct->open_at;
     }
-    if (open_at == UINT64_MAX && ts != nullptr &&
+    if (array_uri_timestamp.second == UINT64_MAX && ts != nullptr &&
         ts->option_struct != nullptr) {
-      open_at = ts->option_struct->open_at;
+      array_uri_timestamp.second = ts->option_struct->open_at;
     }
-    if (open_at != UINT64_MAX) {
-      table_options << " open_at=" << open_at;
+    if (array_uri_timestamp.second != UINT64_MAX) {
+      table_options << " open_at=" << array_uri_timestamp.second;
     }
 
     if (!encryption_key.empty()) {
@@ -247,7 +252,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       if (schema->allows_dups()) {
         sql_string << " NOT NULL";
       }
-
 
       // Only set the domain and tile extent for non string dimensions
       if (dim.type() != TILEDB_STRING_ASCII) {
@@ -291,9 +295,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       const void *default_value = nullptr;
       uint64_t default_value_size = tiledb_datatype_size(attribute.type());
       attribute.get_fill_value(&default_value, &default_value_size);
-      auto default_value_str = TileDBTypeValueToString(attribute.type(), 
-                                                       default_value,
-                                                       default_value_size);
+      auto default_value_str = TileDBTypeValueToString(
+          attribute.type(), default_value, default_value_size);
 
       if (!default_value_str.empty())
         sql_string << " DEFAULT " << default_value_str;

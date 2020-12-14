@@ -39,6 +39,7 @@
 #include <tiledb/tiledb>
 #include "my_global.h" /* ulonglong */
 #include <handler.h>
+#include <regex>
 
 namespace tile {
 const char PATH_SEPARATOR =
@@ -49,6 +50,7 @@ const char PATH_SEPARATOR =
 #endif
 
 const std::string METADATA_ENDING = "@metadata";
+const std::regex TIME_TRAVEL_ENDING("@(\\d+)");
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {
@@ -155,4 +157,21 @@ bool has_ending(std::string const &s, std::string const &ending);
  * @return true if s has prefix
  */
 bool has_prefix(std::string const &s, std::string const &prefix);
+
+/**
+ *
+ * @param s string to check for regex match
+ * @param regex to check for
+ * @return return empty string if not found else matching string
+ */
+std::string regex_match(std::string const &s, std::regex const &regex);
+
+/**
+ *
+ * @param uri
+ * @return
+ */
+std::pair<std::string, uint64_t>
+get_real_uri_and_timestamp(const std::string &uri);
+
 } // namespace tile

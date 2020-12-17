@@ -295,11 +295,19 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       const void *default_value = nullptr;
       uint64_t default_value_size = tiledb_datatype_size(attribute.type());
       attribute.get_fill_value(&default_value, &default_value_size);
-      auto default_value_str = TileDBTypeValueToString(
-          attribute.type(), default_value, default_value_size);
 
-      if (!default_value_str.empty())
-        sql_string << " DEFAULT " << default_value_str;
+      // Only set the default value if its set by the user or we include
+      // defaults for non-string type. TileDB strings uses default fill values
+      // that mariadb doesn't like (i.e. \200) so we just avoid setting those.
+      if (!tile::is_fill_value_default(attribute.type(), default_value,
+                                       default_value_size) ||
+          !tile::is_string_datatype(attribute.type())) {
+        auto default_value_str = TileDBTypeValueToString(
+            attribute.type(), default_value, default_value_size);
+
+        if (!default_value_str.empty())
+          sql_string << " DEFAULT " << default_value_str;
+      }
 
       // Check for filters
       tiledb::FilterList filters = attribute.filter_list();

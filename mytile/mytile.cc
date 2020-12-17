@@ -1115,3 +1115,173 @@ std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
   final.pop_back();
   return final;
 }
+
+const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {
+  switch (type) {
+  case tiledb_datatype_t::TILEDB_INT8:
+    return &constants::empty_int8;
+  case tiledb_datatype_t::TILEDB_UINT8:
+    return &constants::empty_uint8;
+  case tiledb_datatype_t::TILEDB_INT16:
+    return &constants::empty_int16;
+  case tiledb_datatype_t::TILEDB_UINT16:
+    return &constants::empty_uint16;
+  case tiledb_datatype_t::TILEDB_INT32:
+    return &constants::empty_int32;
+  case tiledb_datatype_t::TILEDB_UINT32:
+    return &constants::empty_uint32;
+  case tiledb_datatype_t::TILEDB_INT64:
+    return &constants::empty_int64;
+  case tiledb_datatype_t::TILEDB_UINT64:
+    return &constants::empty_uint64;
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+    return &constants::empty_float32;
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+    return &constants::empty_float64;
+  case tiledb_datatype_t::TILEDB_CHAR:
+    return &constants::empty_char;
+  case tiledb_datatype_t::TILEDB_ANY:
+    return &constants::empty_any;
+  case tiledb_datatype_t::TILEDB_STRING_ASCII:
+    return &constants::empty_ascii;
+  case tiledb_datatype_t::TILEDB_STRING_UTF8:
+    return &constants::empty_utf8;
+  case tiledb_datatype_t::TILEDB_STRING_UTF16:
+    return &constants::empty_utf16;
+  case tiledb_datatype_t::TILEDB_STRING_UTF32:
+    return &constants::empty_utf32;
+  case tiledb_datatype_t::TILEDB_STRING_UCS2:
+    return &constants::empty_ucs2;
+  case tiledb_datatype_t::TILEDB_STRING_UCS4:
+    return &constants::empty_ucs4;
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+    return &constants::empty_int64;
+  }
+
+  return nullptr;
+}
+
+bool tile::is_fill_value_default(const tiledb_datatype_t &type,
+                                 const void *value, const uint64_t &size) {
+  // Fill values are only a single value so if the size is larger is custom
+  if (size > tiledb_datatype_size(type))
+    return false;
+
+  const void *default_value = default_tiledb_fill_value(type);
+
+  return !memcmp(default_value, value, size);
+}
+
+bool tile::is_string_datatype(const tiledb_datatype_t &type) {
+  switch (type) {
+  case tiledb_datatype_t::TILEDB_INT8:
+  case tiledb_datatype_t::TILEDB_UINT8:
+  case tiledb_datatype_t::TILEDB_INT16:
+  case tiledb_datatype_t::TILEDB_UINT16:
+  case tiledb_datatype_t::TILEDB_INT32:
+  case tiledb_datatype_t::TILEDB_UINT32:
+  case tiledb_datatype_t::TILEDB_INT64:
+  case tiledb_datatype_t::TILEDB_UINT64:
+  case tiledb_datatype_t::TILEDB_FLOAT32:
+  case tiledb_datatype_t::TILEDB_FLOAT64:
+  case tiledb_datatype_t::TILEDB_ANY:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+    return false;
+  case tiledb_datatype_t::TILEDB_CHAR:
+  case tiledb_datatype_t::TILEDB_STRING_ASCII:
+  case tiledb_datatype_t::TILEDB_STRING_UTF8:
+  case tiledb_datatype_t::TILEDB_STRING_UTF16:
+  case tiledb_datatype_t::TILEDB_STRING_UTF32:
+  case tiledb_datatype_t::TILEDB_STRING_UCS2:
+  case tiledb_datatype_t::TILEDB_STRING_UCS4:
+    return true;
+  }
+
+  return true;
+}
+
+/** The special value for an empty int32. */
+const int tile::constants::empty_int32 = std::numeric_limits<int32_t>::min();
+
+/** The special value for an empty int64. */
+const int64_t tile::constants::empty_int64 =
+    std::numeric_limits<int64_t>::min();
+
+/** The special value for an empty float32. */
+const float tile::constants::empty_float32 =
+    std::numeric_limits<float>::quiet_NaN();
+
+/** The special value for an empty float64. */
+const double tile::constants::empty_float64 =
+    std::numeric_limits<double>::quiet_NaN();
+
+/** The special value for an empty char. */
+const char tile::constants::empty_char = std::numeric_limits<char>::min();
+
+/** The special value for an empty int8. */
+const int8_t tile::constants::empty_int8 = std::numeric_limits<int8_t>::min();
+
+/** The special value for an empty uint8. */
+const uint8_t tile::constants::empty_uint8 =
+    std::numeric_limits<uint8_t>::max();
+
+/** The special value for an empty int16. */
+const int16_t tile::constants::empty_int16 =
+    std::numeric_limits<int16_t>::min();
+
+/** The special value for an empty uint16. */
+const uint16_t tile::constants::empty_uint16 =
+    std::numeric_limits<uint16_t>::max();
+
+/** The special value for an empty uint32. */
+const uint32_t tile::constants::empty_uint32 =
+    std::numeric_limits<uint32_t>::max();
+
+/** The special value for an empty uint64. */
+const uint64_t tile::constants::empty_uint64 =
+    std::numeric_limits<uint64_t>::max();
+
+/** The special value for an empty ASCII. */
+const uint8_t tile::constants::empty_ascii = 0;
+
+/** The special value for an empty UTF8. */
+const uint8_t tile::constants::empty_utf8 = 0;
+
+/** The special value for an empty UTF16. */
+const uint16_t tile::constants::empty_utf16 = 0;
+
+/** The special value for an empty UTF32. */
+const uint32_t tile::constants::empty_utf32 = 0;
+
+/** The special value for an empty UCS2. */
+const uint16_t tile::constants::empty_ucs2 = 0;
+
+/** The special value for an empty UCS4. */
+const uint32_t tile::constants::empty_ucs4 = 0;
+
+/** The special value for an empty ANY. */
+const uint8_t tile::constants::empty_any = 0;

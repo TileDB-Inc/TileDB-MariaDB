@@ -359,4 +359,84 @@ tiledb::FilterList parse_filter_list(tiledb::Context &ctx,
 std::string filter_list_to_str(const tiledb::FilterList &filter_list);
 // -- end helpers --
 
+/**
+ *  Function to get list of default fill in values from TileDB
+ *
+ * @param type datatype of fill value
+ * @return pointer to default fill value
+ */
+const void *default_tiledb_fill_value(const tiledb_datatype_t &type);
+
+/**
+ * Checks if a fill value is default
+ * @param type datatype of value
+ * @param value pointer to value
+ * @return true if default tiledb value (not user custom value)
+ */
+bool is_fill_value_default(const tiledb_datatype_t &type, const void *value,
+                           const uint64_t &size);
+
+/**
+ * Check if a datatype is a string type or not
+ * @param type datatype
+ * @return true if is a string datatype
+ */
+bool is_string_datatype(const tiledb_datatype_t &type);
+
+namespace constants {
+/** The special value for an empty int32. */
+extern const int empty_int32;
+
+/** The special value for an empty int64. */
+extern const int64_t empty_int64;
+
+/** The special value for an empty float32. */
+extern const float empty_float32;
+
+/** The special value for an empty float64. */
+extern const double empty_float64;
+
+/** The special value for an empty char. */
+extern const char empty_char;
+
+/** The special value for an empty int8. */
+extern const int8_t empty_int8;
+
+/** The special value for an empty uint8. */
+extern const uint8_t empty_uint8;
+
+/** The special value for an empty int16. */
+extern const int16_t empty_int16;
+
+/** The special value for an empty uint16. */
+extern const uint16_t empty_uint16;
+
+/** The special value for an empty uint32. */
+extern const uint32_t empty_uint32;
+
+/** The special value for an empty uint64. */
+extern const uint64_t empty_uint64;
+
+/** The special value for an empty ASCII. */
+extern const uint8_t empty_ascii;
+
+/** The special value for an empty UTF8. */
+extern const uint8_t empty_utf8;
+
+/** The special value for an empty UTF16. */
+extern const uint16_t empty_utf16;
+
+/** The special value for an empty UTF32. */
+extern const uint32_t empty_utf32;
+
+/** The special value for an empty UCS2. */
+extern const uint16_t empty_ucs2;
+
+/** The special value for an empty UCS4. */
+extern const uint32_t empty_ucs4;
+
+/** The special value for an empty ANY. */
+extern const uint8_t empty_any;
+} // namespace constants
+
 } // namespace tile

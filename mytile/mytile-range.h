@@ -61,8 +61,7 @@ typedef struct range_struct {
   uint64_t upper_value_size;
 } range;
 
-int set_range_from_item_consts(THD *thd,
-                               Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
                                std::shared_ptr<tile::range> &range,
@@ -535,11 +534,10 @@ Item_func::Functype find_flag_to_func(enum ha_rkey_function find_flag,
  * @param domain
  * @return
  */
-std::map<uint64_t,std::shared_ptr<tile::range>>
-build_ranges_from_key(THD* thd, const TABLE* table, const uchar *key,
+std::map<uint64_t, std::shared_ptr<tile::range>>
+build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
                       uint length, enum ha_rkey_function find_flag,
-                      const bool start_key,
-                      const tiledb::Domain &domain);
+                      const bool start_key, const tiledb::Domain &domain);
 
 /**
  * Takes a key and find_flag and converts to the a vector of ranges.
@@ -555,10 +553,8 @@ build_ranges_from_key(THD* thd, const TABLE* table, const uchar *key,
 template <typename T>
 std::shared_ptr<tile::range>
 build_range_from_key(const uchar *key, uint length,
-                     enum ha_rkey_function find_flag,
-                     const bool start_key,
-                     const bool last_key_part,
-                     tiledb_datatype_t datatype,
+                     enum ha_rkey_function find_flag, const bool start_key,
+                     const bool last_key_part, tiledb_datatype_t datatype,
                      uint64_t size = sizeof(T)) {
   // Length shouldn't be zero here but better safe then segfault!
   if (length == 0)
@@ -567,14 +563,13 @@ build_range_from_key(const uchar *key, uint length,
   // Cast key to array of type T
   const T *key_typed = reinterpret_cast<const T *>(key);
 
-  std::shared_ptr<tile::range> range =
-      std::make_shared<tile::range>(tile::range{
-          std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
-                                                      &std::free),
-          std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
-                                                      &std::free),
-          find_flag_to_func(find_flag, start_key, last_key_part),
-                            datatype, size, size});
+  std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
+      tile::range{std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                              &std::free),
+                  std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
+                                                              &std::free),
+                  find_flag_to_func(find_flag, start_key, last_key_part),
+                  datatype, size, size});
 
   T lower = *key_typed;
   T upper = *key_typed;
@@ -625,10 +620,9 @@ build_range_from_key(const uchar *key, uint length,
     break;
   }
   default:
-    my_printf_error(
-        ER_UNKNOWN_ERROR,
-        "Unsupported Item_func::functype in build_range_from_key",
-        ME_ERROR_LOG | ME_FATAL);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "Unsupported Item_func::functype in build_range_from_key",
+                    ME_ERROR_LOG | ME_FATAL);
     break;
   }
 
@@ -910,8 +904,7 @@ int8_t compare_typed_buffers(const void *lhs, const void *rhs, uint64_t size) {
 }
 
 template <typename T>
-int set_range_from_item_consts(THD *thd,
-                               Item_basic_constant *lower_const,
+int set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
                                Item_basic_constant *upper_const,
                                Item_result cmp_type,
                                std::shared_ptr<range> &range,
@@ -975,9 +968,16 @@ int set_range_from_item_consts(THD *thd,
     if (lower_const != nullptr) {
       MYSQL_TIME mysql_time;
       if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
-        mysql_time = { static_cast<uint32_t>(lower_const->val_int()),
-                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
-      } else { 
+        mysql_time = {static_cast<uint32_t>(lower_const->val_int()),
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      MYSQL_TIMESTAMP_TIME};
+      } else {
         lower_const->get_date(thd, &mysql_time, date_mode_t(0));
       }
 
@@ -999,8 +999,15 @@ int set_range_from_item_consts(THD *thd,
     if (upper_const != nullptr) {
       MYSQL_TIME mysql_time;
       if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
-        mysql_time = { static_cast<uint32_t>(upper_const->val_int()),
-                       0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+        mysql_time = {static_cast<uint32_t>(upper_const->val_int()),
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      MYSQL_TIMESTAMP_TIME};
       } else {
         upper_const->get_date(thd, &mysql_time, date_mode_t(0));
       }

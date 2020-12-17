@@ -7,17 +7,24 @@
 --eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE quickstart_dense_zero ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense' open_at=0;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_dense_zero_inline ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense@0';
 
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 show create table quickstart_dense;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 show create table quickstart_dense_zero;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+show create table quickstart_dense_zero_inline;
 
 select * FROM quickstart_dense;
 --echo # Validate epoch of 0 returns no data since its before test array was created
 select * FROM quickstart_dense_zero;
+--echo # Validate epoch of 0 returns no data since its before test array was created
+select * FROM quickstart_dense_zero_inline;
 
 SET mytile_delete_arrays=0;
 DROP TABLE quickstart_dense;
 DROP TABLE quickstart_dense_zero;
+DROP TABLE quickstart_dense_zero_inline;
 SET mytile_delete_arrays=1;

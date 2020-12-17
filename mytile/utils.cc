@@ -136,3 +136,30 @@ bool tile::has_prefix(std::string const &s, std::string const &prefix) {
     return false;
   }
 }
+
+std::string tile::regex_match(std::string const &s, std::regex const &regex) {
+  std::smatch base_match;
+  if (std::regex_search(s, base_match, regex)) {
+    // The first sub_match is the whole string; the next
+    // sub_match is the first parenthesized expression.
+    if (base_match.size() == 2) {
+      return base_match[1].str();
+    }
+  }
+
+  return std::string();
+}
+
+std::pair<std::string, uint64_t>
+tile::get_real_uri_and_timestamp(const std::string &uri) {
+  std::pair<std::string, uint64_t> ret(uri, UINT64_MAX);
+
+  std::string timestamp_str = regex_match(uri, TIME_TRAVEL_ENDING);
+
+  if (!timestamp_str.empty()) {
+    ret.first = uri.substr(0, uri.length() - (timestamp_str.length() + 1));
+    ret.second = std::stoull(timestamp_str);
+  }
+
+  return ret;
+}

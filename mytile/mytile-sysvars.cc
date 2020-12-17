@@ -103,17 +103,17 @@ static MYSQL_THDVAR_BOOL(compute_table_records,
                          "compute size of table (record count) on opening",
                          NULL, NULL, false);
 
-// Running a create table normally has two modes, assisted discovery or create new
-// This option allows for a third mode, which is you can specify the list of
+// Running a create table normally has two modes, assisted discovery or create
+// new This option allows for a third mode, which is you can specify the list of
 // columns in the create statement and if the array already exists MariaDB will
-// just only access the columns you've specified. This is a workaround for MariaDB
-// only allowing 4096 column in total. Now if your array has more columns then
-// mariadb can handle you an use this option to select a smaller subset for
-// querying
+// just only access the columns you've specified. This is a workaround for
+// MariaDB only allowing 4096 column in total. Now if your array has more
+// columns then mariadb can handle you an use this option to select a smaller
+// subset for querying
 static MYSQL_THDVAR_BOOL(create_allow_subset_existing_array,
                          PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
-                         "Allow registering a subset of column",
-                         NULL, NULL, false);
+                         "Allow registering a subset of column", NULL, NULL,
+                         false);
 
 const char *log_level_names[] = {"error", "warning", "info", "debug", NullS};
 

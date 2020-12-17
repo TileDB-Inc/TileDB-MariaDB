@@ -237,95 +237,95 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
   }
 }
 
-std::string tile::TileDBTypeValueToString(tiledb_datatype_t type, 
-                                          const void *value, 
+std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
+                                          const void *value,
                                           uint64_t value_size) {
   switch (type) {
-    case TILEDB_INT8: {
-      auto v = static_cast<const int8_t*>(value);
-      return std::to_string(*v);
+  case TILEDB_INT8: {
+    auto v = static_cast<const int8_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_UINT8: {
+    auto v = static_cast<const uint8_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_INT16: {
+    auto v = static_cast<const int16_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_UINT16: {
+    auto v = static_cast<const uint16_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_INT32: {
+    auto v = static_cast<const int32_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_UINT32: {
+    auto v = static_cast<const uint32_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_INT64: {
+    auto v = static_cast<const int64_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_UINT64: {
+    auto v = static_cast<const uint64_t *>(value);
+    return std::to_string(*v);
+  }
+  case TILEDB_FLOAT32: {
+    auto v = static_cast<const float *>(value);
+    if (std::isnan(*v)) {
+      return std::to_string(0.0f);
     }
-    case TILEDB_UINT8: {
-      auto v = static_cast<const uint8_t*>(value);
-      return std::to_string(*v);
+    return std::to_string(*v);
+  }
+  case TILEDB_FLOAT64: {
+    auto v = static_cast<const double *>(value);
+    if (std::isnan(*v)) {
+      return std::to_string(0.0f);
     }
-    case TILEDB_INT16: {
-      auto v = static_cast<const int16_t*>(value);
-      return std::to_string(*v);
+    return std::to_string(*v);
+  }
+  case TILEDB_DATETIME_YEAR:
+  case TILEDB_DATETIME_MONTH:
+  case TILEDB_DATETIME_WEEK:
+  case TILEDB_DATETIME_DAY:
+  case TILEDB_DATETIME_HR:
+  case TILEDB_DATETIME_MIN:
+  case TILEDB_DATETIME_SEC:
+  case TILEDB_DATETIME_MS:
+  case TILEDB_DATETIME_US:
+  case TILEDB_DATETIME_NS:
+  case TILEDB_DATETIME_PS:
+  case TILEDB_DATETIME_FS:
+  case TILEDB_DATETIME_AS: {
+    auto v = static_cast<const int64_t *>(value);
+    // negative dates are invalid
+    if (*v < 0) {
+      return std::to_string(0);
     }
-    case TILEDB_UINT16: {
-      auto v = static_cast<const uint16_t*>(value);
-      return std::to_string(*v);
-    }
-    case TILEDB_INT32: {
-      auto v = static_cast<const int32_t*>(value);
-      return std::to_string(*v);
-    }
-    case TILEDB_UINT32: {
-      auto v = static_cast<const uint32_t*>(value);
-      return std::to_string(*v);
-    }
-    case TILEDB_INT64: {
-      auto v = static_cast<const int64_t*>(value);
-      return std::to_string(*v);
-    }
-    case TILEDB_UINT64: {
-      auto v = static_cast<const uint64_t*>(value);
-      return std::to_string(*v);
-    }
-    case TILEDB_FLOAT32: {
-      auto v = static_cast<const float*>(value);
-      if (std::isnan(*v)) {
-        return std::to_string(0.0f);
-      }
-      return std::to_string(*v);
-    }
-    case TILEDB_FLOAT64: {
-      auto v = static_cast<const double*>(value);
-      if (std::isnan(*v)) {
-        return std::to_string(0.0f);
-      }
-      return std::to_string(*v);
-    }
-    case TILEDB_DATETIME_YEAR:
-    case TILEDB_DATETIME_MONTH:
-    case TILEDB_DATETIME_WEEK:
-    case TILEDB_DATETIME_DAY:
-    case TILEDB_DATETIME_HR:
-    case TILEDB_DATETIME_MIN:
-    case TILEDB_DATETIME_SEC:
-    case TILEDB_DATETIME_MS:
-    case TILEDB_DATETIME_US:
-    case TILEDB_DATETIME_NS:
-    case TILEDB_DATETIME_PS:
-    case TILEDB_DATETIME_FS:
-    case TILEDB_DATETIME_AS: {
-      auto v = static_cast<const int64_t*>(value);
-      // negative dates are invalid
-      if (*v < 0) {
-        return std::to_string(0);
-      }
-      return std::to_string(*v);
-    }
-    case TILEDB_STRING_ASCII:
-    case TILEDB_CHAR:
-    case TILEDB_STRING_UTF8:
-    case TILEDB_STRING_UTF16:
-    case TILEDB_STRING_UTF32:
-    case TILEDB_STRING_UCS2:
-    case TILEDB_STRING_UCS4:
-    case TILEDB_ANY: {
-      auto v = reinterpret_cast<const char*>(value);
-      std::string s(v, value_size);
-      // If the string is the null character we have to us the escaped version
-      if (s[0] == '\0')
-        s = "\\0";
-      return std::string("'") + s + std::string("'");
-    }
+    return std::to_string(*v);
+  }
+  case TILEDB_STRING_ASCII:
+  case TILEDB_CHAR:
+  case TILEDB_STRING_UTF8:
+  case TILEDB_STRING_UTF16:
+  case TILEDB_STRING_UTF32:
+  case TILEDB_STRING_UCS2:
+  case TILEDB_STRING_UCS4:
+  case TILEDB_ANY: {
+    auto v = reinterpret_cast<const char *>(value);
+    std::string s(v, value_size);
+    // If the string is the null character we have to us the escaped version
+    if (s[0] == '\0')
+      s = "\\0";
+    return std::string("'") + s + std::string("'");
+  }
 
-    default: {
-      sql_print_error("Unknown tiledb data type in TileDBTypeValueToString");
-    }
+  default: {
+    sql_print_error("Unknown tiledb data type in TileDBTypeValueToString");
+  }
   }
 
   return nullptr;
@@ -357,23 +357,23 @@ bool tile::TileDBTypeIsUnsigned(tiledb_datatype_t type) {
  * @return
  */
 bool tile::TileDBDateTimeType(tiledb_datatype_t type) {
-  switch(type) {
-    case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
-    case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
-    case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
-    case tiledb_datatype_t::TILEDB_DATETIME_DAY:
-    case tiledb_datatype_t::TILEDB_DATETIME_HR:
-    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
-    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
-    case tiledb_datatype_t::TILEDB_DATETIME_MS:
-    case tiledb_datatype_t::TILEDB_DATETIME_US:
-    case tiledb_datatype_t::TILEDB_DATETIME_NS:
-    case tiledb_datatype_t::TILEDB_DATETIME_PS:
-    case tiledb_datatype_t::TILEDB_DATETIME_FS:
-    case tiledb_datatype_t::TILEDB_DATETIME_AS:
-      return true;
-    default:
-      return false;
+  switch (type) {
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+    return true;
+  default:
+    return false;
   }
 }
 
@@ -417,12 +417,12 @@ bool tile::MysqlDatetimeType(enum_field_types type) {
   return false;
 }
 
-int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
+int64_t tile::MysqlTimeToTileDBTimeVal(THD *thd, const MYSQL_TIME &mysql_time,
                                        tiledb_datatype_t datatype) {
   if (datatype == tiledb_datatype_t::TILEDB_DATETIME_YEAR) {
     return mysql_time.year - 1970;
 
-  } else if (datatype ==  tiledb_datatype_t::TILEDB_DATETIME_MONTH) {
+  } else if (datatype == tiledb_datatype_t::TILEDB_DATETIME_MONTH) {
     MYSQL_TIME diff_time;
     calc_time_diff(&epoch, &mysql_time, 1, &diff_time, date_mode_t(0));
     int64_t year_diff = diff_time.hour / (24 * 365);
@@ -444,39 +444,39 @@ int64_t tile::MysqlTimeToTileDBTimeVal(THD* thd, const MYSQL_TIME &mysql_time,
     my_time_t seconds = 0;
     // if we only have the time part
     if (mysql_time.year == 0 && mysql_time.month == 0 && mysql_time.day == 0) {
-       seconds = (mysql_time.hour * 60 * 60) +
-                 (mysql_time.minute * 60) +
-                 mysql_time.second;
-    // else we have a date and time which must take tz into account 
+      seconds = (mysql_time.hour * 60 * 60) + (mysql_time.minute * 60) +
+                mysql_time.second;
+      // else we have a date and time which must take tz into account
     } else {
-        uint32_t not_used;
-        seconds = thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+      uint32_t not_used;
+      seconds =
+          thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
     }
     uint64_t microseconds = mysql_time.second_part;
-    
-    switch(datatype) {
-      case tiledb_datatype_t::TILEDB_DATETIME_HR:
-        return (seconds / 60 / 60);
-      case tiledb_datatype_t::TILEDB_DATETIME_MIN:
-        return (seconds / 60);
-      case tiledb_datatype_t::TILEDB_DATETIME_SEC:
-        return seconds;
-      case tiledb_datatype_t::TILEDB_DATETIME_MS:
-        return (seconds * 1000) + (microseconds / 1000);
-      case tiledb_datatype_t::TILEDB_DATETIME_US:
-        return (seconds * 1000000 + microseconds);
-      case tiledb_datatype_t::TILEDB_DATETIME_NS:
-        return (seconds * 1000000 + microseconds) * 1000;
-      case tiledb_datatype_t::TILEDB_DATETIME_PS:
-        return (seconds * 1000000 + microseconds) * 1000000;
-      case tiledb_datatype_t::TILEDB_DATETIME_FS:
-        return (seconds * 1000000 + microseconds) * 1000000000;
-      case tiledb_datatype_t::TILEDB_DATETIME_AS:
-        return (seconds * 1000000 + microseconds) * 1000000000000;
-      default:
-        my_printf_error(ER_UNKNOWN_ERROR,
-          "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",
-          ME_ERROR_LOG | ME_FATAL);
+
+    switch (datatype) {
+    case tiledb_datatype_t::TILEDB_DATETIME_HR:
+      return (seconds / 60 / 60);
+    case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+      return (seconds / 60);
+    case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+      return seconds;
+    case tiledb_datatype_t::TILEDB_DATETIME_MS:
+      return (seconds * 1000) + (microseconds / 1000);
+    case tiledb_datatype_t::TILEDB_DATETIME_US:
+      return (seconds * 1000000 + microseconds);
+    case tiledb_datatype_t::TILEDB_DATETIME_NS:
+      return (seconds * 1000000 + microseconds) * 1000;
+    case tiledb_datatype_t::TILEDB_DATETIME_PS:
+      return (seconds * 1000000 + microseconds) * 1000000;
+    case tiledb_datatype_t::TILEDB_DATETIME_FS:
+      return (seconds * 1000000 + microseconds) * 1000000000;
+    case tiledb_datatype_t::TILEDB_DATETIME_AS:
+      return (seconds * 1000000 + microseconds) * 1000000000000;
+    default:
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Unknown tiledb data type in MysqlTimeToTileDBTimeVal",
+                      ME_ERROR_LOG | ME_FATAL);
     }
   }
 
@@ -957,8 +957,15 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     //    &my_charset_utf8_bin);
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
-    MYSQL_TIME year={ static_cast<uint32_t>(field->val_int()),
-                      0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
+    MYSQL_TIME year = {static_cast<uint32_t>(field->val_int()),
+                       0,
+                       0,
+                       0,
+                       0,
+                       0,
+                       0,
+                       0,
+                       MYSQL_TIMESTAMP_TIME};
 
     int64_t xs = MysqlTimeToTileDBTimeVal(thd, year, buff->type);
     return set_buffer_from_field<int64_t>(xs, buff, i);

@@ -10,14 +10,6 @@ steps:
   displayName: 'Print env'
 
 - bash: |
-      set -ex
-      brew uninstall openssl@1.0.2t
-      rm -rf /usr/local/etc/openssl
-      rm -rf /usr/local/etc/openssl@1.1
-  condition: eq(variables['Agent.OS'], 'Darwin')
-  displayName: 'Workaround openssl homebrew issue (OSX only)'
-
-- bash: |
     set -e pipefail
     open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
     sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
@@ -25,7 +17,7 @@ steps:
   displayName: 'Install system headers (OSX only)'
 
 - bash: |
-    set -ex
+    set -e
     # DELETEME work-around for https://github.com/microsoft/azure-pipelines-image-generation/issues/969
     if [[ "$AGENT_OS" == "Linux" ]]; then
       sudo chown root.root /

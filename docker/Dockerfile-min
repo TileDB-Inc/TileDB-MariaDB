@@ -75,7 +75,8 @@ RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b master mytile 
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
- && cp /tmp/mytile/docker/setup-mariadb.sh /usr/local/bin/setup-mariadb.sh
+ && cp /tmp/mytile/docker/setup-mariadb.sh /usr/local/bin/setup-mariadb.sh \
+ && cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 
 # Install curl after building tiledb
 RUN apt-get update && apt-get install -y \
@@ -101,6 +102,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/bin/killall /usr/bin/killall
 COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=builder /opt/server /opt/server
+COPY --from=builder /opt/tiledb_arrays /opt/tiledb_arrays
 COPY --from=builder /etc /etc
 
 RUN set -ex \

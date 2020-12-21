@@ -52,8 +52,8 @@ ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-10.4.17"
 WORKDIR /tmp
 
-ARG MYTILE_VERSION="0.6.3"
-ARG TILEDB_VERSION="2.1.2"
+ARG MYTILE_VERSION="0.6.5"
+ARG TILEDB_VERSION="2.1.4"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 # Set git config so superbuild of tiledb can cherry-pick capnp fix
@@ -98,9 +98,9 @@ RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${
 
 FROM ubuntu:20.04
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /usr/bin /usr/bin
-COPY --from=builder /usr/lib /usr/lib
-COPY --from=builder /opt /opt
+COPY --from=builder /usr/bin/killall /usr/bin/killall
+COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=builder /opt/server /opt/server
 COPY --from=builder /etc /etc
 
 RUN set -ex \

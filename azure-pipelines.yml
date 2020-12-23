@@ -43,6 +43,10 @@ stages:
             dockerfile: docker/Dockerfile
             repository: tiledb/tiledb-mariadb
             context: .
+          tiledb-mariadb-min:
+            dockerfile: docker/Dockerfile-min
+            repository: tiledb/tiledb-mariadb
+            context: .              
           tiledb-mariadb-server:
             dockerfile: docker/Dockerfile
             repository: tiledb/tiledb-mariadb-server

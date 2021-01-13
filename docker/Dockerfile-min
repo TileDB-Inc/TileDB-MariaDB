@@ -50,10 +50,12 @@ RUN apt-get update \
 
 ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-10.4.17"
+
 WORKDIR /tmp
 
-ARG MYTILE_VERSION="0.6.6"
-ARG TILEDB_VERSION="2.1.6"
+ARG MYTILE_VERSION="0.7.0"
+
+ARG TILEDB_VERSION="2.2.1"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 # Set git config so superbuild of tiledb can cherry-pick capnp fix

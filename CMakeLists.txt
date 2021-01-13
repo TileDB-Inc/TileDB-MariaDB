@@ -46,19 +46,19 @@ set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 find_package(TileDB QUIET)
 
 if(NOT TileDB_FOUND AND SUPERBUILD)
-    MESSAGE(STATUS "TileDB not found for MyTile. Building as depedency from source")
+    MESSAGE(STATUS "TileDB not found for MyTile. Building as dependency from source")
     include(ExternalProject)
 
     SET(TILEDB_VERSION_MAJOR "2")
-    SET(TILEDB_VERSION_MINOR "1")
-    SET(TILEDB_VERSION_PATCH "2")
+    SET(TILEDB_VERSION_MINOR "2")
+    SET(TILEDB_VERSION_PATCH "1")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-            URL_HASH SHA1=aac518f6cba04797fc362e5d588d8e2114dc2ab0
+            URL_HASH SHA1=7420e0f1d98a2e11305b3418a5468188472f6d21
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
@@ -81,7 +81,6 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
-#    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}tiledb${CMAKE_STATIC_LIBRARY_SUFFIX}")
     SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
     FILE(GLOB TILEDB_INSTALL_LIBRARIES "${TILEDB_LIBRARIES}")
 else()

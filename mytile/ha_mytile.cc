@@ -564,7 +564,11 @@ uint64_t tile::mytile::computeRecordsUB() {
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
         auto sizes =
             this->query->est_result_size_var(dimension_or_attribute_name);
+#if TILEDB_VERSION_MAJOR >= 2 and TILEDB_VERSION_MINOR >= 2
+        size = sizes[0];
+#else
         size = sizes.first;
+#endif
       } else {
         this->ctx.handle_error(tiledb_query_get_est_result_size(
             this->ctx.ptr().get(), this->query->ptr().get(),
@@ -2661,7 +2665,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0066,                     /* version number (0.6.6) */
+    0x0070,                     /* version number (0.6.6) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     NULL,                                   /* config options */
@@ -2678,9 +2682,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0066,                     /* version number (0.6.6) */
+    0x0070,                     /* version number (0.6.6) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
-    "0.6.6",                                /* string version */
+    "0.7.0",                                /* string version */
     MariaDB_PLUGIN_MATURITY_BETA            /* maturity */
 } maria_declare_plugin_end;

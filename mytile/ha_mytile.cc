@@ -564,7 +564,11 @@ uint64_t tile::mytile::computeRecordsUB() {
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
         auto sizes =
             this->query->est_result_size_var(dimension_or_attribute_name);
+#if TILEDB_VERSION_MAJOR >= 2 and TILEDB_VERSION_MINOR >= 2
+        size = sizes[0];
+#else
         size = sizes.first;
+#endif
       } else {
         this->ctx.handle_error(tiledb_query_get_est_result_size(
             this->ctx.ptr().get(), this->query->ptr().get(),

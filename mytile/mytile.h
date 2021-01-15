@@ -268,8 +268,8 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
     start_position = offset_buffer[i];
   }
 
-  // If the first byte is marked invalid, this is a null field
-  if (set_field_null_from_validity(buff, field, start_position)) {
+  // If the offset index marked invalid, this is a null field
+  if (set_field_null_from_validity(buff, field, i)) {
     return 0;
   }
 
@@ -401,7 +401,7 @@ int set_string_buffer_from_field(Field *field, bool field_null,
 
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
-    if ((start + (res->length() == 0) ? 1 : res->length()) * sizeof(T) >
+    if ((start + ((res->length() == 0) ? 1 : res->length()) * sizeof(T)) >
         buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }

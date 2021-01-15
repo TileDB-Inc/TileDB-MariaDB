@@ -1,7 +1,7 @@
 --echo # INT and VARCHAR - GREEK
 CREATE TABLE t1 (
   column1 varchar(255),
-  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL
 ) ENGINE=mytile;
 INSERT INTO t1 (column1, column2) VALUES ("δοκιμή", 1);
 select column1, column2 FROM t1;
@@ -10,7 +10,7 @@ DROP TABLE t1;
 --echo # INT and VARCHAR - CHINESE SIMPLIFIED
 CREATE TABLE t2 (
   column1 varchar(255),
-  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL
 ) ENGINE=mytile;
 INSERT INTO t2 (column1, column2) VALUES ("测试", 1);
 select column1, column2 FROM t2;
@@ -19,7 +19,7 @@ DROP TABLE t2;
 --echo # INT and VARCHAR - UTF16
 CREATE TABLE t3 (
   column1 varchar(255),
-  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL
 ) ENGINE=mytile;
 INSERT INTO t3 (column1, column2) VALUES ("δοκιμή", 1);
 INSERT INTO t3 (column1, column2) VALUES ("测试", 2);
@@ -31,7 +31,7 @@ DROP TABLE t3;
 --echo # INT and BLOB - UTF16
 CREATE TABLE t4 (
   column1 BLOB,
-  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10"
+  column2 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL
 ) ENGINE=mytile;
 INSERT INTO t4 (column1, column2) VALUES ("δοκιμή", 1);
 INSERT INTO t4 (column1, column2) VALUES ("测试", 2);

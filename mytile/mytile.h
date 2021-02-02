@@ -416,9 +416,9 @@ int set_string_buffer_from_field(Field *field, bool field_null,
         memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
         buff->buffer_size += 1;
       }
-      buff->validity_buffer[i] = (uint8_t)0;
+      buff->validity_buffer[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = (uint8_t)1;
+      buff->validity_buffer[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }
@@ -469,9 +469,9 @@ int set_fixed_string_buffer_from_field(Field *field, bool field_null,
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      buff->validity_buffer[i] = (uint8_t)0;
+      buff->validity_buffer[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = (uint8_t)1;
+      buff->validity_buffer[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }
@@ -509,9 +509,9 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      buff->validity_buffer[i] = (uint8_t)0;
+      buff->validity_buffer[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = (uint8_t)1;
+      buff->validity_buffer[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }

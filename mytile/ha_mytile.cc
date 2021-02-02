@@ -2748,7 +2748,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0070,                     /* version number (0.6.6) */
+    0x0070,                     /* version number (0.7.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     NULL,                                   /* config options */
@@ -2765,7 +2765,7 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0070,                     /* version number (0.6.6) */
+    0x0070,                     /* version number (0.7.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     "0.7.0",                                /* string version */

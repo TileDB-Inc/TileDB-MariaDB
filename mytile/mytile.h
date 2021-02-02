@@ -394,15 +394,19 @@ int set_string_buffer_from_field(Field *field, bool field_null,
 
   // Copy string
   memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), res->length());
-
   buff->buffer_size += res->length() * sizeof(T);
+
+  // Validate there is enough space on the offset buffer
+  if (i >= buff->allocated_offset_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+
   buff->offset_buffer_size += sizeof(uint64_t);
   buff->offset_buffer[i] = start;
 
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
-    if ((start + ((res->length() == 0) ? 1 : res->length()) * sizeof(T)) >
-        buff->allocated_validity_buffer_size) {
+    if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
@@ -411,13 +415,12 @@ int set_string_buffer_from_field(Field *field, bool field_null,
       if (res->length() == 0) {
         memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
         buff->buffer_size += 1;
-        memset(buff->validity_buffer + start, (uint8_t)0, 1);
-      } else {
-        memset(buff->validity_buffer + start, (uint8_t)0, res->length());
       }
+      buff->validity_buffer[i] = (uint8_t)0;
     } else {
-      memset(buff->validity_buffer + start, (uint8_t)1, res->length());
+      buff->validity_buffer[i] = (uint8_t)1;
     }
+    buff->validity_buffer_size += sizeof(uint8_t);
   }
 
   return 0;
@@ -462,17 +465,15 @@ int set_fixed_string_buffer_from_field(Field *field, bool field_null,
 
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
-    if ((start + buff->fixed_size_elements) * sizeof(T) >
-        buff->allocated_validity_buffer_size) {
+    if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      memset(buff->validity_buffer + start, (uint8_t)0,
-             buff->fixed_size_elements);
+      buff->validity_buffer[i] = (uint8_t)0;
     } else {
-      memset(buff->validity_buffer + start, (uint8_t)1,
-             buff->fixed_size_elements);
+      buff->validity_buffer[i] = (uint8_t)1;
     }
+    buff->validity_buffer_size += sizeof(uint8_t);
   }
 
   return 0;
@@ -504,14 +505,15 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
 
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
-    if (i > buff->allocated_validity_buffer_size) {
+    if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      buff->validity_buffer[i] = 0;
+      buff->validity_buffer[i] = (uint8_t)0;
     } else {
-      buff->validity_buffer[i] = 1;
+      buff->validity_buffer[i] = (uint8_t)1;
     }
+    buff->validity_buffer_size += sizeof(uint8_t);
   }
 
   return 0;

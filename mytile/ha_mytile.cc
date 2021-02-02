@@ -353,7 +353,7 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
   buff->fixed_size_elements = 1;
 
   auto size = tile::sysvars::write_buffer_size(this->ha_thd());
-  buff->buffer_size = size;
+  buff->buffer_size = 0;
   buff->allocated_buffer_size = size;
 
   uint64_t *offset_buffer = nullptr;
@@ -364,7 +364,7 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
   if (attr->variable_sized()) {
     offset_buffer = static_cast<uint64_t *>(
         alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
-    buff->offset_buffer_size = size;
+    buff->offset_buffer_size = 0;
     buff->allocated_offset_buffer_size = size;
   }
 
@@ -373,7 +373,7 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
   if (attr->nullable()) {
     buff->validity_buffer = static_cast<uint8 *>(
         alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size));
-    buff->validity_buffer_size = size;
+    buff->validity_buffer_size = 0;
     buff->allocated_validity_buffer_size = size;
   }
 

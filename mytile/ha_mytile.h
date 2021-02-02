@@ -95,8 +95,16 @@ public:
   /**
    * check if a field has a default value
    * @param field
+   * @return
    */
   bool field_has_default_value(Field *field) const;
+
+  /**
+   * check if a field allows nulls
+   * @param field
+   * @return
+   */
+  bool field_is_nullable(Field *field) const;
 
   /**
    * get a default value's size

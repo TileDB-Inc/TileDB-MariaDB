@@ -1,0 +1,243 @@
+--echo This tests nullable attributes in MyTile
+
+--echo simple int
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 int NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 0);
+INSERT INTO t0 VALUES (1, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, 2),(3, null);
+INSERT INTO t0 VALUES (4, 4),(5, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (6, 6);
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo fixed string
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 CHAR(10)
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, null);
+INSERT INTO t0 VALUES (1, null);
+INSERT INTO t0 VALUES (2, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, '0123456789'),(4, 'abcdefghij');
+INSERT INTO t0 VALUES (5, 'klmnopqrst');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (6, null),(7, null),(8, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (9, '012');
+INSERT INTO t0 VALUES (10, 'abcd'),(11, 'klmno');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (12, null);
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo var string
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 varchar(255) NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 'a'),(1, 'b'),(2, 'c');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 'abc');
+INSERT INTO t0 VALUES (5, 'def');
+INSERT INTO t0 VALUES (6, 'ghi');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (7, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (8, '0'),(9, '012345');
+INSERT INTO t0 VALUES (10, '0123456789');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (11, null),(12, null);
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo mixed
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 int NOT NULL,
+attr1 int NULL,
+attr2 varchar(128) NOT NULL,
+attr3 varchar(128) NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 123, 123, 'abc', 'abc');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (1, 123, null, 'abc', null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, 123, null, 'abc', 'def');
+INSERT INTO t0 VALUES (3, 123, 456, 'abc', null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 789, 789, 'ghi', 'ghi');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (5, 789, null, 'ghi', null);
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+SELECT * FROM t0 WHERE attr1 IS NULL;
+SELECT * FROM t0 WHERE attr1 IS NOT NULL;
+SELECT * FROM t0 WHERE attr2 IS NULL;
+SELECT * FROM t0 WHERE attr2 IS NOT NULL;
+SELECT * FROM t0 WHERE attr3 IS NULL;
+SELECT * FROM t0 WHERE attr3 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo datatypes
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 year,
+attr1 float,
+attr2 double,
+attr3 bool,
+attr4 DateTime(0),
+attr5 DateTime(6),
+attr6 TimeStamp(0),
+attr7 TimeStamp(6),
+attr8 blob,
+attr9 text
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 2020, 3.14, 3.14159, true, '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', '2020-11-30 12:34:56', '2020-11-30 12:34:56.123456', 'bl0b', 'text');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (1, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, null, null, null, null, null, null, null, null, null, null);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (3, 2019, 3.0, 3.01, false, '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', '2020-12-01 12:34:56', '2020-12-01 12:34:56.123456', 'bl0b2', 'text2');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (4, 2018, 3.0, 3.01, false, '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', '2020-12-02 12:34:56', '2020-12-02 12:34:56.123456', 'bl0b3', 'text3');
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+SELECT * FROM t0 WHERE attr1 IS NULL;
+SELECT * FROM t0 WHERE attr1 IS NOT NULL;
+SELECT * FROM t0 WHERE attr2 IS NULL;
+SELECT * FROM t0 WHERE attr2 IS NOT NULL;
+SELECT * FROM t0 WHERE attr3 IS NULL;
+SELECT * FROM t0 WHERE attr3 IS NOT NULL;
+SELECT * FROM t0 WHERE attr4 IS NULL;
+SELECT * FROM t0 WHERE attr4 IS NOT NULL;
+SELECT * FROM t0 WHERE attr5 IS NULL;
+SELECT * FROM t0 WHERE attr5 IS NOT NULL;
+SELECT * FROM t0 WHERE attr6 IS NULL;
+SELECT * FROM t0 WHERE attr6 IS NOT NULL;
+SELECT * FROM t0 WHERE attr7 IS NULL;
+SELECT * FROM t0 WHERE attr7 IS NOT NULL;
+SELECT * FROM t0 WHERE attr8 IS NULL;
+SELECT * FROM t0 WHERE attr8 IS NOT NULL;
+SELECT * FROM t0 WHERE attr9 IS NULL;
+SELECT * FROM t0 WHERE attr9 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo default null
+
+CREATE TABLE t0 (
+dim0 int dimension=1 tile_extent="10",
+attr0 int,
+attr1 int DEFAULT NULL,
+attr2 char(16),
+attr3 char(16) DEFAULT NULL
+) ENGINE=mytile;
+
+INSERT INTO t0 VALUES (0, 0, 0, 'a', 'a');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (1, DEFAULT, DEFAULT, DEFAULT, DEFAULT);
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (2, 22, 222, 'ab', '01');
+INSERT INTO t0 VALUES (3, 33, 333, 'abc', '012');
+INSERT INTO t0 VALUES (4, 44, 444, 'abcd', '0123');
+INSERT INTO t0 VALUES (5, 55, 555, 'abcde', '01234');
+INSERT INTO t0 VALUES (6, 66, 666, 'abcdef', '012345');
+SELECT * FROM t0;
+
+INSERT INTO t0 VALUES (7, DEFAULT, 777, DEFAULT, '0123456');
+INSERT INTO t0 VALUES (8, 88, DEFAULT, '01234567', DEFAULT);
+SELECT * FROM t0;
+
+INSERT INTO t0 (dim0) values (9);
+SELECT * FROM t0;
+
+INSERT INTO t0 (dim0, attr0, attr2) VALUES (10, 1010, '012345678');
+INSERT INTO t0 (dim0, attr1, attr3) VALUES (11, 111111, '0123456789');
+SELECT * FROM t0;
+
+SELECT * FROM t0 WHERE attr0 IS NULL;
+SELECT * FROM t0 WHERE attr0 IS NOT NULL;
+SELECT * FROM t0 WHERE attr1 IS NULL;
+SELECT * FROM t0 WHERE attr1 IS NOT NULL;
+SELECT * FROM t0 WHERE attr2 IS NULL;
+SELECT * FROM t0 WHERE attr2 IS NOT NULL;
+SELECT * FROM t0 WHERE attr3 IS NULL;
+SELECT * FROM t0 WHERE attr3 IS NOT NULL;
+
+DROP TABLE t0;
+
+--echo external nullable example array
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE nullable_attributes ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.2/nullable_attributes';
+
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+SHOW CREATE TABLE nullable_attributes;
+SELECT * FROM nullable_attributes;
+
+SELECT * FROM nullable_attributes WHERE a1 IS NULL;
+SELECT * FROM nullable_attributes WHERE a1 IS NOT NULL;
+
+SELECT * FROM nullable_attributes WHERE a2 IS NULL;
+SELECT * FROM nullable_attributes WHERE a2 IS NOT NULL;
+
+set mytile_delete_arrays=0;
+DROP TABLE `nullable_attributes`;
+set mytile_delete_arrays=1;

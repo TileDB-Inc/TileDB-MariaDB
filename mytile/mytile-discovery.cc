@@ -245,13 +245,13 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
 
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
+
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(dim.type()))
         sql_string << " UNSIGNED";
 
-      if (schema->allows_dups()) {
-        sql_string << " NOT NULL";
-      }
+      // nullable dimensions not allowed
+      sql_string << " NOT NULL";
 
       // Only set the domain and tile extent for non string dimensions
       if (dim.type() != TILEDB_STRING_ASCII) {
@@ -292,21 +292,40 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
 
+      uint8_t nullable = 0;
+      tiledb_attribute_get_nullable(ctx.ptr().get(), attribute.ptr().get(),
+                                    &nullable);
+
+      if (nullable == 0) {
+        sql_string << " NOT NULL ";
+      } else {
+        sql_string << " NULL ";
+      }
+
       const void *default_value = nullptr;
       uint64_t default_value_size = tiledb_datatype_size(attribute.type());
-      attribute.get_fill_value(&default_value, &default_value_size);
+      uint8_t valid = 1;
+      if (attribute.nullable()) {
+        attribute.get_fill_value(&default_value, &default_value_size, &valid);
+      } else {
+        attribute.get_fill_value(&default_value, &default_value_size);
+      }
 
-      // Only set the default value if its set by the user or we include
-      // defaults for non-string type. TileDB strings uses default fill values
-      // that mariadb doesn't like (i.e. \200) so we just avoid setting those.
-      if (!tile::is_fill_value_default(attribute.type(), default_value,
-                                       default_value_size) ||
-          !tile::is_string_datatype(attribute.type())) {
-        auto default_value_str = TileDBTypeValueToString(
-            attribute.type(), default_value, default_value_size);
+      if (valid == 0)
+        sql_string << " DEFAULT NULL";
+      else {
+        // Only set the default value if its set by the user or we include
+        // defaults for non-string type. TileDB strings uses default fill values
+        // that mariadb doesn't like (i.e. \200) so we just avoid setting those.
+        if (!tile::is_fill_value_default(attribute.type(), default_value,
+                                         default_value_size) ||
+            !tile::is_string_datatype(attribute.type())) {
+          auto default_value_str = TileDBTypeValueToString(
+              attribute.type(), default_value, default_value_size);
 
-        if (!default_value_str.empty())
-          sql_string << " DEFAULT " << default_value_str;
+          if (!default_value_str.empty())
+            sql_string << " DEFAULT " << default_value_str;
+        }
       }
 
       // Check for filters

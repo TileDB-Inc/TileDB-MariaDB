@@ -126,3 +126,11 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     target_include_directories(mytile PUBLIC "${EP_INSTALL_PREFIX}/include" "mytile")
     INSTALL(FILES ${TILEDB_INSTALL_LIBRARIES} DESTINATION ${INSTALL_PLUGINDIR})
 endif()
+
+# Set my.cnf values based on build flags
+if(WITH_EMBEDDED_SERVER)
+    SET(MYTILE_PLUGIN_LOAD_ADD "# plugin-load-add=ha_mytile")
+else()
+    SET(MYTILE_PLUGIN_LOAD_ADD "plugin-load-add=ha_mytile")
+endif()
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/mytile/my.cnf.in ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/mytile/my.cnf)

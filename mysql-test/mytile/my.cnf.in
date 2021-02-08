@@ -2,7 +2,7 @@
 
 [server]
 plugin-maturity=experimental
-plugin-load-add=ha_mytile
+${MYTILE_PLUGIN_LOAD_ADD}
 # Enable embedded mytile
 plugin-mytile=ON
 #default-storage-engine=MyTile

@@ -29,7 +29,6 @@ stages:
       steps:
       - template: scripts/azure-linux_mac.yml
 
-
   - stage: Docker
     condition: or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
     jobs:
@@ -54,3 +53,19 @@ stages:
 
       steps:
       - template: scripts/build-images.yml
+
+  - stage: Build_Embedded_Release
+    condition: eq(variables['Build.SourceBranchName'], 'erica/ch5133/prebuilt-embedded-library')
+    jobs:
+     - job:
+       strategy:
+         matrix:
+           linux:
+             imageName: 'ubuntu-20.04'
+             CXX: g++
+             ARTIFACT_OS: 'linux'
+             ARTIFACT_EXTRAS: 'full'
+       pool:
+         vmImage: $(imageName)
+       steps:
+         - template: scripts/azure-linux-embedded-release.yml

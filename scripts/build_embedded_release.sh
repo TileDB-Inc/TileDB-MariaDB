@@ -28,8 +28,9 @@ git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} TileDB-$
 cd TileDB-${TILEDB_VERSION}
 mkdir build && cd build
 #TODO turn on options
-cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=OFF -DTILEDB_AZURE=OFF -DTILEDB_GCS=OFF -DTILEDB_SERIALIZATION=ON -DTILEDB_STATIC=ON -DCMAKE_BUILD_TYPE=Release .. \
+cmake -DCMAKE_INSTALL_PREFIX=$original_dir/TileDB-${TILEDB_VERSION}/dist -DTILEDB_VERBOSE=OFF -DTILEDB_S3=OFF -DTILEDB_AZURE=OFF -DTILEDB_GCS=OFF -DTILEDB_SERIALIZATION=ON -DTILEDB_STATIC=ON -DCMAKE_BUILD_TYPE=Release .. \
 && make -j$(nproc) \
+&& make -C tiledb install \
 && cd $original_dir
 
 #copy tiledb static library
@@ -54,6 +55,7 @@ cp ${MARIADB_VERSION}/build/libmysqld/libmariadbd.a embedded-package/ \
 #build curl
 git clone https://github.com/curl/curl.git -b ${CURL_VERSION} curl-${CURL_VERSION}
 cd curl-${CURL_VERSION} \
+&& ./buildconf \
 && ./configure --disable-shared --without-ssl --disable-ares --disable-cookies --disable-crypto-auth --disable-ipv6 --disable-manual --disable-proxy --disable-unix-sockets --disable-verbose --disable-versioned-symbols --enable-hidden-symbols --without-libidn --without-librtmp --without-ssl --without-zlib \
 && make -j$(nproc) \
 && cd $original_dir
@@ -111,9 +113,12 @@ cd lz4-${LZ4_VERSION}/build/cmake \
 cp lz4-${LZ4_VERSION}/build/cmake/build/liblz4.a embedded-package/
 
 #build bz2
+#bz2 ignores our CFLAGS - add fPIC to their flags in Makefile
 git clone git://sourceware.org/git/bzip2.git -b ${BZ2_VERSION} bz2-${BZ2_VERSION}
 cd bz2-${BZ2_VERSION} \
-&& make -j(nproc) \
+#bz2 ignores our CFLAGS, append them to the CFLAGS defined in Makefile
+&& sed -i 's/^CFLAGS.*/& -fPIC/g' Makefile \
+&& make -j$(nproc) \
 && cd $original_dir
 
 #copy bz2 dependencies

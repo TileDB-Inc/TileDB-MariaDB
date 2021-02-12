@@ -57,7 +57,7 @@ stages:
 
   - stage: Build_Embedded_Release
     dependsOn: CI
-    condition: eq(variables['Build.SourceBranchName'], 'erica/ch5133/prebuilt-embedded-library')
+    #condition: eq(variables['Build.SourceBranchName'], 'erica/ch5133/prebuilt-embedded-library')
     jobs:
      - job:
        strategy:

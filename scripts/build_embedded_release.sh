@@ -44,6 +44,7 @@ mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd build \
 && cmake -DCMAKE_PREFIX_PATH=$original_dir/TileDB-${TILEDB_VERSION}/dist -DCMAKE_INSTALL_PREFIX=$original_dir/mytile_server -DWITH_EMBEDDED_SERVER=ON -DPLUGIN_INNODB=NO -DPLUGIN_INNOBASE=NO -DWITH_INNODB_BZIP2=OFF -DWITH_INNODB_LZ4=OFF -DWITH_INNODB_SNAPPY=OFF -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DWITH_MARIABACKUP=OFF -DWITH_NUMA=OFF -DENABLED_PROFILING=OFF -DPLUGIN_MYTILE=YES -DWITH_SYSTEMD=no -DWITH_PCRE=bundled -DWITH_ZLIB=bundled -DWITH_WSREP=OFF DCMAKE_BUILD_TYPE=Release .. \
 && make -j$(nproc) \
+&& make install \
 && cd $original_dir
 
 #copy mariadb dependencies
@@ -125,6 +126,9 @@ cd bz2-${BZ2_VERSION} \
 cp bz2-${BZ2_VERSION}/libbz2.a embedded-package/
 
 #build the libmariadbd-mytile-embedded.so shared library
-cd embedded-package/
-echo $(ls)
-gcc -shared -o libmariadbd-mytile-embedded.so -Wl,--whole-archive,--allow-multiple-definition libmariadbd.a libsql.a libtiledb.a libcurl.a libssl.a libcrypto.a libz.a libzstd.a libcapnp.a libcapnp-json.a libkj.a liblz4.a libbz2.a libpcre.a -Wl,--no-whole-archive -ldl -lpthread -lcrypt
+cd embedded-package/ \
+&& gcc -shared -o libmariadbd-mytile-embedded.so -Wl,--whole-archive,--allow-multiple-definition libmariadbd.a libsql.a libtiledb.a libcurl.a libssl.a libcrypto.a libz.a libzstd.a libcapnp.a libcapnp-json.a libkj.a liblz4.a libbz2.a libpcre.a -Wl,--no-whole-archive -ldl -lpthread -lcrypt \
+&& mkdir -p rel/lib \
+&& mkdir -p rel/include \
+&& cp libmariadbd-mytile-embedded.so rel/lib \
+&& cp -r $original_dir/mytile_server/include/* rel/include

@@ -36,6 +36,10 @@ cmake -DCMAKE_INSTALL_PREFIX=$original_dir/TileDB-${TILEDB_VERSION}/dist -DTILED
 #copy tiledb static library
 cp TileDB-${TILEDB_VERSION}/build/tiledb/tiledb/libtiledb.a embedded-package/
 
+#set tiledb include paths
+export CPATH=$original_dir/TileDB-${TILEDB_VERSION}/dist/include/:${CPATH}
+export CPLUS_INCLUDE_PATH=$original_dir/TileDB-${TILEDB_VERSION}/dist/include/:${CPATH}
+
 #build MariaDB embedded
 git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 mv tmp ${MARIADB_VERSION}/storage/mytile \
@@ -117,7 +121,6 @@ cp lz4-${LZ4_VERSION}/build/cmake/build/liblz4.a embedded-package/
 #bz2 ignores our CFLAGS - add fPIC to their flags in Makefile
 git clone git://sourceware.org/git/bzip2.git -b ${BZ2_VERSION} bz2-${BZ2_VERSION}
 cd bz2-${BZ2_VERSION} \
-#bz2 ignores our CFLAGS, append them to the CFLAGS defined in Makefile
 && sed -i 's/^CFLAGS.*/& -fPIC/g' Makefile \
 && make -j$(nproc) \
 && cd $original_dir

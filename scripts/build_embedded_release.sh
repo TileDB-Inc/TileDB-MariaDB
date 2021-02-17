@@ -134,4 +134,5 @@ cd embedded-package/ \
 && mkdir -p rel/lib \
 && mkdir -p rel/include \
 && cp libmariadbd-mytile-embedded.so rel/lib \
-&& cp -r $original_dir/mytile_server/include/* rel/include
+&& cp -r $original_dir/mytile_server/include/* rel/include \
+&& cd $original_dir

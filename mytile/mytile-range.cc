@@ -495,6 +495,111 @@ int tile::set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
   DBUG_RETURN(0);
 }
 
+int tile::set_range_from_item_datetime(THD *thd,
+                                       Item_cache_datetime *lower_const,
+                                       Item_cache_datetime *upper_const,
+                                       Item_result cmp_type,
+                                       std::shared_ptr<range> &range,
+                                       tiledb_datatype_t datatype) {
+  DBUG_ENTER("tile::set_range_from_item_datetime");
+
+  MYSQL_TIME lower_date, upper_date;
+  int64_t lower = 0;
+  int64_t upper = 0;
+  switch (datatype) {
+
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+    if (lower_const != nullptr) {
+      lower_date = {static_cast<uint32_t>(lower_const->val_int()),
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    MYSQL_TIMESTAMP_TIME};
+
+      lower = MysqlTimeToTileDBTimeVal(thd, lower_date, datatype);
+    }
+    if (upper_const != nullptr) {
+      upper_date = {static_cast<uint32_t>(upper_const->val_int()),
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    MYSQL_TIMESTAMP_TIME};
+
+      upper = MysqlTimeToTileDBTimeVal(thd, upper_date, datatype);
+    }
+
+    break;
+  }
+  case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
+  case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
+  case tiledb_datatype_t::TILEDB_DATETIME_DAY:
+  case tiledb_datatype_t::TILEDB_DATETIME_HR:
+  case tiledb_datatype_t::TILEDB_DATETIME_MIN:
+  case tiledb_datatype_t::TILEDB_DATETIME_SEC:
+  case tiledb_datatype_t::TILEDB_DATETIME_MS:
+  case tiledb_datatype_t::TILEDB_DATETIME_US:
+  case tiledb_datatype_t::TILEDB_DATETIME_NS:
+  case tiledb_datatype_t::TILEDB_DATETIME_PS:
+  case tiledb_datatype_t::TILEDB_DATETIME_FS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+    if (lower_const != nullptr) {
+      lower_const->get_date(thd, &lower_date, date_mode_t(0));
+      lower = MysqlTimeToTileDBTimeVal(thd, lower_date, datatype);
+    }
+    if (upper_const != nullptr) {
+      upper_const->get_date(thd, &upper_date, date_mode_t(0));
+      upper = MysqlTimeToTileDBTimeVal(thd, upper_date, datatype);
+    }
+    break;
+  }
+  default: {
+    DBUG_RETURN(1);
+  }
+  }
+
+  range->datatype = tiledb_datatype_t::TILEDB_INT64;
+
+  if (lower_const != nullptr) {
+    // If we have greater than, lets make it greater than or equal
+    // TileDB ranges are inclusive
+    if (range->operation_type == Item_func::GT_FUNC) {
+      range->operation_type = Item_func::GE_FUNC;
+      lower += 1;
+    }
+
+    range->lower_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(int64_t)), &std::free);
+    *static_cast<int64_t *>(range->lower_value.get()) =
+        static_cast<int64_t>(lower);
+    range->lower_value_size = sizeof(int64_t);
+  }
+
+  if (upper_const != nullptr) {
+    // If we have less than, lets make it less than or equal
+    // TileDB ranges are inclusive
+    if (range->operation_type == Item_func::LT_FUNC) {
+      range->operation_type = Item_func::LE_FUNC;
+      upper -= 1;
+    }
+
+    range->upper_value = std::unique_ptr<void, decltype(&std::free)>(
+        std::malloc(sizeof(int64_t)), &std::free);
+    *static_cast<int64_t *>(range->upper_value.get()) =
+        static_cast<int64_t>(upper);
+    range->upper_value_size = sizeof(int64_t);
+  }
+
+  DBUG_RETURN(0);
+}
+
 std::vector<std::shared_ptr<tile::range>>
 tile::get_unique_non_contained_in_ranges(
     const std::vector<std::shared_ptr<range>> &in_ranges,

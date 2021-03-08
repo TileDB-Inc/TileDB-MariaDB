@@ -66,6 +66,13 @@ int set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
                                Item_result cmp_type,
                                std::shared_ptr<tile::range> &range,
                                tiledb_datatype_t datatype);
+
+int set_range_from_item_datetime(THD *thd, Item_cache_datetime *lower_const,
+                                 Item_cache_datetime *upper_const,
+                                 Item_result cmp_type,
+                                 std::shared_ptr<tile::range> &range,
+                                 tiledb_datatype_t datatype);
+
 /**
  * Take a range, and will set the lower/upper bound as appropriate if it is
  * missing and takes into account the mariadb operations.

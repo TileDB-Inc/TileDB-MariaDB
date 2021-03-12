@@ -1271,6 +1271,161 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   DBUG_RETURN(nullptr);
 }
 
+const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
+  DBUG_ENTER("tile::mytile::cond_push_func_datetime");
+  Item **args = func_item->arguments();
+  bool neg = FALSE;
+
+  Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
+  // If we can't convert the condition to a column let's bail
+  // We should add support at some point for handling functions (i.e.
+  // date_dimension = current_date())
+  if (column_field == nullptr) {
+    DBUG_RETURN(func_item);
+  }
+  // If the condition is not a dimension we can't handle it
+  if (!this->array_schema->domain().has_dimension(
+          column_field->field_name.str)) {
+    DBUG_RETURN(func_item);
+  }
+
+  uint64_t dim_idx = 0;
+  tiledb_datatype_t dim_type = tiledb_datatype_t::TILEDB_ANY;
+
+  auto dims = this->array_schema->domain().dimensions();
+  for (uint64_t j = 0; j < this->ndim; j++) {
+    if (dims[j].name() == column_field->field_name.str) {
+      dim_idx = j;
+      dim_type = dims[j].type();
+    }
+  }
+
+  switch (func_item->functype()) {
+  case Item_func::NE_FUNC:
+    DBUG_RETURN(func_item); /* Not equal is not supported */
+    // In is special because we need to do a tiledb range per argument and treat
+    // it as OR not AND
+  case Item_func::IN_FUNC:
+    // Start at 1 because 0 is the field
+    for (uint i = 1; i < func_item->argument_count(); i++) {
+      Item_cache_datetime *lower_const =
+          dynamic_cast<Item_cache_datetime *>(args[i]);
+      // Init upper to be same becase for in clauses this is required
+      Item_cache_datetime *upper_const =
+          dynamic_cast<Item_cache_datetime *>(args[i]);
+
+      // Create unique ptrs
+      std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+          Item_func::EQ_FUNC, tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+      // Get field type for comparison
+      Item_result cmp_type = args[i]->cmp_type();
+
+      if (TileDBDateTimeType(dim_type)) {
+        cmp_type = TIME_RESULT;
+      }
+
+      int ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
+                                             cmp_type, range, dim_type);
+
+      if (ret)
+        DBUG_RETURN(func_item);
+
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_in_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
+
+    break;
+    // Handle equal case by setting upper and lower ranges to same value
+  case Item_func::EQ_FUNC: {
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    if (TileDBDateTimeType(dim_type)) {
+      cmp_type = TIME_RESULT;
+    }
+
+    int ret = set_range_from_item_datetime(
+        ha_thd(), dynamic_cast<Item_cache_datetime *>(args[1]),
+        dynamic_cast<Item_cache_datetime *>(args[1]), cmp_type, range,
+        dim_type);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // Add the range to the pushdown ranges
+    auto &range_vec = this->pushdown_ranges[dim_idx];
+    range_vec.push_back(std::move(range));
+
+    break;
+  }
+  case Item_func::BETWEEN:
+    neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
+    if (neg) // don't support negations!
+      DBUG_RETURN(func_item);
+    // fall through
+  case Item_func::LE_FUNC: // Handle all cases where there is 1 or 2 arguments
+                           // we must set on
+  case Item_func::LT_FUNC:
+  case Item_func::GE_FUNC:
+  case Item_func::GT_FUNC: {
+    // the range
+    Item_cache_datetime *lower_const = nullptr;
+    Item_cache_datetime *upper_const = nullptr;
+
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    if (TileDBDateTimeType(dim_type)) {
+      cmp_type = TIME_RESULT;
+    }
+
+    // If we have 3 items then we can set lower and upper
+    if (func_item->argument_count() == 3) {
+      lower_const = dynamic_cast<Item_cache_datetime *>(args[1]);
+      upper_const = dynamic_cast<Item_cache_datetime *>(args[2]);
+      // If the condition is less than we know its the upper limit we have
+    } else if (func_item->functype() == Item_func::LT_FUNC ||
+               func_item->functype() == Item_func::LE_FUNC) {
+      upper_const = dynamic_cast<Item_cache_datetime *>(args[1]);
+      // If the condition is greater than we know its the lower limit we have
+    } else if (func_item->functype() == Item_func::GT_FUNC ||
+               func_item->functype() == Item_func::GE_FUNC) {
+      lower_const = dynamic_cast<Item_cache_datetime *>(args[1]);
+    }
+
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+    int ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
+                                           cmp_type, range, dim_type);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // Add the range to the pushdown ranges
+    auto &range_vec = this->pushdown_ranges[dim_idx];
+    range_vec.push_back(std::move(range));
+
+    break;
+  }
+  default:
+    DBUG_RETURN(func_item);
+  } // endswitch functype
+  DBUG_RETURN(nullptr);
+}
 const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
@@ -1451,16 +1606,31 @@ const COND *tile::mytile::cond_push_local(const COND *cond) {
     this->pushdown_in_ranges.resize(this->ndim);
   }
 
+  const COND *ret;
   switch (cond->type()) {
   case Item::COND_ITEM: {
     Item_cond *cond_item = dynamic_cast<Item_cond *>(const_cast<COND *>(cond));
-    const COND *ret = cond_push_cond(cond_item);
+    ret = cond_push_cond(cond_item);
     DBUG_RETURN(ret);
     break;
   }
   case Item::FUNC_ITEM: {
     const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
-    const COND *ret = cond_push_func(func_item);
+
+    if (func_item->argument_count() > 1) {
+      Item *item = func_item->arguments()[1];
+      if (item->field_type() == enum_field_types::MYSQL_TYPE_DATE ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_DATETIME ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_DATETIME2 ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_TIMESTAMP ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_TIMESTAMP2 ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_TIME ||
+          item->field_type() == enum_field_types::MYSQL_TYPE_TIME2) {
+        ret = cond_push_func_datetime(func_item);
+        DBUG_RETURN(ret);
+      }
+    }
+    ret = cond_push_func(func_item);
     DBUG_RETURN(ret);
     break;
   }

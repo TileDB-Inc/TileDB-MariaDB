@@ -277,6 +277,13 @@ public:
   const COND *cond_push_func(const Item_func *func_item);
 
   /**
+   * Handle datetiem function pushdowns
+   * @param func_item
+   * @return
+   */
+  const COND *cond_push_func_datetime(const Item_func *func_item);
+
+  /**
   Push condition down to the table handler.
 
   @param  cond   Condition to be pushed. The condition tree must not be

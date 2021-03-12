@@ -245,6 +245,13 @@ column1	column2
 2020-06-20 05:00:00	jun
 2020-07-20 06:00:00	jul
 2020-08-20 07:00:00	aug
+SELECT * from dt WHERE column1 between '2020-06-20 05:00:00' AND '2020-10-20 09:00:00';
+column1	column2
+2020-06-20 05:00:00	jun
+2020-07-20 06:00:00	jul
+2020-08-20 07:00:00	aug
+2020-09-20 08:00:00	sep
+2020-10-20 09:00:00	oct
 DROP TABLE dt;
 CREATE TABLE datetime_dimensions ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/datetime_dimensions';;
 EXPLAIN SELECT dt_y FROM datetime_dimensions WHERE dt_y = 2020;

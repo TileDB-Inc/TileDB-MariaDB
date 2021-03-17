@@ -11,3 +11,24 @@ dddd	1
 jfk	5
 SET mytile_delete_arrays=0;
 DROP TABLE string_dim;
+# VARCHAR Dimension
+CREATE TABLE t1 (
+dim1 varchar(255) dimension=1,
+dim2 varchar(255) dimension=1,
+attr1 integer,
+PRIMARY KEY(dim1, dim2)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("a", "b", 1);
+INSERT INTO t1 VALUES ("a", "c", 2);
+INSERT INTO t1 VALUES ("a", "d", 3);
+INSERT INTO t1 VALUES ("aa", "b", 4);
+select * FROM t1;
+dim1	dim2	attr1
+a	b	1
+a	c	2
+a	d	3
+aa	b	4
+select * FROM t1 WHERE dim1 = "aa";
+dim1	dim2	attr1
+aa	b	4
+DROP TABLE t1;

@@ -956,6 +956,11 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
     case tiledb_datatype_t::TILEDB_STRING_ASCII: {
       const uint16_t char_length =
           *reinterpret_cast<const uint16_t *>(key + key_offset);
+      // If there is no string set the range to nullptr
+      if (char_length == 0) {
+        ranges[dim_idx] = nullptr;
+        break;
+      }
       key_offset += sizeof(uint16_t);
       ranges[dim_idx] = build_range_from_key<char>(
           key + key_offset, length, find_flag, start_key, last_key_part,

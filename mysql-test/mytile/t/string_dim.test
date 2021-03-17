@@ -8,3 +8,18 @@
 SELECT * FROM string_dim;
 SET mytile_delete_arrays=0;
 DROP TABLE string_dim;
+
+--echo # VARCHAR Dimension
+CREATE TABLE t1 (
+  dim1 varchar(255) dimension=1,
+  dim2 varchar(255) dimension=1,
+  attr1 integer,
+  PRIMARY KEY(dim1, dim2)
+) ENGINE=mytile;
+INSERT INTO t1 VALUES ("a", "b", 1);
+INSERT INTO t1 VALUES ("a", "c", 2);
+INSERT INTO t1 VALUES ("a", "d", 3);
+INSERT INTO t1 VALUES ("aa", "b", 4);
+select * FROM t1;
+select * FROM t1 WHERE dim1 = "aa";
+DROP TABLE t1;

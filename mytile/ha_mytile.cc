@@ -2325,7 +2325,7 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
       if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
-        uint64_t dim_comparison =
+        uint8_t dim_comparison =
             compare_key_to_dim(dim_idx, key + key_position,
                                key_part_info->length, index, dim_buffer);
         key_position += key_part_info->length;
@@ -2427,6 +2427,12 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
       end_position = buf->offset_buffer[index + 1];
     }
     size_t size = end_position - start_position;
+
+    // If the key size is zero, this can happen when we are doing partial key
+    // matches For strings a size of 0 means anything should be considered a
+    // match so we return 0
+    if (char_length == 0)
+      return 0;
 
     void *buff = (static_cast<char *>(buf->buffer) + start_position);
 

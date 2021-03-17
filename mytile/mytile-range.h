@@ -568,7 +568,11 @@ build_range_from_key(const uchar *key, uint length,
     return {};
 
   // Cast key to array of type T
-  const T *key_typed = reinterpret_cast<const T *>(key);
+  // Ideally we'd avoid a copy here but we are unlikely to have a large number
+  // of keys or keys that are large in size so the copying is okay for
+  // simplicity of the code
+  T *key_typed = static_cast<T *>(std::malloc(size));
+  memcpy(key_typed, key, size);
 
   std::shared_ptr<tile::range> range = std::make_shared<tile::range>(
       tile::range{std::unique_ptr<void, decltype(&std::free)>(std::malloc(size),
@@ -577,9 +581,6 @@ build_range_from_key(const uchar *key, uint length,
                                                               &std::free),
                   find_flag_to_func(find_flag, start_key, last_key_part),
                   datatype, size, size});
-
-  T lower = *key_typed;
-  T upper = *key_typed;
 
   // we must check to see if we need to set the lower or upper bound
   // and if we need to convert from greater/less than to
@@ -590,16 +591,16 @@ build_range_from_key(const uchar *key, uint length,
   case Item_func::GT_FUNC: {
     range->operation_type = Item_func::GE_FUNC;
     if (std::is_floating_point<T>()) {
-      lower = std::nextafter(lower, std::numeric_limits<T>::max());
+      *key_typed = std::nextafter(*key_typed, std::numeric_limits<T>::max());
     } else if (std::is_arithmetic<T>()) {
-      lower += 1;
+      *key_typed += 1;
     }
-    memcpy(range->lower_value.get(), &lower, size);
+    memcpy(range->lower_value.get(), key_typed, size);
     range->upper_value = nullptr;
     break;
   }
   case Item_func::GE_FUNC: {
-    memcpy(range->lower_value.get(), &lower, size);
+    memcpy(range->lower_value.get(), key_typed, size);
     range->upper_value = nullptr;
     break;
   }
@@ -608,22 +609,22 @@ build_range_from_key(const uchar *key, uint length,
     // TileDB ranges are inclusive
     range->operation_type = Item_func::LE_FUNC;
     if (std::is_floating_point<T>()) {
-      upper = std::nextafter(lower, std::numeric_limits<T>::min());
+      *key_typed = std::nextafter(*key_typed, std::numeric_limits<T>::min());
     } else if (std::is_arithmetic<T>()) {
-      upper -= 1;
+      *key_typed -= 1;
     }
-    memcpy(range->upper_value.get(), &upper, size);
+    memcpy(range->upper_value.get(), key_typed, size);
     range->lower_value = nullptr;
     break;
   }
   case Item_func::LE_FUNC: {
-    memcpy(range->upper_value.get(), &upper, size);
+    memcpy(range->upper_value.get(), key_typed, size);
     range->lower_value = nullptr;
     break;
   }
   case Item_func::EQ_FUNC: {
-    memcpy(range->lower_value.get(), &lower, size);
-    memcpy(range->upper_value.get(), &upper, size);
+    memcpy(range->lower_value.get(), key_typed, size);
+    memcpy(range->upper_value.get(), key_typed, size);
     break;
   }
   default:
@@ -633,6 +634,8 @@ build_range_from_key(const uchar *key, uint length,
     break;
   }
 
+  // Free key that we copied
+  std::free(key_typed);
   return range;
 }
 /**

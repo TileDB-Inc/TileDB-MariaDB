@@ -229,9 +229,18 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     // Set ref length used for storing reference in position(), this is the size
     // of a subarray for querying
     this->ref_length = 0;
+    bool any_var_length = false;
     for (const auto &dim : domain.dimensions()) {
+      if (dim.cell_val_num() == TILEDB_VAR_NUM) {
+        any_var_length = true;
+        break;
+      }
       this->ref_length += sizeof(uint64_t);
       this->ref_length += tiledb_datatype_size(dim.type());
+    }
+
+    if (any_var_length) {
+      this->ref_length = MAX_FIELD_VARCHARLENGTH;
     }
 
     // If the user requests we will compute the table records on opening the
@@ -1039,23 +1048,6 @@ int tile::mytile::rnd_end() {
   DBUG_RETURN(close());
 };
 
-int tile::mytile::realloc_ref_based_size(uint64_t size) {
-  DBUG_ENTER("tile::mytile::ref");
-  int error = 0;
-
-  auto ref_length_old = this->ref_length;
-  this->ref_length = size;
-  /* Allocate ref in thd or on the table's mem_root */
-  if (!(ref = (uchar *)alloc_root(&table->mem_root,
-                                  ALIGN_SIZE(ref_length) * 2))) {
-    this->ref_length = ref_length_old;
-    error = HA_ERR_OUT_OF_MEM;
-  } else {
-    dup_ref = ref + ALIGN_SIZE(ref_length);
-  }
-  DBUG_RETURN(error);
-}
-
 /**
  * Returns the coordinates as a single byte vector in the form
  * <uint64_t>-<data>-<uint64_t>-<data>
@@ -1207,10 +1199,15 @@ void tile::mytile::position(const uchar *record) {
       get_coords_as_byte_vector(this->record_index - 1);
 
   if (coords.size() > this->ref_length) {
-    realloc_ref_based_size(coords.size());
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "[position] error dimensions longer than ref_length for %s :",
+        ME_ERROR_LOG | ME_FATAL, this->uri.c_str());
+    DBUG_VOID_RETURN;
   }
 
-  memcpy(this->ref, coords.data(), this->ref_length);
+  memcpy(this->ref, coords.data(),
+         std::min<uint64_t>(this->ref_length, coords.size()));
 
   DBUG_VOID_RETURN;
 }

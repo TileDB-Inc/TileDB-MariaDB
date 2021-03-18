@@ -2698,7 +2698,6 @@ int tile::mytile::build_mrr_ranges() {
   std::vector<std::shared_ptr<tile::range>> tmp_ranges;
   this->pushdown_ranges.resize(this->ndim);
   this->pushdown_in_ranges.resize(this->ndim);
-  //  tmp_ranges.resize(this->ndim);
   for (uint64_t i = 0; i < this->ndim; i++) {
     tmp_ranges.emplace_back(std::make_shared<tile::range>(tile::range{
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
@@ -2725,11 +2724,21 @@ int tile::mytile::build_mrr_ranges() {
         bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
 
+        auto &range = tmp_ranges[i];
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
               mrr_cur_range.start_key.key + key_offset);
           key_len += sizeof(uint16_t);
           key_len += char_length;
+
+          // If the key size is zero, this can happen when we are doing partial
+          // key matches For strings a size of 0 means anything should be
+          // considered a match so we return 0
+          if (char_length == 0) {
+            range->lower_value = nullptr;
+            range->upper_value = nullptr;
+            continue;
+          }
         } else {
           key_len += tiledb_datatype_size(datatype);
         }
@@ -2737,7 +2746,7 @@ int tile::mytile::build_mrr_ranges() {
         if (key_offset + key_len >= mrr_cur_range.start_key.length)
           last_key_part = true;
 
-        auto &range = tmp_ranges[i];
+        range->datatype = datatype;
         update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
                                               key_offset, true /* start_key */,
                                               last_key_part, datatype);
@@ -2758,12 +2767,19 @@ int tile::mytile::build_mrr_ranges() {
         uint64_t key_len = 0;
         bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
+        auto &range = tmp_ranges[i];
 
         if (datatype == TILEDB_STRING_ASCII) {
           const uint16_t char_length = *reinterpret_cast<const uint16_t *>(
               mrr_cur_range.end_key.key + key_offset);
           key_len += sizeof(uint16_t);
           key_len += char_length;
+
+          if (char_length == 0) {
+            range->lower_value = nullptr;
+            range->upper_value = nullptr;
+            continue;
+          }
         } else {
           key_len += tiledb_datatype_size(datatype);
         }
@@ -2771,7 +2787,7 @@ int tile::mytile::build_mrr_ranges() {
         if (key_offset + key_len >= mrr_cur_range.end_key.length)
           last_key_part = true;
 
-        auto &range = tmp_ranges[i];
+        range->datatype = datatype;
         update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
                                               key_offset, false /* start_key */,
                                               last_key_part, datatype);

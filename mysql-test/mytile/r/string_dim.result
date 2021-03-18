@@ -9,6 +9,16 @@ bb	2
 cc	3
 dddd	1
 jfk	5
+FLUSH TABLES;
+SET mytile_compute_table_records=1;
+SELECT * FROM string_dim;
+d	a
+aa	4
+bb	2
+cc	3
+dddd	1
+jfk	5
+SET mytile_compute_table_records=0;
 SET mytile_delete_arrays=0;
 DROP TABLE string_dim;
 # VARCHAR Dimension

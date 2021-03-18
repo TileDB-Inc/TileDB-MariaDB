@@ -245,22 +245,28 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       // `select * from ...`, and the result is used to add a range)
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain.dimension(dim_idx);
-        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(size), &std::free);
 
-        this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
-            this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
-            nonEmptyDomain.get(), &this->empty_read));
+        if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+          const auto pair = this->array->non_empty_domain_var(dim_idx);
+          this->query->add_range(dim_idx, pair.first, pair.second);
+        } else {
+          uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+          auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+              std::malloc(size), &std::free);
 
-        void *lower = static_cast<char *>(nonEmptyDomain.get());
-        void *upper = static_cast<char *>(nonEmptyDomain.get()) +
-                      tiledb_datatype_size(dimension.type());
+          this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
+              this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
+              nonEmptyDomain.get(), &this->empty_read));
 
-        // set range
-        this->ctx.handle_error(tiledb_query_add_range(
-            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
-            upper, nullptr));
+          void *lower = static_cast<char *>(nonEmptyDomain.get());
+          void *upper = static_cast<char *>(nonEmptyDomain.get()) +
+                        tiledb_datatype_size(dimension.type());
+
+          // set range
+          this->ctx.handle_error(tiledb_query_add_range(
+              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+              upper, nullptr));
+        }
       }
 
       // Since we added ranges, we calculate the total number of records the

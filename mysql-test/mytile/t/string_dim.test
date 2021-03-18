@@ -6,6 +6,10 @@
 --eval CREATE TABLE string_dim ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.0/string_dim';
 
 SELECT * FROM string_dim;
+FLUSH TABLES;
+SET mytile_compute_table_records=1;
+SELECT * FROM string_dim;
+SET mytile_compute_table_records=0;
 SET mytile_delete_arrays=0;
 DROP TABLE string_dim;
 

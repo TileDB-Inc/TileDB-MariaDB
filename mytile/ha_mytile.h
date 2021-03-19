@@ -222,14 +222,6 @@ public:
   std::vector<uint8_t> get_coords_as_byte_vector(uint64_t index);
 
   /**
-   * Realloc the ref based on current size of data
-   * This is needed for string dims
-   * @param size
-   * @return
-   */
-  int realloc_ref_based_size(uint64_t size);
-
-  /**
    * Write row
    * @param buf
    * @return

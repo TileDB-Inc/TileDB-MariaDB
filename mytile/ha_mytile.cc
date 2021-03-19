@@ -2881,7 +2881,7 @@ int tile::mytile::multi_range_read_explain_info(uint mrr_mode, char *str,
 
 int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
   int error;
-  DBUG_ENTER("handler::index_next_same");
+  DBUG_ENTER("mytile::index_next_same");
   // Store the current indexes so we can reset them after checking
   // if the next key is the same
   uint64_t record_index_before_check = this->record_index;
@@ -2923,14 +2923,15 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
       table->record[0] = save_record_0;
       for (key_part = key_info->key_part; key_part < key_part_end; key_part++)
         key_part->field->move_field_offset(-ptrdiff);
+
+      // Reset the record indexes back to before the first read
+      if (this->mrr_query) {
+        this->record_index = record_index_before_check;
+        this->records_read = records_read_before_check;
+      }
     }
   }
 
-  // Reset the record indexes back to before the first read
-  if (this->mrr_query == true) {
-    this->record_index = record_index_before_check;
-    this->records_read = records_read_before_check;
-  }
   DBUG_PRINT("return", ("%i", error));
   DBUG_RETURN(error);
 }

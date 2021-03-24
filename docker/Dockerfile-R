@@ -50,8 +50,18 @@ RUN apt-get update && apt-get install -y \
   dirmngr \
   && add-apt-repository --yes "ppa:marutter/rrutter4.0" \
   && add-apt-repository --yes "ppa:c2d4u.team/c2d4u4.0+" \
-  && apt-get install -y --no-install-recommends r-cran-dbplyr r-cran-bit64 r-cran-hms r-cran-lubridate \
-	r-cran-rcpp r-cran-bh r-cran-plogr \
+  && apt-get install -y --no-install-recommends \
+	r-cran-dbplyr \
+	r-cran-bit64 \
+	r-cran-hms \
+	r-cran-lubridate \
+	r-cran-rcpp \
+	r-cran-bh \
+	r-cran-plogr \
+	r-cran-zoo \
+	r-cran-xts \
+	r-cran-bit64 \
+	r-cran-matrix \
   && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM /tmp
@@ -153,19 +163,12 @@ RUN mkdir /opt/bitnami && \
 RUN echo "/opt/server/lib" > /etc/ld.so.conf.d/mariadb.conf \
 	&& ldconfig
 
+# Install R packages tiledb and RMariaDB (most dependencies installed above) plus palmerpenguins for demo
+RUN R -q -e 'install.packages(c("tiledb", "RMariaDB", "palmerpenguins"))'
+
 # Setup initial DB for faster starts
 RUN /tmp/init.sh "mysqld"
 USER mysql
 EXPOSE 3306
- 
-# R setup, using R 4.0.* and PPA to speed up R package installation
-# now above to have one less apt call
-#RUN apt-get update -qq -y \
-#	&& apt install --yes --no-install-recommends software-properties-common dirmngr
-#RUN add-apt-repository --yes "ppa:marutter/rrutter4.0" 
-#RUN add-apt-repository --yes "ppa:c2d4u.team/c2d4u4.0+"
-#RUN apt install --no-install-recommends r-cran-dbplyr r-cran-bit64 r-cran-hms r-cran-lubridate \
-#	r-cran-rcpp r-cran-bh r-cran-plogr
-
 
 CMD ["docker-entrypoint-interactive.sh", "mysqld"]

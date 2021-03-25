@@ -2726,6 +2726,15 @@ int tile::mytile::build_mrr_ranges() {
         uint64_t key_len = 0;
         bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
+        Field *field;
+        for (uint64_t fi = 0; fi < table->s->fields; fi++) {
+          Field *f = table->s->field[fi];
+          if (std::string(f->field_name.str, f->field_name.length) ==
+              dims[i].name()) {
+            field = f;
+            break;
+          }
+        }
 
         auto &range = tmp_ranges[i];
         if (datatype == TILEDB_STRING_ASCII) {
@@ -2750,9 +2759,9 @@ int tile::mytile::build_mrr_ranges() {
           last_key_part = true;
 
         range->datatype = datatype;
-        update_range_from_key_for_super_range(range, mrr_cur_range.start_key,
-                                              key_offset, true /* start_key */,
-                                              last_key_part, datatype);
+        update_range_from_key_for_super_range(
+            range, mrr_cur_range.start_key, key_offset, true /* start_key */,
+            last_key_part, datatype, ha_thd(), field);
         key_offset += key_len;
       }
     }
@@ -2770,6 +2779,16 @@ int tile::mytile::build_mrr_ranges() {
         uint64_t key_len = 0;
         bool last_key_part = false;
         tiledb_datatype_t datatype = dims[i].type();
+        Field *field;
+        for (uint64_t fi = 0; fi < table->s->fields; fi++) {
+          Field *f = table->s->field[fi];
+          if (std::string(f->field_name.str, f->field_name.length) ==
+              dims[i].name()) {
+            field = f;
+            break;
+          }
+        }
+
         auto &range = tmp_ranges[i];
 
         if (datatype == TILEDB_STRING_ASCII) {
@@ -2791,9 +2810,9 @@ int tile::mytile::build_mrr_ranges() {
           last_key_part = true;
 
         range->datatype = datatype;
-        update_range_from_key_for_super_range(range, mrr_cur_range.end_key,
-                                              key_offset, false /* start_key */,
-                                              last_key_part, datatype);
+        update_range_from_key_for_super_range(
+            range, mrr_cur_range.end_key, key_offset, false /* start_key */,
+            last_key_part, datatype, ha_thd(), field);
         key_offset += key_len;
       }
     }

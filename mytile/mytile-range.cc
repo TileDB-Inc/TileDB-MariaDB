@@ -985,8 +985,10 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
 
 void tile::update_range_from_key_for_super_range(
     std::shared_ptr<tile::range> &range, key_range key, uint64_t key_offset,
-    const bool start_key, const bool last_key_part,
-    tiledb_datatype_t datatype) {
+    const bool start_key, const bool last_key_part, tiledb_datatype_t datatype,
+    THD *thd, Field *field) {
+  assert(thd);
+  assert(field);
   // Length shouldn't be zero here but better safe then segfault!
   if (key.length == 0)
     return;
@@ -1024,8 +1026,26 @@ void tile::update_range_from_key_for_super_range(
     return update_range_from_key_for_super_range<uint32_t>(
         range, key, key_offset, start_key, last_key_part);
 
-  case tiledb_datatype_t::TILEDB_INT64:
-  case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
+  case tiledb_datatype_t::TILEDB_DATETIME_YEAR: {
+    // XXX: for some reason maria uses year offset from 1900 here
+    MYSQL_TIME mysql_time = {1900U + *((uint8_t *)(key.key + key_offset)),
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             0,
+                             MYSQL_TIMESTAMP_TIME};
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+    struct st_key_range local_key {};
+    local_key.length = sizeof(int64_t);
+    local_key.key = reinterpret_cast<const uchar *>(&xs);
+    local_key.flag = key.flag;
+    local_key.keypart_map = key.keypart_map;
+    return update_range_from_key_for_super_range<int64_t>(
+        range, local_key, 0, start_key, last_key_part);
+  }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
   case tiledb_datatype_t::TILEDB_DATETIME_DAY:
@@ -1037,7 +1057,24 @@ void tile::update_range_from_key_for_super_range(
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
-  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+    MYSQL_TIME mysql_time;
+
+    uchar *tmp = field->ptr;
+    field->ptr = (uchar *)(key.key + key_offset);
+    field->get_date(&mysql_time, date_mode_t(0));
+    field->ptr = tmp;
+    int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
+
+    struct st_key_range local_key {};
+    local_key.length = sizeof(int64_t);
+    local_key.key = reinterpret_cast<const uchar *>(&xs);
+    local_key.flag = key.flag;
+    local_key.keypart_map = key.keypart_map;
+    return update_range_from_key_for_super_range<int64_t>(
+        range, local_key, 0, start_key, last_key_part);
+  }
+  case tiledb_datatype_t::TILEDB_INT64:
     return update_range_from_key_for_super_range<int64_t>(
         range, key, key_offset, start_key, last_key_part);
 

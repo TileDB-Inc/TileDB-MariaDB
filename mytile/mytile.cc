@@ -449,8 +449,7 @@ int64_t tile::MysqlTimeToTileDBTimeVal(THD *thd, const MYSQL_TIME &mysql_time,
       // else we have a date and time which must take tz into account
     } else {
       uint32_t not_used;
-      seconds =
-          thd->variables.time_zone->TIME_to_gmt_sec(&mysql_time, &not_used);
+      seconds = my_tz_OFFSET0->TIME_to_gmt_sec(&mysql_time, &not_used);
     }
     uint64_t microseconds = mysql_time.second_part;
 

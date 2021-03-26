@@ -38,6 +38,107 @@ namespace tile {
 typedef struct ::ha_table_option_struct ha_table_option_struct;
 typedef struct ::ha_field_option_struct ha_field_option_struct;
 
+struct BufferSizeByType {
+  BufferSizeByType(
+      const uint64_t &char_buffer_size, const uint64_t &uint8_buffer_size,
+      const uint64_t &int8_buffer_size, const uint64_t &uint16_buffer_size,
+      const uint64_t &int16_buffer_size, const uint64_t &int32_buffer_size,
+      const uint64_t &uint32_buffer_size, const uint64_t &uint64_buffer_size,
+      const uint64_t &int64_buffer_size, const uint64_t &float32_buffer_size,
+      const uint64_t &float64_buffer_size,
+      const uint64_t &var_length_uint8_buffer_size) {
+    this->char_buffer_size = char_buffer_size;
+    this->uint8_buffer_size = uint8_buffer_size;
+    this->int8_buffer_size = int8_buffer_size;
+    this->uint16_buffer_size = int16_buffer_size;
+    this->int16_buffer_size = int16_buffer_size;
+    this->uint32_buffer_size = int32_buffer_size;
+    this->int32_buffer_size = int32_buffer_size;
+    this->uint64_buffer_size = uint64_buffer_size;
+    this->int64_buffer_size = int64_buffer_size;
+    this->float32_buffer_size = float32_buffer_size;
+    this->float64_buffer_size = float64_buffer_size;
+    this->var_length_uint8_buffer_size = var_length_uint8_buffer_size;
+  }
+
+  BufferSizeByType() = default;
+
+  uint64_t SizeByType(tiledb_datatype_t &datatype) const {
+    switch (datatype) {
+    case TILEDB_INT32:
+      return int32_buffer_size;
+    case TILEDB_INT64:
+      return int64_buffer_size;
+    case TILEDB_FLOAT32:
+      return float32_buffer_size;
+    case TILEDB_FLOAT64:
+      return float64_buffer_size;
+    case TILEDB_INT8:
+      return int8_buffer_size;
+    case TILEDB_UINT8:
+      return uint8_buffer_size;
+    case TILEDB_INT16:
+      return int16_buffer_size;
+    case TILEDB_UINT16:
+      return uint16_buffer_size;
+    case TILEDB_UINT32:
+      return uint32_buffer_size;
+    case TILEDB_UINT64:
+      return uint64_buffer_size;
+    case TILEDB_STRING_ASCII:
+    case TILEDB_CHAR:
+    case TILEDB_STRING_UTF8:
+      return char_buffer_size;
+    case TILEDB_STRING_UTF16:
+      return int16_buffer_size;
+    case TILEDB_STRING_UTF32:
+      return int32_buffer_size;
+    case TILEDB_STRING_UCS2:
+      return int16_buffer_size;
+    case TILEDB_STRING_UCS4:
+      return int32_buffer_size;
+    case TILEDB_ANY:
+      return uint8_buffer_size;
+    case TILEDB_DATETIME_YEAR:
+    case TILEDB_DATETIME_MONTH:
+    case TILEDB_DATETIME_WEEK:
+    case TILEDB_DATETIME_DAY:
+    case TILEDB_DATETIME_HR:
+    case TILEDB_DATETIME_MIN:
+    case TILEDB_DATETIME_SEC:
+    case TILEDB_DATETIME_MS:
+    case TILEDB_DATETIME_US:
+    case TILEDB_DATETIME_NS:
+    case TILEDB_DATETIME_PS:
+    case TILEDB_DATETIME_FS:
+    case TILEDB_DATETIME_AS:
+      return int64_buffer_size;
+    default: {
+      const char *str;
+      tiledb_datatype_to_str(datatype, &str);
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Unknown tiledb data type in SizeByType: %s",
+                      ME_ERROR_LOG | ME_FATAL, str);
+    }
+    }
+
+    return 0;
+  }
+
+  uint64_t char_buffer_size = 0;
+  uint64_t uint8_buffer_size = 0;
+  uint64_t int8_buffer_size = 0;
+  uint64_t uint16_buffer_size = 0;
+  uint64_t int16_buffer_size = 0;
+  uint64_t uint32_buffer_size = 0;
+  uint64_t int32_buffer_size = 0;
+  uint64_t uint64_buffer_size = 0;
+  uint64_t int64_buffer_size = 0;
+  uint64_t float32_buffer_size = 0;
+  uint64_t float64_buffer_size = 0;
+  uint64_t var_length_uint8_buffer_size = 0;
+};
+
 /**
  * Converts a mysql type to a tiledb_datatype_t
  * @param type
@@ -565,6 +666,20 @@ const void *default_tiledb_fill_value(const tiledb_datatype_t &type);
  */
 bool is_fill_value_default(const tiledb_datatype_t &type, const void *value,
                            const uint64_t &size);
+
+/**
+ * Takes a list of field details along with a memory budget and computes the
+ * weighted buffer sizes. This lets us build weighted buffers so smaller
+ * datatypes don't have unused buffer space. Var length data is treated simply
+ * as uint64 (8 bytes), its the best we can do.
+ * @param field_types vector of tuple<tiledb_datatype, var_length (bool),
+ * nullable (bool), list (bool)>
+ * @param memory_budget size in bytes of memory budget
+ * @return BufferSizeByteType struct which contains the weighted buffer sizes
+ */
+BufferSizeByType compute_buffer_sizes(
+    std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>> &field_types,
+    const uint64_t &memory_budget);
 
 /**
  * Check if a datatype is a string type or not

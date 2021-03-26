@@ -1715,19 +1715,65 @@ ulonglong tile::mytile::table_flags(void) const {
       HA_CAN_BIT_FIELD | HA_FILE_BASED);
 }
 
-void tile::mytile::alloc_buffers(uint64_t size) {
+std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>>
+tile::mytile::build_field_details_for_buffers(const tiledb::ArraySchema &schema,
+                                              Field **fields,
+                                              const uint64_t &field_num,
+                                              MY_BITMAP *read_set) {
+  DBUG_ENTER("tile::mytile::build_field_details_for_buffers");
+  std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>> ret;
+  for (size_t fieldIndex = 0; fieldIndex < field_num; fieldIndex++) {
+    Field *field = fields[fieldIndex];
+    std::string field_name = field->field_name.str;
+    // Only set buffers for fields that are asked for except always set
+    // dimension We check the read_set because the read_set is set to ALL column
+    // for writes and set to the subset of columns for reads
+    if (!bitmap_is_set(read_set, fieldIndex) &&
+        !schema.domain().has_dimension(field_name)) {
+      continue;
+    }
+
+    tiledb_datatype_t datatype;
+    bool var_len = false;
+    bool nullable = false;
+    bool list = false;
+
+    if (schema.domain().has_dimension(field_name)) {
+      auto dim = schema.domain().dimension(field_name);
+      datatype = dim.type();
+      var_len = dim.cell_val_num() == TILEDB_VAR_NUM;
+      // Dimension can't be nullable
+      nullable = false;
+    } else { // attribute
+      tiledb::Attribute attr = schema.attribute(field_name);
+      datatype = attr.type();
+      var_len = attr.cell_val_num();
+      nullable = attr.nullable();
+    }
+
+    ret.emplace_back(std::make_tuple(datatype, var_len, nullable, list));
+  }
+
+  DBUG_RETURN(ret);
+}
+
+void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   DBUG_ENTER("tile::mytile::alloc_buffers");
   // Set Attribute Buffers
   auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
 
-  const char *array_type;
-  tiledb_array_type_to_str(this->array_schema->array_type(), &array_type);
-
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
       this->buffers.emplace_back();
   }
+
+  std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>> field_details =
+      build_field_details_for_buffers(*this->array_schema, table->field,
+                                      table->s->fields, table->read_set);
+
+  tile::BufferSizeByType bufferSizesByType =
+      tile::compute_buffer_sizes(field_details, memory_budget);
 
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
@@ -1742,63 +1788,80 @@ void tile::mytile::alloc_buffers(uint64_t size) {
 
     // Create buffer
     std::shared_ptr<buffer> buff = std::make_shared<buffer>();
+    tiledb_datatype_t datatype;
+    uint64_t data_size = 0;
     buff->name = field_name;
     buff->dimension = false;
     buff->buffer_offset = 0;
     buff->fixed_size_elements = 1;
-    buff->buffer_size = size;
-    buff->allocated_buffer_size = size;
 
     if (this->array_schema->domain().has_dimension(field_name)) {
       auto dim = this->array_schema->domain().dimension(field_name);
-      auto data_buffer = alloc_buffer(dim.type(), size);
-      buff->buffer = data_buffer;
-      buff->type = dim.type();
+      datatype = dim.type();
       buff->dimension = true;
+      data_size = bufferSizesByType.SizeByType(datatype);
+
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
         uint64_t *offset_buffer = static_cast<uint64_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
-        buff->offset_buffer_size = size;
-        buff->allocated_offset_buffer_size = size;
+            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
+                         bufferSizesByType.uint64_buffer_size));
+        buff->offset_buffer_size = bufferSizesByType.uint64_buffer_size;
+        buff->allocated_offset_buffer_size =
+            bufferSizesByType.uint64_buffer_size;
         buff->offset_buffer = offset_buffer;
+
+        // Override buffer size as this is var length
+        data_size = bufferSizesByType.var_length_uint8_buffer_size;
       }
     } else { // attribute
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
 
       uint8_t *validity_buffer = nullptr;
       uint64_t *offset_buffer = nullptr;
-      auto data_buffer = alloc_buffer(attr.type(), size);
 
       buff->fixed_size_elements = attr.cell_val_num();
+      datatype = attr.type();
+      data_size = bufferSizesByType.SizeByType(datatype);
 
       uint8_t nullable = 0;
       tiledb_attribute_get_nullable(ctx.ptr().get(), attr.ptr().get(),
                                     &nullable);
       if (nullable) {
         validity_buffer = static_cast<uint8_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size));
-        buff->validity_buffer_size = size;
-        buff->allocated_validity_buffer_size = size;
+            alloc_buffer(tiledb_datatype_t::TILEDB_UINT8,
+                         bufferSizesByType.var_length_uint8_buffer_size));
+        buff->validity_buffer_size =
+            bufferSizesByType.var_length_uint8_buffer_size;
+        buff->allocated_validity_buffer_size =
+            bufferSizesByType.var_length_uint8_buffer_size;
       }
       if (attr.variable_sized()) {
         offset_buffer = static_cast<uint64_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
-        buff->offset_buffer_size = size;
-        buff->allocated_offset_buffer_size = size;
+            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
+                         bufferSizesByType.uint64_buffer_size));
+        buff->offset_buffer_size = bufferSizesByType.uint64_buffer_size;
+        buff->allocated_offset_buffer_size =
+            bufferSizesByType.uint64_buffer_size;
+
+        // Override buffer size as this is var length
+        data_size = bufferSizesByType.var_length_uint8_buffer_size;
       }
 
       buff->validity_buffer = validity_buffer;
       buff->offset_buffer = offset_buffer;
-      buff->buffer = data_buffer;
       buff->type = attr.type();
     }
+    buff->buffer = alloc_buffer(datatype, data_size);
+    buff->type = datatype;
+    buff->buffer_size = data_size;
+    buff->allocated_buffer_size = data_size;
     this->buffers[fieldIndex] = buff;
   }
   DBUG_VOID_RETURN;
 }
 
-void tile::mytile::alloc_read_buffers(uint64_t size) {
-  alloc_buffers(size);
+void tile::mytile::alloc_read_buffers(uint64_t memory_budget) {
+  alloc_buffers(memory_budget);
   auto domain = this->array_schema->domain();
 
   for (auto &buff : this->buffers) {

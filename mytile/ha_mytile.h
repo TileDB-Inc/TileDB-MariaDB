@@ -348,13 +348,13 @@ public:
   /**
    * Helper function to allocate all buffers
    */
-  void alloc_buffers(uint64_t size);
+  void alloc_buffers(uint64_t memory_budget);
 
   /**
    * Helper function to alloc and set read buffers
    * @param size
    */
-  void alloc_read_buffers(uint64_t size);
+  void alloc_read_buffers(uint64_t memory_budget);
 
   /**
    * Helper to free buffer
@@ -564,6 +564,11 @@ public:
    * @return
    */
   int index_next_same(uchar *buf, const uchar *key, uint keylen) override;
+
+  static std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>>
+  build_field_details_for_buffers(const tiledb::ArraySchema &array_schema,
+                                  Field **fields, const uint64_t &field_num,
+                                  MY_BITMAP *read_set);
 
 private:
   DsMrr_impl ds_mrr;

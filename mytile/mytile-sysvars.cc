@@ -38,16 +38,18 @@
 namespace tile {
 namespace sysvars {
 // Read buffer size
-static MYSQL_THDVAR_ULONGLONG(
-    read_buffer_size, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
-    "Read buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
+static MYSQL_THDVAR_ULONGLONG(read_buffer_size,
+                              PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                              "Total read buffer size for TileDB queries. This "
+                              "will be shared across all fields being queried.",
+                              NULL, NULL, 104857600, 0, ~0UL, 0);
 
 // Write buffer size
 static MYSQL_THDVAR_ULONGLONG(
     write_buffer_size, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
-    "Write buffer size per attribute for TileDB queries", NULL, NULL, 104857600,
-    0, ~0UL, 0);
+    "Total write buffer size for TileDB queries. This will be shared across "
+    "all fields being queried.",
+    NULL, NULL, 104857600, 0, ~0UL, 0);
 
 // Physically delete arrays
 static MYSQL_THDVAR_BOOL(delete_arrays,

@@ -1,0 +1,58 @@
+#
+# The purpose of this test is to validate MyTile datetime conditions with MRR
+#
+CREATE TABLE dt (
+column1 datetime(0) dimension=1 tile_extent="10",
+column2 int dimension=1 tile_extent="10",
+column3 VARCHAR(255)
+) ENGINE=mytile;
+INSERT INTO dt VALUES ('2020-01-01 00:00:00',1,'jan');
+INSERT INTO dt VALUES ('2020-02-20 01:00:00',2, 'feb');
+INSERT INTO dt VALUES ('2020-03-20 02:00:00',3,'mar');
+INSERT INTO dt VALUES ('2020-04-20 02:00:00',4,'apr');
+INSERT INTO dt VALUES ('2020-05-20 04:00:00',5,'may');
+INSERT INTO dt VALUES ('2020-06-20 05:00:00',6,'jun');
+INSERT INTO dt VALUES ('2020-07-20 06:00:00',7,'jul');
+INSERT INTO dt VALUES ('2020-08-20 07:00:00',8,'aug');
+INSERT INTO dt VALUES ('2020-09-20 08:00:00',9,'sep');
+INSERT INTO dt VALUES ('2020-10-20 09:00:00',10,'oct');
+# Batch Key Access (Sorted) Join
+set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
+set join_cache_level=6;
+SELECT * from dt WHERE column1 > '2020-01-01 00:00:00' AND column2 = 2;
+column1	column2	column3
+2020-02-20 01:00:00	2	feb
+SELECT * from dt WHERE column1 < '2020-10-20 09:00:00' AND column2 = 2;
+column1	column2	column3
+2020-02-20 01:00:00	2	feb
+SELECT * from dt WHERE column1 >= '2020-01-01 00:00:00' AND column2 = 2;
+column1	column2	column3
+2020-02-20 01:00:00	2	feb
+SELECT * from dt WHERE column1 <= '2020-10-20 09:00:00' AND column2 = 2;
+column1	column2	column3
+2020-02-20 01:00:00	2	feb
+SELECT * from dt WHERE column1 > '2020-01-01 00:00:00' AND column1 <= '2020-05-20 04:00:00' AND column2 = 2;
+column1	column2	column3
+2020-02-20 01:00:00	2	feb
+SELECT * from dt WHERE column1 >= '2020-06-20 05:00:00' AND column1 <= '2020-10-20 09:00:00' AND column2 = 7;
+column1	column2	column3
+2020-07-20 06:00:00	7	jul
+SELECT * from dt WHERE column1 > '2020-02-20 01:00:00' AND column1 < '2020-09-20 08:00:00' AND column2 = 5;
+column1	column2	column3
+2020-05-20 04:00:00	5	may
+SELECT * from dt WHERE column1 between '2020-06-20 05:00:00' AND '2020-10-20 09:00:00' AND column2 = 7;
+column1	column2	column3
+2020-07-20 06:00:00	7	jul
+SELECT * from dt inner join dt dt2 USING(column1, column2);
+column1	column2	column3	column3
+2020-01-01 00:00:00	1	jan	jan
+2020-02-20 01:00:00	2	feb	feb
+2020-03-20 02:00:00	3	mar	mar
+2020-04-20 02:00:00	4	apr	apr
+2020-05-20 04:00:00	5	may	may
+2020-06-20 05:00:00	6	jun	jun
+2020-07-20 06:00:00	7	jul	jul
+2020-08-20 07:00:00	8	aug	aug
+2020-09-20 08:00:00	9	sep	sep
+2020-10-20 09:00:00	10	oct	oct
+DROP TABLE dt;

@@ -652,7 +652,8 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
                                            key_range key, uint64_t key_offset,
                                            const bool start_key,
                                            const bool last_key_part,
-                                           tiledb_datatype_t datatype);
+                                           tiledb_datatype_t datatype, THD *thd,
+                                           Field *field);
 
 /**
  * See non-templated version for description

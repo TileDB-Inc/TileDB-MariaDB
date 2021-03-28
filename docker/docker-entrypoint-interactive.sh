@@ -219,7 +219,7 @@ fi
 mysqld > /var/log/mysql/all.log 2>&1 &
 
 printf "Waiting for mariadb to initialize.."
-until mysql -u root -e "select * from mysql.user;" &> /dev/null ;
+until mysql -u root -e "select * from mysql.global_priv;" &> /dev/null ;
 do
   printf ".";
   sleep 1;

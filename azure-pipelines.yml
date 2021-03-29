@@ -48,9 +48,13 @@ stages:
             repository: tiledb/tiledb-mariadb-min
             context: .              
           tiledb-mariadb-server:
-            dockerfile: docker/Dockerfile
+            dockerfile: docker/Dockerfile-server
             repository: tiledb/tiledb-mariadb-server
             context: .
-
+          tiledb-mariadb-r:
+            dockerfile: docker/Dockerfile-R
+            repository: tiledb/tiledb-mariadb-r
+            context: .
+            
       steps:
       - template: scripts/build-images.yml

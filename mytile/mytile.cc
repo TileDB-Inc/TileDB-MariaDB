@@ -1266,6 +1266,130 @@ bool tile::is_string_datatype(const tiledb_datatype_t &type) {
   return true;
 }
 
+tile::BufferSizeByType tile::compute_buffer_sizes(
+    std::vector<std::tuple<tiledb_datatype_t, bool, bool, bool>> &field_types,
+    const uint64_t &memory_budget) {
+  // Get count of number of query buffers being allocated
+  size_t num_weighted_buffers = 0;
+  // Note: we count signed/unsigned as the same because we are really just
+  // concerned about bytes size We leave float and strings for convenience
+  uint64_t num_char_buffers = 0;
+  uint64_t num_int8_buffers = 0;
+  uint64_t num_int16_buffers = 0;
+  uint64_t num_int32_buffers = 0;
+  uint64_t num_int64_buffers = 0;
+  uint64_t num_float32_buffers = 0;
+  uint64_t num_float64_buffers = 0;
+  uint64_t num_var_length_uint8_buffers = 0;
+
+  for (const auto &field_type : field_types) {
+    tiledb_datatype_t datatype = std::get<0>(field_type);
+    bool var_len = std::get<1>(field_type);
+    bool nullable = std::get<2>(field_type);
+    bool list = std::get<3>(field_type);
+
+    if (var_len) {
+      num_int64_buffers += 1;
+      num_var_length_uint8_buffers += 1;
+    }
+
+    // Currently we don't support list buffers in TileDB schema but this will
+    // just work when we do
+    if (list) {
+      num_int64_buffers += 1;
+    }
+
+    // nullables use a uint8 buffer
+    if (nullable) {
+      num_int8_buffers += 1;
+    }
+
+    // For non var length we want to count the datatype
+    if (!var_len) {
+      switch (datatype) {
+      case TILEDB_UINT32:
+      case TILEDB_INT32:
+        num_int32_buffers += 1;
+        break;
+      case TILEDB_FLOAT32:
+        num_float32_buffers += 1;
+        break;
+      case TILEDB_FLOAT64:
+        num_float64_buffers += 1;
+        break;
+      case TILEDB_STRING_UTF8:
+      case TILEDB_STRING_ASCII:
+      case TILEDB_CHAR:
+        num_char_buffers += 1;
+        break;
+      case TILEDB_UINT8:
+      case TILEDB_INT8:
+      case TILEDB_ANY:
+        num_int8_buffers += 1;
+        break;
+      case TILEDB_INT16:
+      case TILEDB_UINT16:
+      case TILEDB_STRING_UTF16:
+      case TILEDB_STRING_UCS2:
+        num_int16_buffers += 1;
+        break;
+      case TILEDB_INT64:
+      case TILEDB_UINT64:
+      case TILEDB_STRING_UTF32:
+      case TILEDB_STRING_UCS4:
+      case TILEDB_DATETIME_YEAR:
+      case TILEDB_DATETIME_MONTH:
+      case TILEDB_DATETIME_WEEK:
+      case TILEDB_DATETIME_DAY:
+      case TILEDB_DATETIME_HR:
+      case TILEDB_DATETIME_MIN:
+      case TILEDB_DATETIME_SEC:
+      case TILEDB_DATETIME_MS:
+      case TILEDB_DATETIME_US:
+      case TILEDB_DATETIME_NS:
+      case TILEDB_DATETIME_PS:
+      case TILEDB_DATETIME_FS:
+      case TILEDB_DATETIME_AS:
+        num_int64_buffers += 1;
+        break;
+      default: {
+        const char *datatype_str;
+        tiledb_datatype_to_str(datatype, &datatype_str);
+        throw std::runtime_error(
+            "Unsupported datatype in compute_buffer_size: " +
+            std::string(datatype_str));
+      }
+      }
+    }
+  }
+
+  num_weighted_buffers = num_char_buffers + num_int8_buffers +
+                         (num_int16_buffers * sizeof(int16_t)) +
+                         (num_int32_buffers * sizeof(int32_t)) +
+                         (num_int64_buffers * sizeof(uint64_t)) +
+                         (num_float32_buffers * sizeof(float)) +
+                         (num_float64_buffers * sizeof(double)) +
+                         (num_var_length_uint8_buffers * sizeof(uint64_t));
+
+  // Every buffer alloc gets the same size.
+  uint64_t nbytes = memory_budget / num_weighted_buffers;
+
+  // Requesting 0 MB will result in a 1 KB allocation. This is used by the
+  // tests to test the path of incomplete TileDB queries.
+  if (memory_budget == 0) {
+    nbytes = 1024;
+  }
+
+  tile::BufferSizeByType sizes(
+      nbytes, nbytes, nbytes, nbytes * sizeof(uint16_t),
+      nbytes * sizeof(int16_t), nbytes * sizeof(int32_t),
+      nbytes * sizeof(uint32_t), nbytes * sizeof(uint64_t),
+      nbytes * sizeof(int64_t), nbytes * sizeof(float), nbytes * sizeof(double),
+      nbytes * sizeof(uint64_t));
+
+  return sizes;
+}
+
 /** The special value for an empty int32. */
 const int tile::constants::empty_int32 = std::numeric_limits<int32_t>::min();
 

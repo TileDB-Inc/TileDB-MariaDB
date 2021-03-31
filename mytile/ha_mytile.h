@@ -622,7 +622,9 @@ private:
   bool mrr_query = false;
 
   // Upper bound for records, used for table stats by optimized
-  uint64_t records_upper_bound = 2;
+  // We default to 100000 so that if we don't compute it, MariaDB still avoid
+  // optimizations for small tables
+  uint64_t records_upper_bound = 100000;
 
   /**
    * Helper to setup writes

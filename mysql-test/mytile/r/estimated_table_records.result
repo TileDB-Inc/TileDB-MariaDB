@@ -4,7 +4,7 @@
 CREATE TABLE quickstart_dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 explain select * from `quickstart_dense` ORDER BY `rows` asc, cols asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	quickstart_dense	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	SIMPLE	quickstart_dense	ALL	NULL	NULL	NULL	NULL	100000	Using filesort
 set mytile_compute_table_records=1;
 FLUSH TABLES;
 explain select * from `quickstart_dense` ORDER BY `rows` asc, cols asc;

@@ -14,15 +14,15 @@ INSERT INTO tmhd (d1, d2, a) VALUES (1.5, 5, 5);
 INSERT INTO tmhd (d1, d2, a) VALUES (1.6, 6, 6);
 explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
-1	SIMPLE	b	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	100000	Using temporary; Using filesort
+1	SIMPLE	b	ALL	NULL	NULL	NULL	NULL	100000	Using where; Using join buffer (flat, BNL join)
 # Batch Key Access (Sorted) Join
 set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
 set join_cache_level=6;
 explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition; Using temporary; Using filesort
-1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition; Using temporary; Using filesort
+1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	100000	Using where; Using join buffer (flat, BNLH join)
 select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 d1	d2	a	a
 1.1	1	1	1
@@ -36,8 +36,8 @@ set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
 set join_cache_level=6;
 explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition; Using temporary; Using filesort
-1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition; Using temporary; Using filesort
+1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	100000	Using where; Using join buffer (flat, BNLH join)
 select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 d1	d2	a	a
 1.1	1	1	1
@@ -51,8 +51,8 @@ set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=on';
 set join_cache_level=8;
 explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition; Using temporary; Using filesort
-1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition; Using temporary; Using filesort
+1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	100000	Using where; Using join buffer (flat, BNLH join)
 select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 d1	d2	a	a
 1.1	1	1	1
@@ -66,8 +66,8 @@ set optimizer_switch='optimize_join_buffer_size=off,mrr=on,mrr_sort_keys=off';
 set join_cache_level=8;
 explain select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	2	Using where with pushed condition; Using temporary; Using filesort
-1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	a	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition; Using temporary; Using filesort
+1	SIMPLE	b	hash_ALL	NULL	#hash#$hj	14	test.a.d1,test.a.d2	100000	Using where; Using join buffer (flat, BNLH join)
 select * from `tmhd` a JOIN `tmhd` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2 asc;
 d1	d2	a	a
 1.1	1	1	1

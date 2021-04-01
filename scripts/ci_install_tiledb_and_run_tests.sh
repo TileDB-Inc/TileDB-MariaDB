@@ -8,7 +8,7 @@ mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp
 # Download mariadb using git, this has a habit of failing so let's do it first
-git clone https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
+git clone --recurse-submodules https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
 # Install TileDB using 2.0 release
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
@@ -37,8 +37,10 @@ else # set superbuild flags
 fi
 
 mv tmp ${MARIADB_VERSION}/storage/mytile \
-&& cd ${MARIADB_VERSION} \
-&& mkdir builddir \
+&& cd ${MARIADB_VERSION}
+# Cherry-pick cmake 3.20 fix
+git cherry-pick 4e825b0e8ae07e1e847cbbc3c5b7203ae5b96a89
+mkdir builddir \
 && cd builddir \
 && cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. \
 && make -j$(nproc) \

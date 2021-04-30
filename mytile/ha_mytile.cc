@@ -913,14 +913,14 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
 
   // We must set the bitmap for debug purpose, it is "write_set" because we use
   // Field->store
-  my_bitmap_map *original_bitmap =
-      dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *original_bitmap =
+      dbug_tmp_use_all_columns(table, &table->write_set);
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
 
   if (this->query_complete()) {
     // Reset bitmap to original
-    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
 
@@ -952,7 +952,7 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
         } else if (this->records == 0 &&
                    this->status == tiledb::Query::Status::COMPLETE) {
           // Reset bitmap to original
-          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
           DBUG_RETURN(HA_ERR_END_OF_FILE);
         }
       } while (status == tiledb::Query::Status::INCOMPLETE);
@@ -976,7 +976,7 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
   }
 
   // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 
@@ -994,8 +994,8 @@ int tile::mytile::metadata_to_fields(
   int rc = 0;
   // We must set the bitmap for debug purpose, it is "write_set" because we use
   // Field->store
-  my_bitmap_map *original_bitmap =
-      dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *original_bitmap =
+      dbug_tmp_use_all_columns(table, &table->write_set);
 
   for (Field **ffield = this->table->field; *ffield; ffield++) {
     Field *field = (*ffield);
@@ -1010,7 +1010,7 @@ int tile::mytile::metadata_to_fields(
   }
 
   // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 
@@ -1978,7 +1978,7 @@ void tile::mytile::setup_write() {
 
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
-  my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *original_bitmap = tmp_use_all_columns(table, &table->read_set);
   this->write_buffer_size = tile::sysvars::write_buffer_size(this->ha_thd());
   alloc_buffers(this->write_buffer_size);
   this->record_index = 0;
@@ -1990,7 +1990,7 @@ void tile::mytile::setup_write() {
     buff->validity_buffer_size = 0;
   }
   // Reset bitmap to original
-  tmp_restore_column_map(table->read_set, original_bitmap);
+  tmp_restore_column_map(&table->read_set, original_bitmap);
   DBUG_VOID_RETURN;
 }
 
@@ -2119,7 +2119,7 @@ int tile::mytile::write_row(const uchar *buf) {
   int rc = 0;
   // We must set the bitmap for debug purpose, it is "read_set" because we use
   // Field->val_*
-  my_bitmap_map *original_bitmap = tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *original_bitmap = tmp_use_all_columns(table, &table->read_set);
 
   if (!this->bulk_write) {
     setup_write();
@@ -2130,7 +2130,7 @@ int tile::mytile::write_row(const uchar *buf) {
     if (rc == ERR_WRITE_FLUSH_NEEDED) {
       rc = flush_write();
       // Reset bitmap to original
-      tmp_restore_column_map(table->read_set, original_bitmap);
+      tmp_restore_column_map(&table->read_set, original_bitmap);
       if (rc)
         DBUG_RETURN(rc);
 
@@ -2138,7 +2138,7 @@ int tile::mytile::write_row(const uchar *buf) {
     }
     if (rc) {
       // Reset bitmap to original
-      tmp_restore_column_map(table->read_set, original_bitmap);
+      tmp_restore_column_map(&table->read_set, original_bitmap);
       DBUG_RETURN(rc);
     }
     this->record_index++;
@@ -2160,7 +2160,7 @@ int tile::mytile::write_row(const uchar *buf) {
   }
 
   // Reset bitmap to original
-  tmp_restore_column_map(table->read_set, original_bitmap);
+  tmp_restore_column_map(&table->read_set, original_bitmap);
   DBUG_RETURN(rc);
 }
 
@@ -2530,8 +2530,8 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
 
   // We must set the bitmap for debug purpose, it is "write_set" because we use
   // Field->store
-  my_bitmap_map *original_bitmap =
-      dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *original_bitmap =
+      dbug_tmp_use_all_columns(table, &table->write_set);
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
 
@@ -2539,7 +2539,7 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
 begin:
   if (this->query_complete()) {
     // Reset bitmap to original
-    dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     if (reset)
       index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
@@ -2574,7 +2574,7 @@ begin:
         } else if (this->records == 0 &&
                    status == tiledb::Query::Status::COMPLETE) {
           // Reset bitmap to original
-          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
           if (reset)
             index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
@@ -2614,7 +2614,7 @@ begin:
           // exist in the query
           if (this->records_read == this->record_index) {
             // Reset bitmap to original
-            dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
             if (reset)
               index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
@@ -2625,7 +2625,7 @@ begin:
           // prevent a infinit loop
           if (restarted_scan) {
             // Reset bitmap to original
-            dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+            dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
             if (reset)
               index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
@@ -2655,7 +2655,7 @@ begin:
         // after the non-existent key.
         if (compare_key_to_dims(key, key_len, this->record_index) > 0) {
           // Reset bitmap to original
-          dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
           if (reset)
             index_end();
           DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
@@ -2691,7 +2691,7 @@ begin:
   }
 
   // Reset bitmap to original
-  dbug_tmp_restore_column_map(table->write_set, original_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
   if (reset)
     index_end();
   DBUG_RETURN(rc);

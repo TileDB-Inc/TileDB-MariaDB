@@ -14,14 +14,14 @@ git clone --recurse-submodules https://github.com/MariaDB/server.git -b ${MARIAD
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
 
   if [[ "$AGENT_OS" == "Linux" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.2.7/tiledb-linux-2.2.7-a788ce5-full.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.2.8/tiledb-linux-2.2.8-6e7a5a2-full.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   elif [[ "$AGENT_OS" == "Darwin" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.2.7/tiledb-macos-2.2.7-a788ce5-full.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.2.8/tiledb-macos-2.2.8-6e7a5a2-full.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   else
     mkdir build_deps && cd build_deps \
-    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.2.7 && cd TileDB \
+    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.2.8 && cd TileDB \
     && mkdir -p build && cd build
 
      # Configure and build TileDB

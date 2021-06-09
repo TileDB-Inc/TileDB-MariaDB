@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
 
 ENV MTR_MEM /tmp
 
-ARG TILEDB_VERSION="2.2.8"
+ARG TILEDB_VERSION="2.3.0"
 
 WORKDIR /tmp
 

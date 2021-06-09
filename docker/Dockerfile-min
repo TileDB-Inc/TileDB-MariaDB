@@ -55,7 +55,7 @@ WORKDIR /tmp
 
 ARG MYTILE_VERSION="0.8.1"
 
-ARG TILEDB_VERSION="2.2.8"
+ARG TILEDB_VERSION="2.3.0"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 # Set git config so superbuild of tiledb can cherry-pick capnp fix

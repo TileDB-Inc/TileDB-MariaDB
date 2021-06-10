@@ -794,8 +794,6 @@ int tile::set_time_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                     uint64_t i) {
-  const char *str;
-  tiledb_datatype_to_str(buff->type, &str);
   switch (buff->type) {
   /** 8-bit signed integer */
   case TILEDB_INT8:

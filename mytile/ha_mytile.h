@@ -587,6 +587,9 @@ private:
   // TileDB Query
   std::shared_ptr<tiledb::Query> query;
 
+  // TileDB Query Condition
+  std::shared_ptr<tiledb::QueryCondition> query_condition;
+
   // Current record row
   uint64_t record_index = 0;
 

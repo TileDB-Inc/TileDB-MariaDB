@@ -1,0 +1,65 @@
+#
+# Test attribute query conditions for pushdown of predicates
+#
+CREATE TABLE `test_filter` (
+`id` int dimension=1 `lower_bound`="-10000" `upper_bound`="100000000" tile_extent="1",
+`a1` int not null,
+`a2` int default null,
+`a3` varchar(255) default null,
+`a4` varchar(255) not null,
+PRIMARY KEY(id)
+) ENGINE=MyTile;
+INSERT INTO test_filter VALUES (1, 1, 1, "1", "1"), (2, 2, NULL, NULL, "2"), (3, 300, 300, "abc", "def");
+INSERT INTO test_filter VALUES (1, 1, 10, "beef", "stew"), (2, 100, NULL, "test", "orange"), (3, 300, 400, "def", "beef");
+SELECT * FROM test_filter;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+2	100	NULL	test	orange
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a2 = 1;
+id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a1 = 1;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+SELECT * FROM test_filter WHERE a3 = "1";
+id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a4 = "1";
+id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a2 BETWEEN 1 AND 11;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+SELECT * FROM test_filter WHERE a2 BETWEEN 1 AND 11 AND a3 = "beef";
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+SELECT * FROM test_filter WHERE a3 = "beef" AND a4 = "stew";
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+SELECT * FROM test_filter WHERE a1 != 1;
+id	a1	a2	a3	a4
+2	100	NULL	test	orange
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a1 > 300;
+id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a1 < 300;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+2	100	NULL	test	orange
+SELECT * FROM test_filter WHERE a1 <= 300;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+2	100	NULL	test	orange
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a1 >= 300;
+id	a1	a2	a3	a4
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a2 IS NULL;
+id	a1	a2	a3	a4
+2	100	NULL	test	orange
+SELECT * FROM test_filter WHERE a3 IS NULL;
+id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a2 IS NULL AND a3 IS NOT NULL;
+id	a1	a2	a3	a4
+2	100	NULL	test	orange
+SELECT * FROM test_filter WHERE a2 IS NOT NULL AND a3 IS NULL;
+id	a1	a2	a3	a4
+DROP TABLE test_filter;

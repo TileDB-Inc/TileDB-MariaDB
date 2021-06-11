@@ -549,7 +549,16 @@ int tile::set_range_from_item_datetime(THD *thd,
   case tiledb_datatype_t::TILEDB_DATETIME_NS:
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
-  case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+  case tiledb_datatype_t::TILEDB_DATETIME_AS:
+  case tiledb_datatype_t::TILEDB_TIME_HR:
+  case tiledb_datatype_t::TILEDB_TIME_MIN:
+  case tiledb_datatype_t::TILEDB_TIME_SEC:
+  case tiledb_datatype_t::TILEDB_TIME_MS:
+  case tiledb_datatype_t::TILEDB_TIME_US:
+  case tiledb_datatype_t::TILEDB_TIME_NS:
+  case tiledb_datatype_t::TILEDB_TIME_PS:
+  case tiledb_datatype_t::TILEDB_TIME_FS:
+  case tiledb_datatype_t::TILEDB_TIME_AS: {
     if (lower_const != nullptr) {
       lower_const->get_date(thd, &lower_date, date_mode_t(0));
       lower = MysqlTimeToTileDBTimeVal(thd, lower_date, datatype);
@@ -931,7 +940,16 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
     case tiledb_datatype_t::TILEDB_DATETIME_NS:
     case tiledb_datatype_t::TILEDB_DATETIME_PS:
     case tiledb_datatype_t::TILEDB_DATETIME_FS:
-    case tiledb_datatype_t::TILEDB_DATETIME_AS: {
+    case tiledb_datatype_t::TILEDB_DATETIME_AS:
+    case tiledb_datatype_t::TILEDB_TIME_HR:
+    case tiledb_datatype_t::TILEDB_TIME_MIN:
+    case tiledb_datatype_t::TILEDB_TIME_SEC:
+    case tiledb_datatype_t::TILEDB_TIME_MS:
+    case tiledb_datatype_t::TILEDB_TIME_US:
+    case tiledb_datatype_t::TILEDB_TIME_NS:
+    case tiledb_datatype_t::TILEDB_TIME_PS:
+    case tiledb_datatype_t::TILEDB_TIME_FS:
+    case tiledb_datatype_t::TILEDB_TIME_AS: {
       MYSQL_TIME mysql_time;
       Field *field = key_part_info->field;
 

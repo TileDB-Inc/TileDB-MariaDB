@@ -85,6 +85,16 @@ std::string tile::build_metadata_value_string(THD *thd, const void *data,
   case TILEDB_DATETIME_FS:
   case TILEDB_DATETIME_AS:
     return tile::build_metadata_datetime_value_string(thd, data, num, type);
+  case TILEDB_TIME_HR:
+  case TILEDB_TIME_MIN:
+  case TILEDB_TIME_SEC:
+  case TILEDB_TIME_MS:
+  case TILEDB_TIME_US:
+  case TILEDB_TIME_NS:
+  case TILEDB_TIME_PS:
+  case TILEDB_TIME_FS:
+  case TILEDB_TIME_AS:
+    return tile::build_metadata_time_value_string(thd, data, num, type);
   }
   return "";
 }
@@ -173,6 +183,125 @@ std::string tile::build_metadata_datetime_value_string(THD *thd,
       ss << build_datetime_string(thd, seconds,
                                   (as - (seconds * 1000000000)) / 1000000000000,
                                   MYSQL_TIMESTAMP_DATETIME);
+      break;
+    }
+    default: {
+      const char *type_str = nullptr;
+      tiledb_datatype_to_str(type, &type_str);
+      my_printf_error(
+          ER_UNKNOWN_ERROR,
+          "Unknown or unsupported datatype for converting to string: %s",
+          ME_ERROR_LOG | ME_FATAL, type_str);
+      break;
+    }
+    }
+    ss << METADATA_DELIMITER;
+  }
+  std::string s = ss.str();
+  // We use a substring to remove the last delimiter
+  return s.substr(0, s.length() - 1);
+}
+
+std::string tile::build_metadata_time_value_string(THD *thd, const void *data,
+                                                   uint32_t num,
+                                                   tiledb_datatype_t type) {
+  const int64_t *data_typed = static_cast<const int64_t *>(data);
+  std::stringstream ss;
+  for (uint32_t i = 0; i < num; i++) {
+    const uint64_t value = data_typed[i];
+    MYSQL_TIME to;
+    to.time_type = MYSQL_TIMESTAMP_TIME;
+    switch (type) {
+    case tiledb_datatype_t::TILEDB_TIME_HR: {
+      to.hour = value;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      //        uint64_t seconds = value * (60 * 60);
+      //        ss << build_time_string(thd, seconds, 0, MYSQL_TIMESTAMP_TIME);
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_MIN: {
+      to.minute = value;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      //        uint64_t seconds = value * 60;
+      //        ss << build_time_string(thd, seconds, 0, MYSQL_TIMESTAMP_TIME);
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_SEC: {
+      to.second = value;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      //        uint64_t seconds = value;
+      //        ss << build_time_string(thd, seconds, 0, MYSQL_TIMESTAMP_TIME);
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_MS: {
+      to.second = value / 1000;
+      to.second_part = value - (to.second * 1000);
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_US: {
+      uint64_t us = value;
+      uint64_t seconds = us / 1000000;
+      uint64_t second_part = us - (seconds * 1000000);
+
+      to.second = seconds;
+      to.second_part = second_part;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_NS: {
+      uint64_t ns = value;
+      uint64_t seconds = ns / 1000000000;
+      uint64_t us = (ns - (seconds * 1000000000)) / 1000;
+      to.second = seconds;
+      to.second_part = us;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_PS: {
+      uint64_t ps = value;
+      uint64_t seconds = ps / 1000000000000;
+      uint64_t us = (ps - (seconds * 1000000000)) / 1000000;
+      to.second = seconds;
+      to.second_part = us;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_FS: {
+      uint64_t fs = value;
+      uint64_t seconds = fs / 1000000000000000;
+      uint64_t us = (fs - (seconds * 1000000000)) / 1000000000;
+      to.second = seconds;
+      to.second_part = us;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+      break;
+    }
+    case tiledb_datatype_t::TILEDB_TIME_AS: {
+      uint64_t as = value;
+      uint64_t seconds = as / 1000000000000000000;
+      uint64_t us = (as - (seconds * 1000000000)) / 1000000000000;
+      to.second = seconds;
+      to.second_part = us;
+      char *str = nullptr;
+      my_TIME_to_str(&to, str, 6);
+      ss << str;
+
       break;
     }
     default: {

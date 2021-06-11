@@ -112,6 +112,15 @@ struct BufferSizeByType {
     case TILEDB_DATETIME_PS:
     case TILEDB_DATETIME_FS:
     case TILEDB_DATETIME_AS:
+    case TILEDB_TIME_HR:
+    case TILEDB_TIME_MIN:
+    case TILEDB_TIME_SEC:
+    case TILEDB_TIME_MS:
+    case TILEDB_TIME_US:
+    case TILEDB_TIME_NS:
+    case TILEDB_TIME_PS:
+    case TILEDB_TIME_FS:
+    case TILEDB_TIME_AS:
       return int64_buffer_size;
     default: {
       const char *str;
@@ -332,6 +341,20 @@ bool set_field_null_from_validity(std::shared_ptr<buffer> &buff, Field *field,
 int set_datetime_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                        uint64_t i, uint64_t seconds, uint64_t second_part,
                        enum_mysql_timestamp_type type);
+/**
+ * set field from time type
+ * @param thd
+ * @param field
+ * @param buff
+ * @param i
+ * @param seconds
+ * @param second_part
+ * @param type
+ * @return
+ */
+int set_time_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
+                   uint64_t i, int64_t hours, int64_t minutes, int64_t seconds,
+                   int64_t second_part, enum_mysql_timestamp_type type);
 
 /**
  * Set field from type

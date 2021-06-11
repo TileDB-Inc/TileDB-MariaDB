@@ -103,6 +103,17 @@ std::string build_metadata_datetime_value_string(THD *thd, const void *data,
                                                  tiledb_datatype_t type);
 
 /**
+ * Convert times to csv list of times
+ * @param thd
+ * @param data
+ * @param num
+ * @param type
+ * @return
+ */
+std::string build_metadata_time_value_string(THD *thd, const void *data,
+                                             uint32_t num,
+                                             tiledb_datatype_t type);
+/**
  * Convert datetime to mysql standard string
  * @param thd
  * @param seconds

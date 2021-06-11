@@ -2461,7 +2461,16 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   case TILEDB_DATETIME_NS:
   case TILEDB_DATETIME_PS:
   case TILEDB_DATETIME_FS:
-  case TILEDB_DATETIME_AS: {
+  case TILEDB_DATETIME_AS:
+  case TILEDB_TIME_HR:
+  case TILEDB_TIME_MIN:
+  case TILEDB_TIME_SEC:
+  case TILEDB_TIME_MS:
+  case TILEDB_TIME_US:
+  case TILEDB_TIME_NS:
+  case TILEDB_TIME_PS:
+  case TILEDB_TIME_FS:
+  case TILEDB_TIME_AS: {
     MYSQL_TIME mysql_time;
     Field *field = table->field[dim_idx];
 

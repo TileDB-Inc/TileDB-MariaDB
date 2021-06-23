@@ -259,18 +259,18 @@ column1	column2
 DROP TABLE t1;
 # UNSIGNED INTEGER
 CREATE TABLE t1 (
-column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="65535" tile_extent="1"
+column1 smallint unsigned dimension=1 lower_bound="0" upper_bound="65534" tile_extent="1"
 ) ENGINE=mytile;
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (-1);
 Warnings:
 Warning	1264	Out of range value for column 'column1' at row 1
-INSERT INTO t1 VALUES (65535);
+INSERT INTO t1 VALUES (65534);
 select * FROM t1 ORDER BY column1 ASC;
 column1
 0
 1
-65535
+65534
 DROP TABLE t1;
 # INT and VARCHAR
 CREATE TABLE t1 (

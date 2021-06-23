@@ -59,6 +59,9 @@ typedef struct range_struct {
   tiledb_datatype_t datatype;
   uint64_t lower_value_size;
   uint64_t upper_value_size;
+
+  tiledb::QueryCondition QueryCondition(const tiledb::Context &ctx,
+                                        const std::string &field_name) const;
 } range;
 
 int set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,

@@ -304,6 +304,9 @@ int tile::mytile::close(void) {
     if (this->query != nullptr)
       this->query = nullptr;
 
+    if (this->query_condition != nullptr)
+      this->query_condition = nullptr;
+
     // close array
     if (this->array != nullptr && this->array->is_open())
       this->array->close();
@@ -691,6 +694,11 @@ int tile::mytile::init_scan(THD *thd) {
       }
     }
 
+    // If a query condition on an attribute was set, apply it
+    if (this->query_condition != nullptr) {
+      this->query->set_condition(*this->query_condition);
+    }
+
     if (!this->valid_pushed_ranges() &&
         !this->valid_pushed_in_ranges()) { // No pushdown
       if (this->empty_read)
@@ -1038,6 +1046,7 @@ int tile::mytile::rnd_end() {
   dealloc_buffers();
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
+  this->query_condition = nullptr;
   // Reset indicators
   this->record_index = 0;
   this->records = 0;
@@ -1286,26 +1295,111 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
   if (column_field == nullptr) {
     DBUG_RETURN(func_item);
   }
-  // If the condition is not a dimension we can't handle it
-  if (!this->array_schema->domain().has_dimension(
-          column_field->field_name.str)) {
-    DBUG_RETURN(func_item);
-  }
+
+  // If the condition is not a dimension we must build a query_condition
+  bool use_query_condition = false;
 
   uint64_t dim_idx = 0;
-  tiledb_datatype_t dim_type = tiledb_datatype_t::TILEDB_ANY;
+  tiledb_datatype_t datatype = tiledb_datatype_t::TILEDB_ANY;
 
-  auto dims = this->array_schema->domain().dimensions();
-  for (uint64_t j = 0; j < this->ndim; j++) {
-    if (dims[j].name() == column_field->field_name.str) {
-      dim_idx = j;
-      dim_type = dims[j].type();
+  // Check attributes
+  bool nullable = false;
+  if (this->array_schema->has_attribute(column_field->field_name.str)) {
+
+    // Dense arrays do not support query conditions
+    if (this->array_schema->array_type() == TILEDB_DENSE)
+      DBUG_RETURN(func_item);
+
+    auto attr = this->array_schema->attribute(column_field->field_name.str);
+    datatype = attr.type();
+    nullable = attr.nullable();
+
+    if (!attr.variable_sized() ||
+        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII))
+      use_query_condition = true;
+  } else {
+    // Check dimensions
+    auto dims = this->array_schema->domain().dimensions();
+    for (uint64_t j = 0; j < this->ndim; j++) {
+      if (dims[j].name() == column_field->field_name.str) {
+        dim_idx = j;
+        datatype = dims[j].type();
+      }
     }
   }
 
   switch (func_item->functype()) {
-  case Item_func::NE_FUNC:
-    DBUG_RETURN(func_item); /* Not equal is not supported */
+  case Item_func::ISNULL_FUNC: {
+    if (!use_query_condition || !nullable)
+      DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
+
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
+      this->query_condition->init(column_field->field_name.str, nullptr, 0,
+                                  TILEDB_EQ);
+    } else {
+      tiledb::QueryCondition null_qc(ctx);
+      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
+      tiledb::QueryCondition qc =
+          this->query_condition->combine(null_qc, TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+    break;
+  }
+  case Item_func::ISNOTNULL_FUNC: {
+    if (!use_query_condition || !nullable)
+      DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
+
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
+      this->query_condition->init(column_field->field_name.str, nullptr, 0,
+                                  TILEDB_NE);
+    } else {
+      tiledb::QueryCondition null_qc(ctx);
+      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
+      tiledb::QueryCondition qc =
+          this->query_condition->combine(null_qc, TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+    break;
+  }
+  case Item_func::NE_FUNC: {
+    if (!use_query_condition)
+      DBUG_RETURN(func_item); /* Not equal is not supported for ranges */
+
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    if (TileDBDateTimeType(datatype)) {
+      cmp_type = TIME_RESULT;
+    }
+
+    int ret = set_range_from_item_datetime(
+        ha_thd(), dynamic_cast<Item_cache_datetime *>(args[1]),
+        dynamic_cast<Item_cache_datetime *>(args[1]), cmp_type, range,
+        datatype);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // If this is an attribute add it to the query condition
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
+    } else {
+      tiledb::QueryCondition qc = this->query_condition->combine(
+          range->QueryCondition(ctx, column_field->field_name.str), TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+
+    break;
+  }
     // In is special because we need to do a tiledb range per argument and treat
     // it as OR not AND
   case Item_func::IN_FUNC:
@@ -1326,19 +1420,32 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
 
-      if (TileDBDateTimeType(dim_type)) {
+      if (TileDBDateTimeType(datatype)) {
         cmp_type = TIME_RESULT;
       }
 
       int ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
-                                             cmp_type, range, dim_type);
+                                             cmp_type, range, datatype);
 
       if (ret)
         DBUG_RETURN(func_item);
 
-      // Add the range to the pushdown in ranges
-      auto &range_vec = this->pushdown_in_ranges[dim_idx];
-      range_vec.push_back(std::move(range));
+      // If this is an attribute add it to the query condition
+      if (use_query_condition) {
+        if (this->query_condition == nullptr) {
+          this->query_condition = std::make_shared<tiledb::QueryCondition>(
+              range->QueryCondition(ctx, column_field->field_name.str));
+        } else {
+          tiledb::QueryCondition qc = this->query_condition->combine(
+              range->QueryCondition(ctx, column_field->field_name.str),
+              TILEDB_AND);
+          this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+        }
+      } else {
+        // Add the range to the pushdown in ranges
+        auto &range_vec = this->pushdown_in_ranges[dim_idx];
+        range_vec.push_back(std::move(range));
+      }
     }
 
     break;
@@ -1353,21 +1460,34 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    if (TileDBDateTimeType(dim_type)) {
+    if (TileDBDateTimeType(datatype)) {
       cmp_type = TIME_RESULT;
     }
 
     int ret = set_range_from_item_datetime(
         ha_thd(), dynamic_cast<Item_cache_datetime *>(args[1]),
         dynamic_cast<Item_cache_datetime *>(args[1]), cmp_type, range,
-        dim_type);
+        datatype);
 
     if (ret)
       DBUG_RETURN(func_item);
 
-    // Add the range to the pushdown ranges
-    auto &range_vec = this->pushdown_ranges[dim_idx];
-    range_vec.push_back(std::move(range));
+    // If this is an attribute add it to the query condition
+    if (use_query_condition) {
+      if (this->query_condition == nullptr) {
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(
+            range->QueryCondition(ctx, column_field->field_name.str));
+      } else {
+        tiledb::QueryCondition qc = this->query_condition->combine(
+            range->QueryCondition(ctx, column_field->field_name.str),
+            TILEDB_AND);
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+      }
+    } else {
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
 
     break;
   }
@@ -1388,7 +1508,7 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    if (TileDBDateTimeType(dim_type)) {
+    if (TileDBDateTimeType(datatype)) {
       cmp_type = TIME_RESULT;
     }
 
@@ -1413,14 +1533,27 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
     int ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
-                                           cmp_type, range, dim_type);
+                                           cmp_type, range, datatype);
 
     if (ret)
       DBUG_RETURN(func_item);
 
-    // Add the range to the pushdown ranges
-    auto &range_vec = this->pushdown_ranges[dim_idx];
-    range_vec.push_back(std::move(range));
+    // If this is an attribute add it to the query condition
+    if (use_query_condition) {
+      if (this->query_condition == nullptr) {
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(
+            range->QueryCondition(ctx, column_field->field_name.str));
+      } else {
+        tiledb::QueryCondition qc = this->query_condition->combine(
+            range->QueryCondition(ctx, column_field->field_name.str),
+            TILEDB_AND);
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+      }
+    } else {
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
 
     break;
   }
@@ -1429,6 +1562,7 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
   } // endswitch functype
   DBUG_RETURN(nullptr);
 }
+
 const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
@@ -1441,26 +1575,110 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
   if (column_field == nullptr) {
     DBUG_RETURN(func_item);
   }
-  // If the condition is not a dimension we can't handle it
-  if (!this->array_schema->domain().has_dimension(
-          column_field->field_name.str)) {
-    DBUG_RETURN(func_item);
-  }
+
+  // If the condition is not a dimension we must build a query_condition
+  bool use_query_condition = false;
 
   uint64_t dim_idx = 0;
-  tiledb_datatype_t dim_type = tiledb_datatype_t::TILEDB_ANY;
+  tiledb_datatype_t datatype = tiledb_datatype_t::TILEDB_ANY;
 
-  auto dims = this->array_schema->domain().dimensions();
-  for (uint64_t j = 0; j < this->ndim; j++) {
-    if (dims[j].name() == column_field->field_name.str) {
-      dim_idx = j;
-      dim_type = dims[j].type();
+  // Check attributes
+  bool nullable = false;
+  if (this->array_schema->has_attribute(column_field->field_name.str)) {
+
+    // Dense arrays do not support query conditions
+    if (this->array_schema->array_type() == TILEDB_DENSE)
+      DBUG_RETURN(func_item);
+
+    auto attr = this->array_schema->attribute(column_field->field_name.str);
+    datatype = attr.type();
+    nullable = attr.nullable();
+
+    if (!attr.variable_sized() ||
+        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII))
+      use_query_condition = true;
+  } else {
+    auto dims = this->array_schema->domain().dimensions();
+    for (uint64_t j = 0; j < this->ndim; j++) {
+      if (dims[j].name() == column_field->field_name.str) {
+        dim_idx = j;
+        datatype = dims[j].type();
+      }
     }
   }
 
   switch (func_item->functype()) {
-  case Item_func::NE_FUNC:
-    DBUG_RETURN(func_item); /* Not equal is not supported */
+  case Item_func::ISNULL_FUNC: {
+    if (!use_query_condition || !nullable)
+      DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
+
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
+      this->query_condition->init(column_field->field_name.str, nullptr, 0,
+                                  TILEDB_EQ);
+    } else {
+      tiledb::QueryCondition null_qc(ctx);
+      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
+      tiledb::QueryCondition qc =
+          this->query_condition->combine(null_qc, TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+    break;
+  }
+  case Item_func::ISNOTNULL_FUNC: {
+    if (!use_query_condition || !nullable)
+      DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
+
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
+      this->query_condition->init(column_field->field_name.str, nullptr, 0,
+                                  TILEDB_NE);
+    } else {
+      tiledb::QueryCondition null_qc(ctx);
+      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
+      tiledb::QueryCondition qc =
+          this->query_condition->combine(null_qc, TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+    break;
+  }
+  case Item_func::NE_FUNC: {
+    if (!use_query_condition)
+      DBUG_RETURN(func_item); /* Not equal is not supported for ranges*/
+
+    // Create unique ptrs
+    std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+        func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+    // Get field type for comparison
+    Item_result cmp_type = args[1]->cmp_type();
+
+    if (TileDBDateTimeType(datatype)) {
+      cmp_type = TIME_RESULT;
+    }
+
+    int ret = set_range_from_item_consts(
+        ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
+        dynamic_cast<Item_basic_constant *>(args[1]), cmp_type, range,
+        datatype);
+
+    if (ret)
+      DBUG_RETURN(func_item);
+
+    // If this is an attribute add it to the query condition
+    if (this->query_condition == nullptr) {
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
+    } else {
+      tiledb::QueryCondition qc = this->query_condition->combine(
+          range->QueryCondition(ctx, column_field->field_name.str), TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+    }
+
+    break;
+  }
     // In is special because we need to do a tiledb range per argument and treat
     // it as OR not AND
   case Item_func::IN_FUNC:
@@ -1481,19 +1699,32 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       // Get field type for comparison
       Item_result cmp_type = args[i]->cmp_type();
 
-      if (TileDBDateTimeType(dim_type)) {
+      if (TileDBDateTimeType(datatype)) {
         cmp_type = TIME_RESULT;
       }
 
       int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const,
-                                           cmp_type, range, dim_type);
+                                           cmp_type, range, datatype);
 
       if (ret)
         DBUG_RETURN(func_item);
 
-      // Add the range to the pushdown in ranges
-      auto &range_vec = this->pushdown_in_ranges[dim_idx];
-      range_vec.push_back(std::move(range));
+      // If this is an attribute add it to the query condition
+      if (use_query_condition) {
+        if (this->query_condition == nullptr) {
+          this->query_condition = std::make_shared<tiledb::QueryCondition>(
+              range->QueryCondition(ctx, column_field->field_name.str));
+        } else {
+          tiledb::QueryCondition qc = this->query_condition->combine(
+              range->QueryCondition(ctx, column_field->field_name.str),
+              TILEDB_AND);
+          this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+        }
+      } else {
+        // Add the range to the pushdown in ranges
+        auto &range_vec = this->pushdown_in_ranges[dim_idx];
+        range_vec.push_back(std::move(range));
+      }
     }
 
     break;
@@ -1508,21 +1739,34 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    if (TileDBDateTimeType(dim_type)) {
+    if (TileDBDateTimeType(datatype)) {
       cmp_type = TIME_RESULT;
     }
 
     int ret = set_range_from_item_consts(
         ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
         dynamic_cast<Item_basic_constant *>(args[1]), cmp_type, range,
-        dim_type);
+        datatype);
 
     if (ret)
       DBUG_RETURN(func_item);
 
-    // Add the range to the pushdown ranges
-    auto &range_vec = this->pushdown_ranges[dim_idx];
-    range_vec.push_back(std::move(range));
+    // If this is an attribute add it to the query condition
+    if (use_query_condition) {
+      if (this->query_condition == nullptr) {
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(
+            range->QueryCondition(ctx, column_field->field_name.str));
+      } else {
+        tiledb::QueryCondition qc = this->query_condition->combine(
+            range->QueryCondition(ctx, column_field->field_name.str),
+            TILEDB_AND);
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+      }
+    } else {
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
 
     break;
   }
@@ -1543,7 +1787,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
 
-    if (TileDBDateTimeType(dim_type)) {
+    if (TileDBDateTimeType(datatype)) {
       cmp_type = TIME_RESULT;
     }
 
@@ -1568,14 +1812,27 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
     int ret = set_range_from_item_consts(ha_thd(), lower_const, upper_const,
-                                         cmp_type, range, dim_type);
+                                         cmp_type, range, datatype);
 
     if (ret)
       DBUG_RETURN(func_item);
 
-    // Add the range to the pushdown ranges
-    auto &range_vec = this->pushdown_ranges[dim_idx];
-    range_vec.push_back(std::move(range));
+    // If this is an attribute add it to the query condition
+    if (use_query_condition) {
+      if (this->query_condition == nullptr) {
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(
+            range->QueryCondition(ctx, column_field->field_name.str));
+      } else {
+        tiledb::QueryCondition qc = this->query_condition->combine(
+            range->QueryCondition(ctx, column_field->field_name.str),
+            TILEDB_AND);
+        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
+      }
+    } else {
+      // Add the range to the pushdown in ranges
+      auto &range_vec = this->pushdown_ranges[dim_idx];
+      range_vec.push_back(std::move(range));
+    }
 
     break;
   }

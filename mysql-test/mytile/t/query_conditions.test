@@ -1,0 +1,34 @@
+--echo #
+--echo # Test attribute query conditions for pushdown of predicates
+--echo #
+
+CREATE TABLE `test_filter` (
+  `id` int dimension=1 `lower_bound`="-10000" `upper_bound`="100000000" tile_extent="1",
+  `a1` int not null,
+  `a2` int default null,
+  `a3` varchar(255) default null,
+  `a4` varchar(255) not null,
+  PRIMARY KEY(id)
+) ENGINE=MyTile;
+
+INSERT INTO test_filter VALUES (1, 1, 1, "1", "1"), (2, 2, NULL, NULL, "2"), (3, 300, 300, "abc", "def");
+INSERT INTO test_filter VALUES (1, 1, 10, "beef", "stew"), (2, 100, NULL, "test", "orange"), (3, 300, 400, "def", "beef");
+SELECT * FROM test_filter;
+SELECT * FROM test_filter WHERE a2 = 1;
+SELECT * FROM test_filter WHERE a1 = 1;
+SELECT * FROM test_filter WHERE a3 = "1";
+SELECT * FROM test_filter WHERE a4 = "1";
+SELECT * FROM test_filter WHERE a2 BETWEEN 1 AND 11;
+SELECT * FROM test_filter WHERE a2 BETWEEN 1 AND 11 AND a3 = "beef";
+SELECT * FROM test_filter WHERE a3 = "beef" AND a4 = "stew";
+SELECT * FROM test_filter WHERE a1 != 1;
+SELECT * FROM test_filter WHERE a1 > 300;
+SELECT * FROM test_filter WHERE a1 < 300;
+SELECT * FROM test_filter WHERE a1 <= 300;
+SELECT * FROM test_filter WHERE a1 >= 300;
+SELECT * FROM test_filter WHERE a2 IS NULL;
+SELECT * FROM test_filter WHERE a3 IS NULL;
+SELECT * FROM test_filter WHERE a2 IS NULL AND a3 IS NOT NULL;
+SELECT * FROM test_filter WHERE a2 IS NOT NULL AND a3 IS NULL;
+
+DROP TABLE test_filter;

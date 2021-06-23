@@ -1181,3 +1181,57 @@ int8_t tile::compare_typed_buffers(const void *lhs, const void *rhs,
 
   return 0;
 }
+
+tiledb::QueryCondition
+tile::range::QueryCondition(const tiledb::Context &ctx,
+                            const std::string &field_name) const {
+  tiledb::QueryCondition query_condition(ctx);
+  switch (this->operation_type) {
+  case Item_func::EQ_FUNC:
+  case Item_func::EQUAL_FUNC:
+    query_condition.init(field_name, lower_value.get(), lower_value_size,
+                         TILEDB_EQ);
+    break;
+  case Item_func::NE_FUNC:
+    query_condition.init(field_name, lower_value.get(), lower_value_size,
+                         TILEDB_NE);
+    break;
+  case Item_func::LT_FUNC:
+    query_condition.init(field_name, upper_value.get(), upper_value_size,
+                         TILEDB_LT);
+    break;
+  case Item_func::LE_FUNC:
+    query_condition.init(field_name, upper_value.get(), upper_value_size,
+                         TILEDB_LE);
+    break;
+  case Item_func::GE_FUNC:
+    query_condition.init(field_name, lower_value.get(), lower_value_size,
+                         TILEDB_GE);
+    break;
+  case Item_func::GT_FUNC:
+    query_condition.init(field_name, lower_value.get(), lower_value_size,
+                         TILEDB_GT);
+    break;
+  case Item_func::ISNULL_FUNC:
+    query_condition.init(field_name, nullptr, 0, TILEDB_EQ);
+    break;
+  case Item_func::ISNOTNULL_FUNC:
+    query_condition.init(field_name, nullptr, 0, TILEDB_NE);
+    break;
+  case Item_func::BETWEEN: {
+    tiledb::QueryCondition lhs(ctx);
+    tiledb::QueryCondition rhs(ctx);
+
+    lhs.init(field_name, lower_value.get(), lower_value_size, TILEDB_GE);
+    rhs.init(field_name, upper_value.get(), upper_value_size, TILEDB_LE);
+
+    query_condition = lhs.combine(rhs, TILEDB_AND);
+    break;
+  }
+  default:
+    // TODO: Hanld other funcs
+    break;
+  }
+
+  return query_condition;
+}

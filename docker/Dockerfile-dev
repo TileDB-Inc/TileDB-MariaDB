@@ -46,11 +46,14 @@ RUN apt-get update && apt-get install -y \
   git \
   wget \
   libcurl4-openssl-dev \
+  libcurl4 \
   && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM /tmp
 
 ARG TILEDB_VERSION="2.3.1"
+ARG TILEDB_VERSION_SHORT_SHA="6d36169"
+ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 WORKDIR /tmp
 
@@ -58,22 +61,12 @@ WORKDIR /tmp
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.0 release
-RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
- && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=ON -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
- && make -j$(nproc) \
- && make -C tiledb install \
- && cd /tmp && rm -r build_deps
+# Install tiledb using 2.3 release
+RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+ && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
+ && rm  ${TILEDB_PREBUILT_FILE}}
 
-# Install curl after building tiledb
-RUN apt-get update && apt-get install -y \
-  libcurl4 \
-  libcurl4-openssl-dev \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV MARIADB_VERSION="mariadb-10.4.18"
+ENV MARIADB_VERSION="mariadb-10.4.20"
 
 ADD . /tmp/mytile
 

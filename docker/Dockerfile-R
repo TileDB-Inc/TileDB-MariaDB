@@ -48,6 +48,8 @@ RUN apt-get update && apt-get install -y \
   libcurl4-openssl-dev \
   software-properties-common \
   dirmngr \
+  libcurl4 \
+  libcurl4-openssl-dev \
   && add-apt-repository --yes "ppa:marutter/rrutter4.0" \
   && add-apt-repository --yes "ppa:c2d4u.team/c2d4u4.0+" \
   && apt-get install -y --no-install-recommends \
@@ -68,11 +70,13 @@ ENV MTR_MEM /tmp
 
 WORKDIR /tmp
 
-ENV MARIADB_VERSION="mariadb-10.4.18"
+ENV MARIADB_VERSION="mariadb-10.4.20"
 
 ARG MYTILE_VERSION="0.8.1"
 
 ARG TILEDB_VERSION="2.3.1"
+ARG TILEDB_VERSION_SHORT_SHA="6d36169"
+ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # Download mytile release
 RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
@@ -89,26 +93,16 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using ${TILEDB_VERSION} release
-RUN mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
- && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
- && make -j$(nproc) \
- && make -C tiledb install \
- && cd /tmp && rm -r build_deps
+# Install tiledb using 2.3 release
+RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+ && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
+ && rm  ${TILEDB_PREBUILT_FILE}
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
-
-# Install curl after building tiledb
-RUN apt-get update && apt-get install -y \
-  libcurl4 \
-  libcurl4-openssl-dev \
-  && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

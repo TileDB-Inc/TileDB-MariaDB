@@ -46,16 +46,19 @@ RUN apt-get update \
  git \
  wget \
  libcurl4-openssl-dev \
+ libcurl4 \
  && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM=/tmp \
- MARIADB_VERSION="mariadb-10.4.18"
+ MARIADB_VERSION="mariadb-10.4.20"
 
 WORKDIR /tmp
 
-ARG MYTILE_VERSION="0.8.1"
+ARG MYTILE_VERSION="0.9.1"
 
 ARG TILEDB_VERSION="2.3.1"
+ARG TILEDB_VERSION_SHORT_SHA="6d36169"
+ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
 # Set git config so superbuild of tiledb can cherry-pick capnp fix
@@ -63,28 +66,30 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
  && git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.0 release
+RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
+ && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
+ && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
+
+# Copy example arrays to opt
+RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
+
+# Install tiledb using 2.3 release
+RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+ && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
+ && rm  ${TILEDB_PREBUILT_FILE}
+
 # TODO change branch after release cut
-RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b master mytile \
- && mkdir build_deps && cd build_deps \
- && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
- && mkdir -p build && cd build \
- && cmake -DTILEDB_VERBOSE=OFF -DTILEDB_S3=ON -DTILEDB_AZURE=ON -DTILEDB_GCS=ON -DTILEDB_SERIALIZATION=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr .. \
- && make -j$(nproc) \
- && make -C tiledb install \
- && cd /tmp \
- && rm -rf build_deps
+#RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b ${MYTILE_VERSION} mytile \
+# && mkdir build_deps && cd build_deps \
+# && make -j$(nproc) \
+# && make -C tiledb install \
+# && cd /tmp \
+# && rm -rf build_deps
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/setup-mariadb.sh /usr/local/bin/setup-mariadb.sh \
  && cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
-
-# Install curl after building tiledb
-RUN apt-get update && apt-get install -y \
- libcurl4 \
- libcurl4-openssl-dev \
- && rm -rf /var/lib/apt/lists/*
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
  && tar xf ${MARIADB_VERSION}.tar.gz \

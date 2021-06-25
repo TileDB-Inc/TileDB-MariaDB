@@ -107,7 +107,9 @@ RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${
 FROM ubuntu:20.04
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /usr/bin/killall /usr/bin/killall
+COPY --from=builder /usr/include/tiledb /usr/include/tiledb
 COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=builder /usr/lib/libtiledb.so* /usr/lib/
 COPY --from=builder /opt/server /opt/server
 COPY --from=builder /opt/tiledb_arrays /opt/tiledb_arrays
 COPY --from=builder /etc /etc

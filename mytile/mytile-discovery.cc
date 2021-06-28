@@ -191,6 +191,8 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       table_options << " cell_order=ROW_MAJOR";
     } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
       table_options << " cell_order=COLUMN_MAJOR";
+    } else if (schema->cell_order() == tiledb_layout_t::TILEDB_HILBERT) {
+      table_options << " cell_order=HILBERT";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->cell_order(), &layout);
@@ -198,15 +200,18 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
-    if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
-      table_options << " tile_order=ROW_MAJOR";
-    } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " tile_order=COLUMN_MAJOR";
-    } else {
-      const char *layout;
-      tiledb_layout_to_str(schema->tile_order(), &layout);
-      throw tiledb::TileDBError(
-          std::string("Unknown or Unsupported cell order %s") + layout);
+    // If the cell order is hilbert than we ignore tile_order
+    if (schema->cell_order() != tiledb_layout_t::TILEDB_HILBERT) {
+      if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+        table_options << " tile_order=ROW_MAJOR";
+      } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+        table_options << " tile_order=COLUMN_MAJOR";
+      } else {
+        const char *layout;
+        tiledb_layout_to_str(schema->tile_order(), &layout);
+        throw tiledb::TileDBError(
+            std::string("Unknown or Unsupported cell order %s") + layout);
+      }
     }
 
     // Check for open_at
@@ -409,6 +414,8 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
       table_options << " cell_order=ROW_MAJOR";
     } else if (schema->cell_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
       table_options << " cell_order=COLUMN_MAJOR";
+    } else if (schema->cell_order() == tiledb_layout_t::TILEDB_HILBERT) {
+      table_options << " cell_order=HILBERT";
     } else {
       const char *layout;
       tiledb_layout_to_str(schema->cell_order(), &layout);
@@ -416,15 +423,18 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
           std::string("Unknown or Unsupported cell order %s") + layout);
     }
 
-    if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
-      table_options << " tile_order=ROW_MAJOR";
-    } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
-      table_options << " tile_order=COLUMN_MAJOR";
-    } else {
-      const char *layout;
-      tiledb_layout_to_str(schema->tile_order(), &layout);
-      throw tiledb::TileDBError(
-          std::string("Unknown or Unsupported cell order %s") + layout);
+    // If the cell order is hilbert than we ignore tile_order
+    if (schema->cell_order() != tiledb_layout_t::TILEDB_HILBERT) {
+      if (schema->tile_order() == tiledb_layout_t::TILEDB_ROW_MAJOR) {
+        table_options << " tile_order=ROW_MAJOR";
+      } else if (schema->tile_order() == tiledb_layout_t::TILEDB_COL_MAJOR) {
+        table_options << " tile_order=COLUMN_MAJOR";
+      } else {
+        const char *layout;
+        tiledb_layout_to_str(schema->tile_order(), &layout);
+        throw tiledb::TileDBError(
+            std::string("Unknown or Unsupported cell order %s") + layout);
+      }
     }
 
     // Check for open_at

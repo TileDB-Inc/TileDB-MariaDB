@@ -62,7 +62,7 @@ ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
     HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", 1),
     HA_TOPTION_NUMBER("capacity", capacity, 10000, 0, UINT64_MAX, 1),
-    HA_TOPTION_ENUM("cell_order", cell_order, "ROW_MAJOR,COLUMN_MAJOR",
+    HA_TOPTION_ENUM("cell_order", cell_order, "ROW_MAJOR,COLUMN_MAJOR,HILBERT",
                     TILEDB_ROW_MAJOR),
     HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
                     TILEDB_ROW_MAJOR),
@@ -557,13 +557,17 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       schema->set_cell_order(TILEDB_ROW_MAJOR);
     } else if (create_info->option_struct->cell_order == 1) {
       schema->set_cell_order(TILEDB_COL_MAJOR);
+    } else if (create_info->option_struct->cell_order == 2) {
+      schema->set_cell_order(TILEDB_HILBERT);
     }
 
-    // Set tile ordering if configured
-    if (create_info->option_struct->tile_order == 0) {
-      schema->set_tile_order(TILEDB_ROW_MAJOR);
-    } else if (create_info->option_struct->tile_order == 1) {
-      schema->set_tile_order(TILEDB_COL_MAJOR);
+    // Set tile ordering if configured and not HILBERT cell order
+    if (create_info->option_struct->cell_order == 2) {
+      if (create_info->option_struct->tile_order == 0) {
+        schema->set_tile_order(TILEDB_ROW_MAJOR);
+      } else if (create_info->option_struct->tile_order == 1) {
+        schema->set_tile_order(TILEDB_COL_MAJOR);
+      }
     }
 
     // Check array schema

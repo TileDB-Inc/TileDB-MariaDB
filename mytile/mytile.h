@@ -17,8 +17,8 @@ struct ha_table_option_struct {
   const char *array_uri;
   ulonglong capacity;
   uint array_type;
-  ulonglong cell_order;
-  ulonglong tile_order;
+  uint cell_order;
+  uint tile_order;
   ulonglong open_at;
   const char *encryption_key;
   const char *coordinate_filters;

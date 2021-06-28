@@ -60,12 +60,12 @@ handlerton *mytile_hton;
 // Structure for table options
 ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("uri", array_uri),
-    HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", 1),
     HA_TOPTION_NUMBER("capacity", capacity, 10000, 0, UINT64_MAX, 1),
+    HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", 1),
     HA_TOPTION_ENUM("cell_order", cell_order, "ROW_MAJOR,COLUMN_MAJOR,HILBERT",
-                    TILEDB_ROW_MAJOR),
+                    0),
     HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
-                    TILEDB_ROW_MAJOR),
+                    0),
     HA_TOPTION_NUMBER("open_at", open_at, UINT64_MAX, 0, UINT64_MAX, 1),
     HA_TOPTION_STRING("encryption_key", encryption_key),
     HA_TOPTION_STRING("coordinate_filters", coordinate_filters),

@@ -1,0 +1,24 @@
+--echo #
+--echo # The purpose of this test is to create and read from hilbert ordered arrays
+--echo #
+
+--echo # VARCHAR Dimension
+CREATE TABLE t1 (
+  dim1 varchar(255) dimension=1,
+  attr1 integer
+) ENGINE=mytile cell_order='HILBERT';
+INSERT INTO t1 VALUES ("a", 1);
+INSERT INTO t1 VALUES ("b", 2);
+INSERT INTO t1 VALUES ("c", 3);
+INSERT INTO t1 VALUES ("d", 4);
+INSERT INTO t1 VALUES ("e", 5), ("f", 6), ("g", 7), ("h", 8);
+select * FROM t1;
+DROP TABLE t1;
+
+--echo # Test pre-existing array with hilbert
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE quickstart_sparse_hilbert ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/2.3/quickstart_sparse_hilbert';
+select * from quickstart_sparse_hilbert;
+set mytile_delete_arrays=0;
+DROP TABLE `quickstart_sparse_hilbert`;
+set mytile_delete_arrays=1;

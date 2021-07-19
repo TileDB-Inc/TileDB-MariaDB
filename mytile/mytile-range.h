@@ -928,6 +928,7 @@ int set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
   switch (cmp_type) {
     // TILED does not support string dimensions
   case STRING_RESULT: {
+    range->datatype = tiledb_datatype_t::TILEDB_STRING_ASCII;
     char buff[256];
     String *res, tmp(buff, sizeof(buff), &my_charset_bin);
     res = lower_const->val_str(&tmp);

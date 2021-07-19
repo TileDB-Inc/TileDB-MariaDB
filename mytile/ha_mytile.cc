@@ -64,8 +64,7 @@ ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_ENUM("array_type", array_type, "DENSE,SPARSE", 1),
     HA_TOPTION_ENUM("cell_order", cell_order, "ROW_MAJOR,COLUMN_MAJOR,HILBERT",
                     0),
-    HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR",
-                    0),
+    HA_TOPTION_ENUM("tile_order", tile_order, "ROW_MAJOR,COLUMN_MAJOR", 0),
     HA_TOPTION_NUMBER("open_at", open_at, UINT64_MAX, 0, UINT64_MAX, 1),
     HA_TOPTION_STRING("encryption_key", encryption_key),
     HA_TOPTION_STRING("coordinate_filters", coordinate_filters),
@@ -1300,6 +1299,15 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     DBUG_RETURN(func_item);
   }
 
+  // If the arguments are not constants, we must bail
+  // We should add support at some point for handling functions (i.e.
+  // date_dimension = current_date())
+  for (uint i = 1; i < func_item->argument_count(); i++) {
+    if (args[i]->type() != Item::CONST_ITEM) {
+      DBUG_RETURN(func_item);
+    }
+  }
+
   // If the condition is not a dimension we must build a query_condition
   bool use_query_condition = false;
 
@@ -1319,8 +1327,12 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     nullable = attr.nullable();
 
     if (!attr.variable_sized() ||
-        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII))
+        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII)) {
       use_query_condition = true;
+    } else {
+      // If we can't use query condition let MariaDB filter the attribute
+      DBUG_RETURN(func_item);
+    }
   } else {
     // Check dimensions
     auto dims = this->array_schema->domain().dimensions();
@@ -1436,7 +1448,10 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
 
       // If this is an attribute add it to the query condition
       if (use_query_condition) {
-        if (this->query_condition == nullptr) {
+        // IN clauses are not supported
+        // When they are uncomment below
+        DBUG_RETURN(func_item);
+        /*if (this->query_condition == nullptr) {
           this->query_condition = std::make_shared<tiledb::QueryCondition>(
               range->QueryCondition(ctx, column_field->field_name.str));
         } else {
@@ -1444,7 +1459,7 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
               range->QueryCondition(ctx, column_field->field_name.str),
               TILEDB_AND);
           this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-        }
+        }*/
       } else {
         // Add the range to the pushdown in ranges
         auto &range_vec = this->pushdown_in_ranges[dim_idx];
@@ -1580,6 +1595,15 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     DBUG_RETURN(func_item);
   }
 
+  // If the arguments are not constants, we must bail
+  // We should add support at some point for handling functions (i.e.
+  // date_dimension = current_date())
+  for (uint i = 1; i < func_item->argument_count(); i++) {
+    if (args[i]->type() != Item::CONST_ITEM) {
+      DBUG_RETURN(func_item);
+    }
+  }
+
   // If the condition is not a dimension we must build a query_condition
   bool use_query_condition = false;
 
@@ -1599,8 +1623,13 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     nullable = attr.nullable();
 
     if (!attr.variable_sized() ||
-        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII))
+        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII)) {
       use_query_condition = true;
+    } else {
+      // If we can't use query condition let MariaDB filter the attribute
+      DBUG_RETURN(func_item);
+    }
+
   } else {
     auto dims = this->array_schema->domain().dimensions();
     for (uint64_t j = 0; j < this->ndim; j++) {
@@ -1690,7 +1719,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     for (uint i = 1; i < func_item->argument_count(); i++) {
       Item_basic_constant *lower_const =
           dynamic_cast<Item_basic_constant *>(args[i]);
-      // Init upper to be same becase for in clauses this is required
+      // Init upper to be same because for in clauses this is required
       Item_basic_constant *upper_const =
           dynamic_cast<Item_basic_constant *>(args[i]);
 
@@ -1715,7 +1744,10 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
 
       // If this is an attribute add it to the query condition
       if (use_query_condition) {
-        if (this->query_condition == nullptr) {
+        // IN clauses are not supported
+        // When they are uncomment below
+        DBUG_RETURN(func_item);
+        /*if (this->query_condition == nullptr) {
           this->query_condition = std::make_shared<tiledb::QueryCondition>(
               range->QueryCondition(ctx, column_field->field_name.str));
         } else {
@@ -1723,7 +1755,7 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
               range->QueryCondition(ctx, column_field->field_name.str),
               TILEDB_AND);
           this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-        }
+        }*/
       } else {
         // Add the range to the pushdown in ranges
         auto &range_vec = this->pushdown_in_ranges[dim_idx];

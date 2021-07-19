@@ -487,6 +487,11 @@ int tile::set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
     tile::set_range_from_item_consts<uint64_t>(thd, lower_const, upper_const,
                                                cmp_type, range, datatype);
     break;
+  case tiledb_datatype_t::TILEDB_CHAR:
+  case tiledb_datatype_t::TILEDB_STRING_ASCII:
+    tile::set_range_from_item_consts<char>(thd, lower_const, upper_const,
+                                           cmp_type, range, datatype);
+    break;
   default: {
     DBUG_RETURN(1);
   }

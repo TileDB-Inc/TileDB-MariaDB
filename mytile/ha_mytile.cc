@@ -469,6 +469,18 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
         Field *field = key_info.key_part[i].field;
         primaryKeyParts[field->field_name.str] = true;
+
+        try {
+          std::cout << table_arg->s->table_name.str << " - " << field->field_name.str << std::endl;
+          domain.add_dimension(create_field_dimension(context, field));
+        } catch (const std::exception &e) {
+          // Log errors
+          my_printf_error(
+              ER_UNKNOWN_ERROR,
+              "[create_array] error creating dimension for table %s : %s",
+              ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+          DBUG_RETURN(ERR_CREATE_DIM_OTHER);
+        }
       }
     }
 
@@ -478,15 +490,18 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Create attributes or dimensions
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
+      // Keys are created above
+      if (primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
+        continue;
+      }
+
       bool has_default_value = field_has_default_value(field);
       bool is_nullable = field_is_nullable(field);
 
       // we currently ignore default values for dimensions
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
-      if (field->option_struct->dimension ||
-          primaryKeyParts.find(field->field_name.str) !=
-              primaryKeyParts.end()) {
+      if (field->option_struct->dimension) {
         /* allow for backward compatability - we will catch nulls here on insert
         if (is_nullable) {
           my_printf_error(ER_UNKNOWN_ERROR,
@@ -2648,12 +2663,14 @@ int tile::mytile::index_end() {
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read");
-  // reset or add pushdowns for this key
-  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
-  int rc = init_scan(this->ha_thd());
+  // reset or add pushdowns for this key if not MRR
+  if (!this->mrr_query) {
+    this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+    int rc = init_scan(this->ha_thd());
 
-  if (rc)
-    DBUG_RETURN(rc);
+    if (rc)
+      DBUG_RETURN(rc);
+  }
 
   // Index scans are expected in row major order
   this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
@@ -3012,15 +3029,17 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   uint key_len = calculate_key_len(table, idx, key, keypart_map);
 
-  // reset or add pushdowns for this key
-  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+  // reset or add pushdowns for this key if not MRR
+  if (!this->mrr_query) {
+    this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
 
-  // If we are doing an index scan we need to use row-major order to get the
-  // results in the expected order
+    // If we are doing an index scan we need to use row-major order to get the
+    // results in the expected order
 
-  int rc = init_scan(this->ha_thd());
-  if (rc)
-    DBUG_RETURN(rc);
+    int rc = init_scan(this->ha_thd());
+    if (rc)
+      DBUG_RETURN(rc);
+  }
 
   this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
 
@@ -3198,6 +3217,9 @@ int tile::mytile::build_mrr_ranges() {
   // Now that we have all ranges, let's build them into super ranges
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
     auto &range = tmp_ranges[i];
+    if (range->operation_type != Item_func::BETWEEN && range->lower_value != nullptr && range->upper_value != nullptr)
+      range->operation_type = Item_func::BETWEEN;
+
     if (range->lower_value != nullptr || range->upper_value != nullptr)
       this->pushdown_ranges[i].push_back(range);
   }

@@ -686,10 +686,13 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
   // TileDB ranges are inclusive
   case Item_func::GT_FUNC: {
     range->operation_type = Item_func::GE_FUNC;
-    if (std::is_floating_point<T>()) {
-      *key_value = std::nextafter(*key_value, std::numeric_limits<T>::max());
-    } else if (!std::is_same<T, char>()) {
-      *key_value += 1;
+    // Only increment last key part
+    if (last_key_part) {
+      if (std::is_floating_point<T>()) {
+        *key_value = std::nextafter(*key_value, std::numeric_limits<T>::max());
+      } else if (!std::is_same<T, char>()) {
+        *key_value += 1;
+      }
     }
 
     // If the lower is null, set it
@@ -753,10 +756,14 @@ void update_range_from_key_for_super_range(std::shared_ptr<tile::range> &range,
     // If we have less than, lets make it less than or equal
     // TileDB ranges are inclusive
     range->operation_type = Item_func::LE_FUNC;
-    if (std::is_floating_point<T>()) {
-      *key_value = std::nextafter(*key_value, std::numeric_limits<T>::min());
-    } else if (!std::is_same<T, char>()) {
-      *key_value -= 1;
+
+    // Only decrement last key part
+    if (last_key_part) {
+      if (std::is_floating_point<T>()) {
+        *key_value = std::nextafter(*key_value, std::numeric_limits<T>::min());
+      } else if (!std::is_same<T, char>()) {
+        *key_value -= 1;
+      }
     }
 
     // If the upper is null, set it

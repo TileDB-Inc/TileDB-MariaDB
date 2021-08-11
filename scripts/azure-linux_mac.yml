@@ -13,7 +13,7 @@ steps:
     set -e pipefail
     open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
     sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
-  condition: eq(variables['Agent.OS'], 'Darwin')
+  condition: and(eq(variables['Agent.OS'], 'Darwin'), eq(variables['imageName'], 'macOS-10.14'))
   displayName: 'Install system headers (OSX only)'
 
 - bash: |

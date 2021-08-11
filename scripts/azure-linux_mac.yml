@@ -74,3 +74,20 @@ steps:
     cat $BUILDDIR
   condition: failed() # only run this job if the build step failed
   displayName: "Print log files (failed build only)"
+
+- task: ArchiveFiles@2
+  inputs:
+      rootFolderOrFile: '$(Build.Repository.LocalPath)'
+      includeRootFolder: false
+      archiveType: 'tar'
+      tarCompression: 'gz'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+      replaceExistingArchive: true
+      verbose: true
+  condition: failed() # only run this job if the build step failed
+
+- task: PublishBuildArtifacts@1
+  inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+      artifactName: 'build-dirs'
+  condition: failed() # only run this job if the build step failed

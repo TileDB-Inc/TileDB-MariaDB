@@ -44,7 +44,7 @@ steps:
     fi
 
     if [[ "$AGENT_OS" == "Darwin" ]]; then
-      brew install cmake jemalloc traildb/judy/judy openssl boost gnutls m4 bison@2.7
+      #brew install cmake jemalloc traildb/judy/judy openssl boost gnutls m4 bison@2.7
 
       export OSX_FLAGS_NEEDED="-Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign"
       export CXXFLAGS="${CXXFLAGS} ${OSX_FLAGS_NEEDED}"
@@ -53,7 +53,6 @@ steps:
     fi
     source ./scripts/ci_install_tiledb_and_run_tests.sh
 
-    #  displayName: 'Build examples, PNG test, and benchmarks (build-only)'
   displayName: 'Build and test mytile'
 
 

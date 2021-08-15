@@ -50,7 +50,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM=/tmp \
- MARIADB_VERSION="mariadb-10.5.12"
+ MARIADB_VERSION="mariadb-10.6.4"
 WORKDIR /tmp
 
 ARG MYTILE_VERSION="0.9.1"

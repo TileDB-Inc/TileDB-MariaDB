@@ -77,3 +77,44 @@ steps:
     perl mysql-test-run.pl --suite=main --parallel=auto
 
   displayName: "Run mysql-test"
+
+- bash: |
+      set -e pipefail
+      BUILDDIR=$BUILD_REPOSITORY_LOCALPATH/mariadb-10.5.12/builddir/mysql-test/var/log/mysqld.1.err
+      # Display log files if the build failed
+      echo "Dumping log files for failed build"
+      echo "----------------------------------"
+      echo "$BUILD_REPOSITORY_LOCALPATH"
+      ls $BUILD_REPOSITORY_LOCALPATH/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.5.12/builddir/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.5.12/builddir/mysql-test/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.5.12/builddir/mysql-test/var/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.5.12/builddir/mysql-test/var/log
+      echo "$BUILDDIR"
+      echo "======"
+      cat $BUILDDIR
+  condition: failed() # only run this job if the build step failed
+  displayName: "Print log files (failed build only)"
+
+#- task: ArchiveFiles@2
+#  inputs:
+#      rootFolderOrFile: '$(Build.Repository.LocalPath)'
+#      includeRootFolder: false
+#      archiveType: 'tar'
+#      tarCompression: 'gz'
+#      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+#      replaceExistingArchive: true
+#      verbose: true
+#  condition: failed() # only run this job if the build step failed
+#
+#- task: PublishBuildArtifacts@1
+#  inputs:
+#      pathToPublish: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+#      artifactName: 'build-dirs'
+#  condition: failed() # only run this job if the build step failed
+- task: PublishBuildArtifacts@1
+  inputs:
+   pathToPublish: '$(Agent.BuildDirectory)\s'
+#   artifactName: 'tiledb-windows-x64-$(Build.SourceVersion)'
+   artifactName: 'build-dirs'
+  condition: failed() # only run this job if the build step failed

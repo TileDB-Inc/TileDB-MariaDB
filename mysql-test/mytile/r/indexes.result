@@ -123,7 +123,7 @@ ch # 3799 mixed index / pushed condition / key order
 CREATE TABLE t4 (
 col0 int dimension=1 tile_extent="10",
 col1 int dimension=1 tile_extent="10",
-PRIMARY KEY(col1, col0)
+PRIMARY KEY(col0, col1)
 ) ENGINE=mytile;
 INSERT INTO t4 (col0, col1) VALUES (0, 0);
 INSERT INTO t4 (col0, col1) VALUES (0, 1);

@@ -835,7 +835,11 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 
     /** UTF-8 string */
   case TILEDB_STRING_UTF8:
+#if MYSQL_VERSION_ID < 100500
     return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8_bin);
+#else
+    return set_string_field<uint8_t>(field, buff, i, &my_charset_utf8mb3_bin);
+#endif
 
     /** UTF-16 string */
   case TILEDB_STRING_UTF16:

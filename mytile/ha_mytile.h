@@ -426,12 +426,14 @@ public:
                          key_part_map keypart_map,
                          enum ha_rkey_function find_flag) override;
 
+#if MYSQL_VERSION_ID < 100500
   /**
    * Is the primary key clustered
    * @return true because tiledb data is storted based on dimensions and layout
    */
   bool primary_key_is_clustered() override { return TRUE; }
 
+#endif
   /**
    * Pushdown an index condition
    * @param keyno key number
@@ -534,8 +536,13 @@ public:
    * Implement initial records in range
    * Currently returns static large value
    */
+#if MYSQL_VERSION_ID < 100500
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key) override;
+#else
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *page) override;
+#endif
 
   /**
    * Multi Range Read interface

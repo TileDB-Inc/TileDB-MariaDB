@@ -86,11 +86,13 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 else()
     # First check for release lib details
     GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
+    GET_TARGET_PROPERTY(TILEDB_INCLUDE_DIRECTORIES TileDB::tiledb_shared INTERFACE_INCLUDE_DIRECTORIES)
     # If no release lib try debug lib
     if(${TILEDB_LIBRARIES} MATCHES "NOTFOUND")
         GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_DEBUG)
     endif()
-    message(STATUS "${TILEDB_LIBRARIES}")
+    message(STATUS "TILEDB_LIBRARIES: ${TILEDB_LIBRARIES}")
+    message(STATUS "TILEDB_INCLUDE_DIRECTORIES: ${TILEDB_INCLUDE_DIRECTORIES}")
 endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)
@@ -125,6 +127,8 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     target_include_directories(mytile PUBLIC "${EP_INSTALL_PREFIX}/include" "mytile")
     INSTALL(FILES ${TILEDB_INSTALL_LIBRARIES} DESTINATION ${INSTALL_PLUGINDIR})
+else()
+    target_include_directories(mytile PUBLIC "${TILEDB_INCLUDE_DIRECTORIES}")
 endif()
 
 # Set my.cnf values based on build flags

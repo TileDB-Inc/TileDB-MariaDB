@@ -21,7 +21,7 @@ stages:
             CXX: g++
             SUPERBUILD: 'ON'
           macOS:
-            imageName: 'macOS-10.14'
+            imageName: 'macOS-10.15'
             CXX: clang++
 
       pool:

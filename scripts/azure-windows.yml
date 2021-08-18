@@ -1,23 +1,23 @@
 steps:
-- script: |
-    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-    echo ON
-    cd $(ROOT_DIR)
-
-    mkdir $(TILEDB_INSTALL)
-    git clone https://github.com/TileDB-Inc/TileDB $(TILEDB_SRC)
-    git -C $(TILEDB_SRC) checkout $(TILEDB_VERSION)
-
-    cd $(TILEDB_SRC)
-    mkdir build
-    cd build
-
-    cmake -A X64 -DCMAKE_BUILD_TYPE=Debug -DTILEDB_WERROR=ON -DTILEDB_TBB=OFF -DTILEDB_S3=OFF -DTILEDB_TBB_SHARED=OFF -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
-
-    cmake --build . --config Debug -j3
-    cmake --build . --target install-tiledb --config Debug
-
-  displayName: "Pull / Build TileDB"
+#- script: |
+#    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+#    echo ON
+#    cd $(ROOT_DIR)
+#
+#    mkdir $(TILEDB_INSTALL)
+#    git clone https://github.com/TileDB-Inc/TileDB $(TILEDB_SRC)
+#    git -C $(TILEDB_SRC) checkout $(TILEDB_VERSION)
+#
+#    cd $(TILEDB_SRC)
+#    mkdir build
+#    cd build
+#
+#    cmake -A X64 -DCMAKE_BUILD_TYPE=Debug -DTILEDB_WERROR=ON -DTILEDB_TBB=OFF -DTILEDB_S3=OFF -DTILEDB_TBB_SHARED=OFF -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
+#
+#    cmake --build . --config Debug -j3
+#    cmake --build . --target install-tiledb --config Debug
+#
+#  displayName: "Pull / Build TileDB"
 - script: |
     echo ON
     cd $(ROOT_DIR)
@@ -36,14 +36,7 @@ steps:
     echo ON
     cd $(ROOT_DIR)
 
-    set PATH=%PATH%;$(TILEDB_INSTALL)
-    set PATH=%PATH%;$(TILEDB_INSTALL)\bin
-    set PATH=%PATH%;$(TILEDB_INSTALL)\include
-    set PATH=%PATH%;$(TILEDB_INSTALL)\lib
     set PATH=%PATH%;$(BUILD_DEPS)\bin
-    dir $(TILEDB_INSTALL)
-    dir $(TILEDB_INSTALL)\include
-    dir $(TILEDB_INSTALL)\include\tiledb
 
     git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
     cd $(MARIADB_VERSION)
@@ -71,7 +64,7 @@ steps:
     cd builddir
 
     cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. 
-    cmake --build . -j3
+    cmake --build . -j4
 
   displayName: "Pull / Build MariaDB"
 - script: |

@@ -33,6 +33,7 @@ stages:
 #      - template: scripts/azure-linux_mac.yml
 
     - job: Build_windows
+      timeoutInMinutes: 90
       strategy:
         matrix:
           VS2019:

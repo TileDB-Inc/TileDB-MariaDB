@@ -21,7 +21,7 @@ if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   else
     mkdir build_deps && cd build_deps \
-    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.3.3 && cd TileDB \
+    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.4.0-rc0 && cd TileDB \
     && mkdir -p build && cd build
 
      # Configure and build TileDB

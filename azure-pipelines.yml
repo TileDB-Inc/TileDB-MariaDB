@@ -14,10 +14,10 @@ stages:
       strategy:
         matrix:
           linux:
-            imageName: 'ubuntu-16.04'
+            imageName: 'ubuntu-20.04'
             CXX: g++
           linux_superbuild:
-            imageName: 'ubuntu-16.04'
+            imageName: 'ubuntu-20.04'
             CXX: g++
             SUPERBUILD: 'ON'
           macOS:

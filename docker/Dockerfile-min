@@ -55,8 +55,8 @@ WORKDIR /tmp
 
 ARG MYTILE_VERSION="0.10.0"
 
-ARG TILEDB_VERSION="2.3.3"
-ARG TILEDB_VERSION_SHORT_SHA="9336d3f"
+ARG TILEDB_VERSION="2.4.0"
+ARG TILEDB_VERSION_SHORT_SHA="baf64e1"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
@@ -72,7 +72,7 @@ RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.
 # Copy example arrays to opt
 RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 
-# Install tiledb using 2.3 release
+# Install tiledb using 2.4 release
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
  && rm  ${TILEDB_PREBUILT_FILE}
@@ -89,6 +89,9 @@ RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/setup-mariadb.sh /usr/local/bin/setup-mariadb.sh \
  && cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
+
+ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
+ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
  && tar xf ${MARIADB_VERSION}.tar.gz \

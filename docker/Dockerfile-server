@@ -73,7 +73,7 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.0 release
+# Install tiledb using 2.4 release
 RUN mkdir build_deps && cd build_deps \
  && git clone https://github.com/TileDB-Inc/TileDB.git -b ${TILEDB_VERSION} && cd TileDB \
  && mkdir -p build && cd build \
@@ -93,6 +93,9 @@ RUN apt-get update && apt-get install -y \
   libcurl4 \
   libcurl4-openssl-dev \
   && rm -rf /var/lib/apt/lists/*
+
+ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
+ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

@@ -37,6 +37,8 @@ steps:
     git config --global user.name 'Azure Pipeline'
     git config --global user.email 'no-reply@tiledb.io'
 
+    export CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
+    export CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
     if [[ "$AGENT_OS" == "Linux" ]]; then
       sudo apt update
       sudo apt install -y libncurses5-dev bison gdb

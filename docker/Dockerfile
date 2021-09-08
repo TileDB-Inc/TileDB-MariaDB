@@ -76,16 +76,19 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.3 release
+# Install tiledb using 2.4 release
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm  ${TILEDB_PREBUILT_FILE}
+ && rm ${TILEDB_PREBUILT_FILE}
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
+
+ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
+ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

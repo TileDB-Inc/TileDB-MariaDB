@@ -61,10 +61,10 @@ WORKDIR /tmp
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.3 release
+# Install tiledb using 2.4 release
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm  ${TILEDB_PREBUILT_FILE}}
+ && rm  ${TILEDB_PREBUILT_FILE}
 
 ENV MARIADB_VERSION="mariadb-10.5.12"
 
@@ -82,8 +82,8 @@ RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
 
-ENV CFLAGS "${CFLAGS} -Wno-error=noexcept-type"
-ENV CXXFLAGS "${CXXFLAGS} -Wno-error=noexcept-type"
+ENV CFLAGS "${CFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
+ENV CXXFLAGS "${CXXFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
 
 RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

@@ -471,7 +471,6 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         primaryKeyParts[field->field_name.str] = true;
 
         try {
-          std::cout << table_arg->s->table_name.str << " - " << field->field_name.str << std::endl;
           domain.add_dimension(create_field_dimension(context, field));
         } catch (const std::exception &e) {
           // Log errors
@@ -2700,15 +2699,14 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
        key_part_index < key_info->user_defined_key_parts; key_part_index++) {
 
     const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
-    uint64_t dim_idx = key_part_info->field->field_index;
-    tiledb::Dimension dimension = domain.dimension(dim_idx);
+    tiledb::Dimension dimension = domain.dimension(key_part_index);
 
     for (auto &dim_buffer : this->buffers) {
       if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
         uint8_t dim_comparison =
-            compare_key_to_dim(dim_idx, key + key_position,
+            compare_key_to_dim(key_part_index, key + key_position,
                                key_part_info->length, index, dim_buffer);
         key_position += key_part_info->length;
         if (dim_comparison != 0) {

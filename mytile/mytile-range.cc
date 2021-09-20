@@ -837,9 +837,8 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
     }
 
     const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
-    uint64_t dim_idx = key_part_info->field->field_index;
 
-    tiledb_datatype_t datatype = domain.dimension(dim_idx).type();
+    tiledb_datatype_t datatype = domain.dimension(key_part_index).type();
 
     uint64_t key_len = 0;
     if (datatype == tiledb_datatype_t::TILEDB_STRING_ASCII) {
@@ -855,63 +854,63 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
 
     switch (datatype) {
     case tiledb_datatype_t::TILEDB_FLOAT64: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<double>(key + key_offset, length, find_flag,
                                        start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_FLOAT32: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<float>(key + key_offset, length, find_flag,
                                       start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT8: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<int8_t>(key + key_offset, length, find_flag,
                                        start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT8: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<uint8_t>(key + key_offset, length, find_flag,
                                         start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT16: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<int16_t>(key + key_offset, length, find_flag,
                                         start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT16: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<uint16_t>(key + key_offset, length, find_flag,
                                          start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT32: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<int32_t>(key + key_offset, length, find_flag,
                                         start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT32: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<uint32_t>(key + key_offset, length, find_flag,
                                          start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_INT64: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<int64_t>(key + key_offset, length, find_flag,
                                         start_key, last_key_part, datatype);
       break;
@@ -930,7 +929,7 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
                                MYSQL_TIMESTAMP_TIME};
       int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 
-      ranges[dim_idx] = build_range_from_key<int64_t>(
+      ranges[key_part_index] = build_range_from_key<int64_t>(
           (uchar *)&xs, length, find_flag, start_key, last_key_part, datatype);
       break;
     }
@@ -964,13 +963,13 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
       field->ptr = tmp;
       int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, datatype);
 
-      ranges[dim_idx] = build_range_from_key<int64_t>(
+      ranges[key_part_index] = build_range_from_key<int64_t>(
           (uchar *)&xs, length, find_flag, start_key, last_key_part, datatype);
       break;
     }
 
     case tiledb_datatype_t::TILEDB_UINT64: {
-      ranges[dim_idx] =
+      ranges[key_part_index] =
           build_range_from_key<uint64_t>(key + key_offset, length, find_flag,
                                          start_key, last_key_part, datatype);
       break;
@@ -981,11 +980,11 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
           *reinterpret_cast<const uint16_t *>(key + key_offset);
       // If there is no string set the range to nullptr
       if (char_length == 0) {
-        ranges[dim_idx] = nullptr;
+        ranges[key_part_index] = nullptr;
         break;
       }
       key_offset += sizeof(uint16_t);
-      ranges[dim_idx] = build_range_from_key<char>(
+      ranges[key_part_index] = build_range_from_key<char>(
           key + key_offset, length, find_flag, start_key, last_key_part,
           datatype, char_length);
       break;

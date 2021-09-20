@@ -3148,7 +3148,7 @@ int tile::mytile::build_mrr_ranges() {
             continue;
           }
         } else {
-          key_len += tiledb_datatype_size(datatype);
+          key_len += table->s->key_info[active_index].key_part[i].length;
         }
 
         if (key_offset + key_len >= mrr_cur_range.start_key.length)
@@ -3199,7 +3199,7 @@ int tile::mytile::build_mrr_ranges() {
             continue;
           }
         } else {
-          key_len += tiledb_datatype_size(datatype);
+          key_len += table->s->key_info[active_index].key_part[i].length;
         }
 
         if (key_offset + key_len >= mrr_cur_range.end_key.length)

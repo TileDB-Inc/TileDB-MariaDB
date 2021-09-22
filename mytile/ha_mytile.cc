@@ -2871,7 +2871,7 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
 
   bool restarted_scan = false;
 begin:
-  if (this->query_complete()) {
+  if (this->query_complete() && this->record_index >= this->records) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     if (reset)
@@ -3311,48 +3311,22 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
   // if the next key is the same
   uint64_t record_index_before_check = this->record_index;
   uint64_t records_read_before_check = this->records_read;
+  // Index needs to be reset to 0 due to incomplete query resubmission
+  // If we don't reset it to zero we'll start at the previous index which will
+  // be wrong since index_next runs the next query
+  const bool reset_to_zero_index = this->record_index >= this->records;
   if (!(error = index_next(buf))) {
-    my_ptrdiff_t ptrdiff = buf - table->record[0];
-    uchar *UNINIT_VAR(save_record_0);
-    KEY *UNINIT_VAR(key_info);
-    KEY_PART_INFO *UNINIT_VAR(key_part);
-    KEY_PART_INFO *UNINIT_VAR(key_part_end);
-
-    /*
-      key_cmp_if_same() compares table->record[0] against 'key'.
-      In parts it uses table->record[0] directly, in parts it uses
-      field objects with their local pointers into table->record[0].
-      If 'buf' is distinct from table->record[0], we need to move
-      all record references. This is table->record[0] itself and
-      the field pointers of the fields used in this key.
-    */
-    if (ptrdiff) {
-      save_record_0 = table->record[0];
-      table->record[0] = buf;
-      key_info = table->key_info + active_index;
-      key_part = key_info->key_part;
-      key_part_end = key_part + key_info->user_defined_key_parts;
-      for (; key_part < key_part_end; key_part++) {
-        DBUG_ASSERT(key_part->field);
-        key_part->field->move_field_offset(ptrdiff);
-      }
-    }
-
     if (key_cmp_if_same(table, key, active_index, keylen)) {
       table->status = STATUS_NOT_FOUND;
       error = HA_ERR_END_OF_FILE;
-    }
+    };
 
-    /* Move back if necessary. */
-    if (ptrdiff) {
-      table->record[0] = save_record_0;
-      for (key_part = key_info->key_part; key_part < key_part_end; key_part++)
-        key_part->field->move_field_offset(-ptrdiff);
-
-      // Reset the record indexes back to before the first read
-      if (this->mrr_query) {
-        this->record_index = record_index_before_check;
-        this->records_read = records_read_before_check;
+    // Reset the record indexes back to before the first read
+    if (this->mrr_query) {
+      this->record_index = record_index_before_check;
+      this->records_read = records_read_before_check;
+      if (reset_to_zero_index) {
+        this->record_index = 0;
       }
     }
   }

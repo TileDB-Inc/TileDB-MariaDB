@@ -50,6 +50,8 @@
 #include <my_config.h>
 #include <mysql/plugin.h>
 #include <mysqld_error.h>
+#include <sql_class.h>
+#include <sql_select.h>
 #include <vector>
 #include <unordered_map>
 #include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
@@ -490,7 +492,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
       // Keys are created above
-      if (primaryKeyParts.find(field->field_name.str) != primaryKeyParts.end()) {
+      if (primaryKeyParts.find(field->field_name.str) !=
+          primaryKeyParts.end()) {
         continue;
       }
 
@@ -2553,6 +2556,13 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       query_layout == tiledb_layout_t::TILEDB_UNORDERED) {
     this->query->set_layout(this->array_schema->tile_order());
   }
+
+  // if this is a join then MariaDB expects the results to be sorted in
+  // row-major
+  if (thd->lex->current_select->join != nullptr &&
+      thd->lex->current_select->join->table_count > 1) {
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  }
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {
@@ -2669,10 +2679,11 @@ int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
 
     if (rc)
       DBUG_RETURN(rc);
+
+    // Index scans are expected in row major order
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   }
 
-  // Index scans are expected in row major order
-  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, false /* reset */));
 }
 
@@ -3037,9 +3048,9 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
     int rc = init_scan(this->ha_thd());
     if (rc)
       DBUG_RETURN(rc);
-  }
 
-  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  }
 
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, true /* reset */));
 }
@@ -3215,7 +3226,8 @@ int tile::mytile::build_mrr_ranges() {
   // Now that we have all ranges, let's build them into super ranges
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
     auto &range = tmp_ranges[i];
-    if (range->operation_type != Item_func::BETWEEN && range->lower_value != nullptr && range->upper_value != nullptr)
+    if (range->operation_type != Item_func::BETWEEN &&
+        range->lower_value != nullptr && range->upper_value != nullptr)
       range->operation_type = Item_func::BETWEEN;
 
     if (range->lower_value != nullptr || range->upper_value != nullptr)
@@ -3380,6 +3392,6 @@ maria_declare_plugin(mytile){
     0x0100,                     /* version number (0.10.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
-    "0.10.0",                                /* string version */
+    "0.10.0",                               /* string version */
     MariaDB_PLUGIN_MATURITY_BETA            /* maturity */
 } maria_declare_plugin_end;

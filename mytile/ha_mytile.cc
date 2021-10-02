@@ -50,6 +50,8 @@
 #include <my_config.h>
 #include <mysql/plugin.h>
 #include <mysqld_error.h>
+#include <sql_class.h>
+#include <sql_select.h>
 #include <vector>
 #include <unordered_map>
 #include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
@@ -469,6 +471,17 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       for (uint i = 0; i < key_info.user_defined_key_parts; i++) {
         Field *field = key_info.key_part[i].field;
         primaryKeyParts[field->field_name.str] = true;
+
+        try {
+          domain.add_dimension(create_field_dimension(context, field));
+        } catch (const std::exception &e) {
+          // Log errors
+          my_printf_error(
+              ER_UNKNOWN_ERROR,
+              "[create_array] error creating dimension for table %s : %s",
+              ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+          DBUG_RETURN(ERR_CREATE_DIM_OTHER);
+        }
       }
     }
 
@@ -478,15 +491,19 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
     // Create attributes or dimensions
     for (size_t field_idx = 0; table_arg->field[field_idx]; field_idx++) {
       Field *field = table_arg->field[field_idx];
+      // Keys are created above
+      if (primaryKeyParts.find(field->field_name.str) !=
+          primaryKeyParts.end()) {
+        continue;
+      }
+
       bool has_default_value = field_has_default_value(field);
       bool is_nullable = field_is_nullable(field);
 
       // we currently ignore default values for dimensions
       // If the field has the dimension flag set or it is part of the primary
       // key we treat it is a dimension
-      if (field->option_struct->dimension ||
-          primaryKeyParts.find(field->field_name.str) !=
-              primaryKeyParts.end()) {
+      if (field->option_struct->dimension) {
         /* allow for backward compatability - we will catch nulls here on insert
         if (is_nullable) {
           my_printf_error(ER_UNKNOWN_ERROR,
@@ -2539,6 +2556,13 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       query_layout == tiledb_layout_t::TILEDB_UNORDERED) {
     this->query->set_layout(this->array_schema->tile_order());
   }
+
+  // if this is a join then MariaDB expects the results to be sorted in
+  // row-major
+  if (thd->lex->current_select->join != nullptr &&
+      thd->lex->current_select->join->table_count > 1) {
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  }
 }
 
 void tile::mytile::open_array_for_writes(THD *thd) {
@@ -2648,15 +2672,18 @@ int tile::mytile::index_end() {
 int tile::mytile::index_read(uchar *buf, const uchar *key, uint key_len,
                              enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::index_read");
-  // reset or add pushdowns for this key
-  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
-  int rc = init_scan(this->ha_thd());
+  // reset or add pushdowns for this key if not MRR
+  if (!this->mrr_query) {
+    this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+    int rc = init_scan(this->ha_thd());
 
-  if (rc)
-    DBUG_RETURN(rc);
+    if (rc)
+      DBUG_RETURN(rc);
 
-  // Index scans are expected in row major order
-  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+    // Index scans are expected in row major order
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  }
+
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, false /* reset */));
 }
 
@@ -2683,15 +2710,14 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
        key_part_index < key_info->user_defined_key_parts; key_part_index++) {
 
     const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
-    uint64_t dim_idx = key_part_info->field->field_index;
-    tiledb::Dimension dimension = domain.dimension(dim_idx);
+    tiledb::Dimension dimension = domain.dimension(key_part_index);
 
     for (auto &dim_buffer : this->buffers) {
       if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
         continue;
       } else { // buffer for dimension was found
         uint8_t dim_comparison =
-            compare_key_to_dim(dim_idx, key + key_position,
+            compare_key_to_dim(key_part_index, key + key_position,
                                key_part_info->length, index, dim_buffer);
         key_position += key_part_info->length;
         if (dim_comparison != 0) {
@@ -2845,7 +2871,7 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
 
   bool restarted_scan = false;
 begin:
-  if (this->query_complete()) {
+  if (this->query_complete() && this->record_index >= this->records) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     if (reset)
@@ -3012,17 +3038,19 @@ int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
 
   uint key_len = calculate_key_len(table, idx, key, keypart_map);
 
-  // reset or add pushdowns for this key
-  this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
+  // reset or add pushdowns for this key if not MRR
+  if (!this->mrr_query) {
+    this->set_pushdowns_for_key(key, key_len, true /* start_key */, find_flag);
 
-  // If we are doing an index scan we need to use row-major order to get the
-  // results in the expected order
+    // If we are doing an index scan we need to use row-major order to get the
+    // results in the expected order
 
-  int rc = init_scan(this->ha_thd());
-  if (rc)
-    DBUG_RETURN(rc);
+    int rc = init_scan(this->ha_thd());
+    if (rc)
+      DBUG_RETURN(rc);
 
-  this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+  }
 
   DBUG_RETURN(index_read_scan(key, key_len, find_flag, true /* reset */));
 }
@@ -3129,7 +3157,7 @@ int tile::mytile::build_mrr_ranges() {
             continue;
           }
         } else {
-          key_len += tiledb_datatype_size(datatype);
+          key_len += table->s->key_info[active_index].key_part[i].length;
         }
 
         if (key_offset + key_len >= mrr_cur_range.start_key.length)
@@ -3180,7 +3208,7 @@ int tile::mytile::build_mrr_ranges() {
             continue;
           }
         } else {
-          key_len += tiledb_datatype_size(datatype);
+          key_len += table->s->key_info[active_index].key_part[i].length;
         }
 
         if (key_offset + key_len >= mrr_cur_range.end_key.length)
@@ -3198,6 +3226,10 @@ int tile::mytile::build_mrr_ranges() {
   // Now that we have all ranges, let's build them into super ranges
   for (size_t i = 0; i < tmp_ranges.size(); i++) {
     auto &range = tmp_ranges[i];
+    if (range->operation_type != Item_func::BETWEEN &&
+        range->lower_value != nullptr && range->upper_value != nullptr)
+      range->operation_type = Item_func::BETWEEN;
+
     if (range->lower_value != nullptr || range->upper_value != nullptr)
       this->pushdown_ranges[i].push_back(range);
   }
@@ -3279,48 +3311,22 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
   // if the next key is the same
   uint64_t record_index_before_check = this->record_index;
   uint64_t records_read_before_check = this->records_read;
+  // Index needs to be reset to 0 due to incomplete query resubmission
+  // If we don't reset it to zero we'll start at the previous index which will
+  // be wrong since index_next runs the next query
+  const bool reset_to_zero_index = this->record_index >= this->records;
   if (!(error = index_next(buf))) {
-    my_ptrdiff_t ptrdiff = buf - table->record[0];
-    uchar *UNINIT_VAR(save_record_0);
-    KEY *UNINIT_VAR(key_info);
-    KEY_PART_INFO *UNINIT_VAR(key_part);
-    KEY_PART_INFO *UNINIT_VAR(key_part_end);
-
-    /*
-      key_cmp_if_same() compares table->record[0] against 'key'.
-      In parts it uses table->record[0] directly, in parts it uses
-      field objects with their local pointers into table->record[0].
-      If 'buf' is distinct from table->record[0], we need to move
-      all record references. This is table->record[0] itself and
-      the field pointers of the fields used in this key.
-    */
-    if (ptrdiff) {
-      save_record_0 = table->record[0];
-      table->record[0] = buf;
-      key_info = table->key_info + active_index;
-      key_part = key_info->key_part;
-      key_part_end = key_part + key_info->user_defined_key_parts;
-      for (; key_part < key_part_end; key_part++) {
-        DBUG_ASSERT(key_part->field);
-        key_part->field->move_field_offset(ptrdiff);
-      }
-    }
-
     if (key_cmp_if_same(table, key, active_index, keylen)) {
       table->status = STATUS_NOT_FOUND;
       error = HA_ERR_END_OF_FILE;
-    }
+    };
 
-    /* Move back if necessary. */
-    if (ptrdiff) {
-      table->record[0] = save_record_0;
-      for (key_part = key_info->key_part; key_part < key_part_end; key_part++)
-        key_part->field->move_field_offset(-ptrdiff);
-
-      // Reset the record indexes back to before the first read
-      if (this->mrr_query) {
-        this->record_index = record_index_before_check;
-        this->records_read = records_read_before_check;
+    // Reset the record indexes back to before the first read
+    if (this->mrr_query) {
+      this->record_index = record_index_before_check;
+      this->records_read = records_read_before_check;
+      if (reset_to_zero_index) {
+        this->record_index = 0;
       }
     }
   }
@@ -3360,6 +3366,6 @@ maria_declare_plugin(mytile){
     0x0100,                     /* version number (0.10.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
-    "0.10.0",                                /* string version */
+    "0.10.0",                               /* string version */
     MariaDB_PLUGIN_MATURITY_BETA            /* maturity */
 } maria_declare_plugin_end;

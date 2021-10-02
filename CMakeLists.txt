@@ -46,6 +46,11 @@ set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
 
 find_package(TileDB QUIET)
 
+SET(USE_TILEDB_STATIC OFF)
+if(MSVC OR WITH_EMBEDDED_SERVER)
+    SET(USE_TILEDB_STATIC ON)
+endif()
+
 if(NOT TileDB_FOUND AND SUPERBUILD)
     MESSAGE(STATUS "TileDB not found for MyTile. Building as dependency from source")
     include(ExternalProject)
@@ -66,11 +71,13 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             -DCMAKE_PREFIX_PATH=${EP_INSTALL_PREFIX}
             -DTILEDB_VERBOSE=ON
             -DTILEDB_S3=ON
+            -DTILEDB_STATIC=${USE_TILEDB_STATIC}
             -DTILEDB_AZURE=OFF
             -DTILEDB_VCPKG=OFF
             -DTILEDB_STATIC=ON
             -DTILEDB_SERIALIZATION=ON
             -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS}
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
             UPDATE_COMMAND ""
             INSTALL_COMMAND
             ${CMAKE_COMMAND} --build . --target install-tiledb
@@ -83,10 +90,14 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
-    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
+    if(MSVC)
+        SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    else()
+        SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
+    endif()
     FILE(GLOB TILEDB_INSTALL_LIBRARIES "${TILEDB_LIBRARIES}")
 else()
-    if(MSVC)
+    if(USE_TILEDB_STATIC)
         GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_static IMPORTED_LOCATION_DEBUG)
         # If no release lib try debug lib
         if(${TILEDB_LIBRARIES} MATCHES "NOTFOUND")
@@ -125,7 +136,7 @@ endif()
 
 # Add the storage engine plugin
 # If we are compiling embedded server make it statically linked
-if(WITH_EMBEDDED_SERVER)
+if(WITH_EMBEDDED_SERVER OR USE_TILEDB_STATIC)
     MYSQL_ADD_PLUGIN(mytile ${SOURCE_FILES} STORAGE_ENGINE DEFAULT RECOMPILE_FOR_EMBEDDED LINK_LIBRARIES ${TILEDB_LIBRARIES})
 # Else build as a dynamic library
 else()

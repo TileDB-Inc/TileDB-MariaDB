@@ -75,7 +75,8 @@ RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 # Install tiledb using 2.4 release
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm  ${TILEDB_PREBUILT_FILE}
+ && rm  ${TILEDB_PREBUILT_FILE} \
+ && ldconfig
 
 # TODO change branch after release cut
 #RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b ${MYTILE_VERSION} mytile \

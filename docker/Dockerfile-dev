@@ -64,7 +64,8 @@ RUN git config --global user.email "you@example.com" \
 # Install tiledb using 2.4 release
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm  ${TILEDB_PREBUILT_FILE}
+ && rm  ${TILEDB_PREBUILT_FILE} \
+ && ldconfig
 
 ENV MARIADB_VERSION="mariadb-10.5.12"
 

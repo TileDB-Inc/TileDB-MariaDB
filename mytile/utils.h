@@ -50,7 +50,7 @@ const char PATH_SEPARATOR =
 #endif
 
 const std::string METADATA_ENDING = "@metadata";
-const std::regex TIME_TRAVEL_ENDING("@(\\d+)");
+const std::regex TIME_TRAVEL_ENDING("@(\\d+)$");
 
 // trim from start (in place)
 static inline void ltrim(std::string &s) {

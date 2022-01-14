@@ -69,6 +69,7 @@ std::string tile::build_metadata_value_string(THD *thd, const void *data,
   case TILEDB_STRING_UCS2:
   case TILEDB_STRING_UCS4:
   case TILEDB_ANY:
+  case TILEDB_BLOB:
     return tile::build_metadata_string_value_string<char>(data, num);
   case TILEDB_DATETIME_YEAR:
     return tile::build_metadata_numeric_value_string<int64_t>(data, num);

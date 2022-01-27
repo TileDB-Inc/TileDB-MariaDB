@@ -3252,7 +3252,9 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
 
   this->mrr_query = true;
 
-  build_mrr_ranges();
+  int rc = build_mrr_ranges();
+  if (rc)
+    DBUG_RETURN(rc);
 
   // Never use default implementation also use sort key access
   mode &= ~HA_MRR_USE_DEFAULT_IMPL;

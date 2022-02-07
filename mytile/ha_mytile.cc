@@ -1502,10 +1502,8 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
       cmp_type = TIME_RESULT;
     }
 
-    int ret = set_range_from_item_datetime(
-        ha_thd(), dynamic_cast<Item_cache_datetime *>(args[1]),
-        dynamic_cast<Item_cache_datetime *>(args[1]), cmp_type, range,
-        datatype);
+    int ret = set_range_from_item_datetime(ha_thd(), args[1], args[1], cmp_type,
+                                           range, datatype);
 
     if (ret)
       DBUG_RETURN(func_item);
@@ -1529,11 +1527,12 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
 
     break;
   }
-  case Item_func::BETWEEN:
+  case Item_func::BETWEEN: {
     neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
     if (neg) // don't support negations!
       DBUG_RETURN(func_item);
-    // fall through
+  }
+  // fall through
   case Item_func::LE_FUNC: // Handle all cases where there is 1 or 2 arguments
                            // we must set on
   case Item_func::LT_FUNC:

@@ -500,10 +500,8 @@ int tile::set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
   DBUG_RETURN(0);
 }
 
-int tile::set_range_from_item_datetime(THD *thd,
-                                       Item_cache_datetime *lower_const,
-                                       Item_cache_datetime *upper_const,
-                                       Item_result cmp_type,
+int tile::set_range_from_item_datetime(THD *thd, Item *lower_const,
+                                       Item *upper_const, Item_result cmp_type,
                                        std::shared_ptr<range> &range,
                                        tiledb_datatype_t datatype) {
   DBUG_ENTER("tile::set_range_from_item_datetime");

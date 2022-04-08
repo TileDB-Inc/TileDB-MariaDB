@@ -765,6 +765,9 @@ extern const uint32_t empty_ucs4;
 
 /** The special value for an empty ANY. */
 extern const uint8_t empty_any;
+
+/** The special value for an empty BLOB. */
+extern const std::byte empty_blob;
 } // namespace constants
 
 } // namespace tile

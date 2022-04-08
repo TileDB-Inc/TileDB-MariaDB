@@ -181,6 +181,11 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
       return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY;
   }
+  case TILEDB_BLOB: {
+    if (multi_value)
+      return MYSQL_TYPE_LONG_BLOB;
+    return MYSQL_TYPE_TINY_BLOB;
+  }
 
   case tiledb_datatype_t::TILEDB_INT16:
   case tiledb_datatype_t::TILEDB_UINT16: {
@@ -338,7 +343,8 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
   case TILEDB_STRING_UTF32:
   case TILEDB_STRING_UCS2:
   case TILEDB_STRING_UCS4:
-  case TILEDB_ANY: {
+  case TILEDB_ANY:
+  case TILEDB_BLOB: {
     auto v = reinterpret_cast<const char *>(value);
     std::string s(v, value_size);
     // If the string is the null character we have to us the escaped version
@@ -723,6 +729,9 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   case tiledb_datatype_t::TILEDB_TIME_FS:
   case tiledb_datatype_t::TILEDB_TIME_AS:
     return alloc_buffer<int64_t>(rounded_size);
+
+  case tiledb_datatype_t::TILEDB_BLOB:
+    return alloc_buffer<std::byte>(rounded_size);
 
   default: {
     my_printf_error(ER_UNKNOWN_ERROR,
@@ -1344,6 +1353,8 @@ const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {
     return &constants::empty_char;
   case tiledb_datatype_t::TILEDB_ANY:
     return &constants::empty_any;
+  case tiledb_datatype_t::TILEDB_BLOB:
+    return &constants::empty_blob;
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return &constants::empty_ascii;
   case tiledb_datatype_t::TILEDB_STRING_UTF8:
@@ -1408,6 +1419,7 @@ bool tile::is_string_datatype(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_FLOAT32:
   case tiledb_datatype_t::TILEDB_FLOAT64:
   case tiledb_datatype_t::TILEDB_ANY:
+  case tiledb_datatype_t::TILEDB_BLOB:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
@@ -1638,3 +1650,6 @@ const uint32_t tile::constants::empty_ucs4 = 0;
 
 /** The special value for an empty ANY. */
 const uint8_t tile::constants::empty_any = 0;
+
+/** The special value for an empty BLOOB. */
+const std::byte tile::constants::empty_blob{0};

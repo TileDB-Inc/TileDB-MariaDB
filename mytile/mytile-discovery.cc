@@ -38,6 +38,7 @@
 #include <my_global.h>
 #include <table.h>
 #include <tiledb/tiledb>
+#include <algorithm>
 
 int tile::mytile_discover_table_structure(handlerton *hton, THD *thd,
                                           TABLE_SHARE *share,
@@ -345,12 +346,14 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     if (dimensions_are_keys) {
       // In the future we might want to set index instead of primary key when
       // TileDB supports duplicates
-      std::vector<std::string> index_types = {"PRIMARY KEY"};
-      if (schema->allows_dups()) {
-        index_types = {"INDEX"};
+//      std::vector<std::string> index_types = {"PRIMARY KEY"};
+      std::vector<std::string> dim_names;
+      for (const auto &dim : schema->domain().dimensions()) {
+        dim_names.push_back(dim.name());
       }
-      for (auto &index_type : index_types) {
-        sql_string << std::endl << index_type << "(";
+      // If we don't allow dups set the primary key for sort order of dimensions
+      if (!schema->allows_dups()) {
+        sql_string << std::endl <<  "PRIMARY KEY" << "(";
         for (const auto &dim : schema->domain().dimensions()) {
           sql_string << "`" << dim.name() << "`,";
         }
@@ -358,6 +361,24 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         sql_string.seekp(-1, std::ios_base::end);
 
         sql_string << "),"; // Closing parentheses for key
+      }
+
+      // Next build permutation of indexes
+      // We do this because TileDB support partial index lookup
+      // However we want to set HA_ONLY_WHOLE_INDEX so things like MRR use the full indexing
+      std::vector<std::string> index_types = {"INDEX"};
+      for (auto &index_type : index_types) {
+        do {
+          sql_string << std::endl << index_type << "(";
+          for (const auto &dim : dim_names) {
+            sql_string << "`" << dim << "`,";
+          }
+          // move head back one so we can override last command
+          sql_string.seekp(-1, std::ios_base::end);
+
+          sql_string << "),"; // Closing parentheses for key
+          dim_names.erase(dim_names.begin());
+        } while(!dim_names.empty());
       }
 
       // move head back one so we can override last command

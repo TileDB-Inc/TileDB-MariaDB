@@ -859,7 +859,7 @@ int tile::mytile::init_scan(THD *thd) {
               }
             }
           } else { // If the range is empty we need to use the non-empty-domain
-            log_debug(thd, "No pushdownfor %s.%s",
+            log_debug(thd, "No pushdown for %s.%s",
                       this->table->s->table_name.str,
                       dims[dim_idx].name().c_str());
 
@@ -2478,7 +2478,7 @@ int tile::mytile::write_row(const uchar *buf) {
 ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
   DBUG_ENTER("tile::mytile::index_flags");
   DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
-              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN |
+              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN | HA_ONLY_WHOLE_INDEX |
 #if MYSQL_VERSION_ID < 100500
               HA_DO_INDEX_COND_PUSHDOWN);
 #else

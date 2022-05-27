@@ -55,8 +55,8 @@ WORKDIR /tmp
 
 ARG MYTILE_VERSION="0.15.0"
 
-ARG TILEDB_VERSION="2.9.1"
-ARG TILEDB_VERSION_SHORT_SHA="1855f7c"
+ARG TILEDB_VERSION="2.9.2"
+ARG TILEDB_VERSION_SHORT_SHA="5c41d9a"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added

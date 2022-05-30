@@ -13,6 +13,7 @@ else ()
 endif ()
 
 option(SUPERBUILD "Build missing dependencies" ON)
+option(TILEDB_FORCE_ALL_DEPS "Build all dependencies" ON)
 
 
 ############################################################
@@ -68,7 +69,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             -DTILEDB_AZURE=ON
             -DTILEDB_STATIC=ON
             -DTILEDB_SERIALIZATION=ON
-            -DTILEDB_FORCE_ALL_DEPS=ON
+            -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS}
             UPDATE_COMMAND ""
             INSTALL_COMMAND
             ${CMAKE_COMMAND} --build . --target install-tiledb

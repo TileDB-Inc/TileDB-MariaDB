@@ -10,6 +10,8 @@ mv !(tmp) tmp # Move everything but tmp
 # Download mariadb using git, this has a habit of failing so let's do it first
 git clone --recurse-submodules https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
+TILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS:="OFF"}
+
 # Install TileDB using 2.0 release
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
 
@@ -40,6 +42,6 @@ mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd ${MARIADB_VERSION}
 mkdir builddir \
 && cd builddir \
-&& cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. \
+&& cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS} .. \
 && make -j$(nproc) \
 && if ! ./mysql-test/mysql-test-run.pl --suite=mytile --debug; then cat ./mysql-test/var/log/mysqld.1.err && false; fi;

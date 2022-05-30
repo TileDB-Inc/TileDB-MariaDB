@@ -20,6 +20,7 @@ stages:
             imageName: 'ubuntu-20.04'
             CXX: g++
             SUPERBUILD: 'ON'
+            TILEDB_FORCE_ALL_DEPS: 'OFF'
           macOS:
             imageName: 'macOS-10.15'
             CXX: clang++

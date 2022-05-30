@@ -13,6 +13,7 @@ else ()
 endif ()
 
 option(SUPERBUILD "Build missing dependencies" ON)
+option(TILEDB_FORCE_ALL_DEPS "Build all dependencies" ON)
 
 
 ############################################################
@@ -50,15 +51,15 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     include(ExternalProject)
 
     SET(TILEDB_VERSION_MAJOR "2")
-    SET(TILEDB_VERSION_MINOR "8")
-    SET(TILEDB_VERSION_PATCH "3")
+    SET(TILEDB_VERSION_MINOR "9")
+    SET(TILEDB_VERSION_PATCH "2")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=1ba6ed19809650a63b68ec0d0635ea6578d8748f
+	    URL_HASH SHA1=b1feea51b3b54df0901a5555dd0106e33e619706
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
@@ -68,7 +69,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             -DTILEDB_AZURE=ON
             -DTILEDB_STATIC=ON
             -DTILEDB_SERIALIZATION=ON
-            -DTILEDB_FORCE_ALL_DEPS=ON
+            -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS}
             UPDATE_COMMAND ""
             INSTALL_COMMAND
             ${CMAKE_COMMAND} --build . --target install-tiledb

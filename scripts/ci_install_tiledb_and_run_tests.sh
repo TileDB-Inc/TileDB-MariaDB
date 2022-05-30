@@ -10,18 +10,20 @@ mv !(tmp) tmp # Move everything but tmp
 # Download mariadb using git, this has a habit of failing so let's do it first
 git clone --recurse-submodules https://github.com/MariaDB/server.git -b ${MARIADB_VERSION} ${MARIADB_VERSION}
 
+TILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS:="OFF"}
+
 # Install TileDB using 2.0 release
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
 
   if [[ "$AGENT_OS" == "Linux" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.8.3/tiledb-linux-x86_64-2.8.3-04a9da7.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.2/tiledb-linux-x86_64-2.9.2-5c41d9a.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   elif [[ "$AGENT_OS" == "Darwin" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.8.3/tiledb-macos-x86_64-2.8.3-04a9da7.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.2/tiledb-macos-x86_64-2.9.2-5c41d9a.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   else
     mkdir build_deps && cd build_deps \
-    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.8.3 && cd TileDB \
+    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.9.2 && cd TileDB \
     && mkdir -p build && cd build
 
      # Configure and build TileDB
@@ -40,6 +42,6 @@ mv tmp ${MARIADB_VERSION}/storage/mytile \
 && cd ${MARIADB_VERSION}
 mkdir builddir \
 && cd builddir \
-&& cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 .. \
+&& cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Debug -SWITH_DEBUG=1 -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS} .. \
 && make -j$(nproc) \
 && if ! ./mysql-test/mysql-test-run.pl --suite=mytile --debug; then cat ./mysql-test/var/log/mysqld.1.err && false; fi;

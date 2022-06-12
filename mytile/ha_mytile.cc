@@ -3246,6 +3246,10 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                                         HANDLER_BUFFER *buf) {
 
   DBUG_ENTER("tile::mytile::multi_range_read_init");
+  // If MRR is disabled fall back to default implementation
+  if (!tile::sysvars::mrr_support(ha_thd())) {
+    DBUG_RETURN(handler::multi_range_read_init(seq, seq_init_param, n_ranges, mode, buf));
+  }
   mrr_iter = seq->init(seq_init_param, n_ranges, mode);
   mrr_funcs = *seq;
 
@@ -3263,6 +3267,10 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
 
 int tile::mytile::multi_range_read_next(range_id_t *range_info) {
   DBUG_ENTER("tile::mytile::multi_range_read_next");
+  // If MRR is disabled fall back to default implementation
+  if (!tile::sysvars::mrr_support(ha_thd())) {
+    DBUG_RETURN(handler::multi_range_read_next(range_info));
+  }
   int res = ds_mrr.dsmrr_next(range_info);
   DBUG_RETURN(res);
 }
@@ -3272,6 +3280,11 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                   uint n_ranges, uint *bufsz,
                                                   uint *flags,
                                                   Cost_estimate *cost) {
+  DBUG_ENTER("tile::mytile::multi_range_read_info_const");
+  // If MRR is disabled fall back to default implementation
+  if (!tile::sysvars::mrr_support(ha_thd())) {
+    DBUG_RETURN(handler::multi_range_read_info_const(keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
+  }
   /*
     This call is here because there is no location where this->table would
     already be known.
@@ -3283,25 +3296,36 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                     flags, cost);
 
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
-  return rc;
+  DBUG_RETURN(rc);
 }
 
 ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
                                             uint keys, uint key_parts,
                                             uint *bufsz, uint *flags,
                                             Cost_estimate *cost) {
+  DBUG_ENTER("tile::mytile::multi_range_read_info");
+  // If MRR is disabled fall back to default implementation
+  if (!tile::sysvars::mrr_support(ha_thd())) {
+    DBUG_RETURN(handler::multi_range_read_info(keyno, n_ranges, keys, key_parts, bufsz,
+                                          flags, cost));
+  }
   ds_mrr.init(this, table);
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
   bool rc =
       ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
-  return rc;
+  DBUG_RETURN(rc);
 }
 
 int tile::mytile::multi_range_read_explain_info(uint mrr_mode, char *str,
                                                 size_t size) {
+  DBUG_ENTER("tile::mytile::multi_range_read_explain_info");
+  // If MRR is disabled fall back to default implementation
+  if (!tile::sysvars::mrr_support(ha_thd())) {
+    DBUG_RETURN(handler::multi_range_read_explain_info(mrr_mode, str, size));
+  }
   mrr_mode &= ~HA_MRR_USE_DEFAULT_IMPL;
-  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+  DBUG_RETURN(ds_mrr.dsmrr_explain_info(mrr_mode, str, size));
 }
 /* MyTile MRR implementation ends */
 

@@ -2,6 +2,7 @@
 --echo # The purpose of this test is to build and query a table having heterogeneus dimensions with MRR functionality
 -- echo # including string dimension
 --echo #
+SET mytile_mrr_support=1;
 
 --echo # FLOAT32, VARCHAR
 CREATE TABLE tmhds (d1 float dimension=1 lower_bound="1.0" upper_bound="20.0" tile_extent="5.0",
@@ -99,3 +100,4 @@ select * from `tmhds2` a JOIN `tmhds2` b USING(`d1`, `d2`) ORDER BY `d1` asc, d2
 
 set mytile_delete_arrays=0;
 DROP TABLE tmhds2;
+SET mytile_mrr_support=0;

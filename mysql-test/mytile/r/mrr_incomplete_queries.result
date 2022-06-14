@@ -1,6 +1,7 @@
 #
 # The purpose of this test is to validate the MRR functionality with incomplete TileDB queries
 #
+SET mytile_mrr_support=1;
 set mytile_read_buffer_size=16;
 CREATE TABLE quickstart_dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 CREATE TABLE quickstart_sparse ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_sparse';;
@@ -112,3 +113,4 @@ rows	cols	a	a
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
 drop table `quickstart_sparse`;
+SET mytile_mrr_support=0;

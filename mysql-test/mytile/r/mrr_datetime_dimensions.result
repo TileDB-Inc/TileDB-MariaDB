@@ -1,6 +1,7 @@
 #
 # The purpose of this test is to validate MyTile datetime conditions with MRR
 #
+SET mytile_mrr_support=1;
 CREATE TABLE dt (
 column1 datetime(0) dimension=1 tile_extent="10",
 column2 int dimension=1 tile_extent="10",
@@ -56,3 +57,4 @@ column1	column2	column3	column3
 2020-09-20 08:00:00	9	sep	sep
 2020-10-20 09:00:00	10	oct	oct
 DROP TABLE dt;
+SET mytile_mrr_support=0;

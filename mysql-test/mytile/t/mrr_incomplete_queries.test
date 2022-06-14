@@ -1,6 +1,7 @@
 --echo #
 --echo # The purpose of this test is to validate the MRR functionality with incomplete TileDB queries
 --echo #
+SET mytile_mrr_support=1;
 
 set mytile_read_buffer_size=16;
 
@@ -57,3 +58,4 @@ select * from `quickstart_dense` a JOIN `quickstart_sparse` b USING(`rows`, `col
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
 drop table `quickstart_sparse`;
+SET mytile_mrr_support=0;

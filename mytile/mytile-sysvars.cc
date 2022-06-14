@@ -117,6 +117,11 @@ static MYSQL_THDVAR_BOOL(create_allow_subset_existing_array,
                          "Allow registering a subset of column", NULL, NULL,
                          false);
 
+static MYSQL_THDVAR_BOOL(mrr_support,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "Should MRR support be enabled for queries", NULL, NULL,
+                         false);
+
 const char *log_level_names[] = {"error", "warning", "info", "debug", NullS};
 
 TYPELIB log_level_typelib = {array_elements(log_level_names) - 1,
@@ -138,6 +143,7 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(compute_table_records),
     MYSQL_SYSVAR(log_level),
     MYSQL_SYSVAR(create_allow_subset_existing_array),
+    MYSQL_SYSVAR(mrr_support),
     NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
@@ -173,6 +179,10 @@ my_bool compute_table_records(THD *thd) {
 
 my_bool create_allow_subset_existing_array(THD *thd) {
   return THDVAR(thd, create_allow_subset_existing_array);
+}
+
+my_bool mrr_support(THD *thd) {
+  return THDVAR(thd, mrr_support);
 }
 
 LOG_LEVEL log_level(THD *thd) { return LOG_LEVEL(THDVAR(thd, log_level)); }

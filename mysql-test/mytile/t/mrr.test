@@ -1,6 +1,7 @@
 --echo #
 --echo # The purpose of this test is to validate the MRR functionality
 --echo #
+SET mytile_mrr_support=1;
 
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE quickstart_dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
@@ -64,3 +65,4 @@ set mytile_delete_arrays=0;
 drop table `quickstart_dense`;
 drop table `quickstart_sparse`;
 drop table `bank`;
+SET mytile_mrr_support=0;

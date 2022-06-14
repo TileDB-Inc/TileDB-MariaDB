@@ -2,6 +2,7 @@
 --echo # The purpose of this test is to validate MyTile datetime conditions with MRR
 --echo #
 
+SET mytile_mrr_support=1;
 #echo ranges
 CREATE TABLE dt (
   column1 datetime(0) dimension=1 tile_extent="10",
@@ -35,3 +36,4 @@ SELECT * from dt WHERE column1 > '2020-02-20 01:00:00' AND column1 < '2020-09-20
 SELECT * from dt WHERE column1 between '2020-06-20 05:00:00' AND '2020-10-20 09:00:00' AND column2 = 7;
 SELECT * from dt inner join dt dt2 USING(column1, column2);
 DROP TABLE dt;
+SET mytile_mrr_support=0;

@@ -16,14 +16,14 @@ TILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS:="OFF"}
 if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
 
   if [[ "$AGENT_OS" == "Linux" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.4/tiledb-linux-x86_64-2.9.4-4e14c01.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.5/tiledb-linux-x86_64-2.9.5-81e3fd1.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   elif [[ "$AGENT_OS" == "Darwin" ]]; then
-    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.4/tiledb-macos-x86_64-2.9.4-4e14c01.tar.gz \
+    curl -L -o tiledb.tar.gz https://github.com/TileDB-Inc/TileDB/releases/download/2.9.5/tiledb-macos-x86_64-2.9.5-81e3fd1.tar.gz \
     && sudo tar -C /usr/local -xvf tiledb.tar.gz
   else
     mkdir build_deps && cd build_deps \
-    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.9.4 && cd TileDB \
+    && git clone https://github.com/TileDB-Inc/TileDB.git -b 2.9.5 && cd TileDB \
     && mkdir -p build && cd build
 
      # Configure and build TileDB

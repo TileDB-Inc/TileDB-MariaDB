@@ -47,8 +47,7 @@ struct BufferSizeByType {
       const uint64_t &int64_buffer_size, const uint64_t &float32_buffer_size,
       const uint64_t &float64_buffer_size,
       const uint64_t &var_length_uint8_buffer_size,
-      const uint64_t &blob_buffer_size,
-      const uint64_t &bool_buffer_size) {
+      const uint64_t &blob_buffer_size, const uint64_t &bool_buffer_size) {
     this->char_buffer_size = char_buffer_size;
     this->uint8_buffer_size = uint8_buffer_size;
     this->int8_buffer_size = int8_buffer_size;

@@ -3252,7 +3252,8 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
   DBUG_ENTER("tile::mytile::multi_range_read_init");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_init(seq, seq_init_param, n_ranges, mode, buf));
+    DBUG_RETURN(handler::multi_range_read_init(seq, seq_init_param, n_ranges,
+                                               mode, buf));
   }
   mrr_iter = seq->init(seq_init_param, n_ranges, mode);
   mrr_funcs = *seq;
@@ -3287,7 +3288,8 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   DBUG_ENTER("tile::mytile::multi_range_read_info_const");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_info_const(keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
+    DBUG_RETURN(handler::multi_range_read_info_const(
+        keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
   }
   /*
     This call is here because there is no location where this->table would
@@ -3310,8 +3312,8 @@ ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
   DBUG_ENTER("tile::mytile::multi_range_read_info");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_info(keyno, n_ranges, keys, key_parts, bufsz,
-                                          flags, cost));
+    DBUG_RETURN(handler::multi_range_read_info(keyno, n_ranges, keys, key_parts,
+                                               bufsz, flags, cost));
   }
   ds_mrr.init(this, table);
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;

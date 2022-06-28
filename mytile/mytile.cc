@@ -1601,9 +1601,9 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
                          (num_int64_buffers * sizeof(uint64_t)) +
                          (num_float32_buffers * sizeof(float)) +
                          (num_float64_buffers * sizeof(double)) +
-                         (num_var_length_uint8_buffers * sizeof(uint64_t))+
-                         (num_blob_buffers*sizeof(uint8_t))+
-                         (num_bool_buffers*sizeof(bool));
+                         (num_var_length_uint8_buffers * sizeof(uint64_t)) +
+                         (num_blob_buffers * sizeof(uint8_t)) +
+                         (num_bool_buffers * sizeof(bool));
 
   // Every buffer alloc gets the same size.
   uint64_t nbytes = memory_budget / num_weighted_buffers;
@@ -1619,7 +1619,8 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
       nbytes * sizeof(int16_t), nbytes * sizeof(int32_t),
       nbytes * sizeof(uint32_t), nbytes * sizeof(uint64_t),
       nbytes * sizeof(int64_t), nbytes * sizeof(float), nbytes * sizeof(double),
-      nbytes * sizeof(uint64_t), nbytes*sizeof(uint8_t), nbytes*sizeof(bool));
+      nbytes * sizeof(uint64_t), nbytes * sizeof(uint8_t),
+      nbytes * sizeof(bool));
 
   return sizes;
 }

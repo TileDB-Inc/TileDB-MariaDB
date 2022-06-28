@@ -186,9 +186,9 @@ tile::merge_ranges(const std::vector<std::shared_ptr<tile::range>> &ranges,
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return merge_ranges_str(ranges);
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return merge_ranges<std::byte>(ranges);
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return merge_ranges<std::byte>(ranges);
 
   case tiledb_datatype_t::TILEDB_BOOL:
     return merge_ranges<bool>(ranges);
@@ -260,9 +260,9 @@ std::shared_ptr<tile::range> tile::merge_ranges_to_super(
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return merge_ranges_to_super<char>(ranges);
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return merge_ranges_to_super<std::byte>(ranges);
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return merge_ranges_to_super<std::byte>(ranges);
 
   case tiledb_datatype_t::TILEDB_BOOL:
     return merge_ranges_to_super<bool>(ranges);
@@ -429,14 +429,13 @@ void tile::setup_range(THD *thd, const std::shared_ptr<range> &range,
     return setup_range<uint64_t>(thd, range,
                                  static_cast<uint64_t *>(non_empty_domain));
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return setup_range<std::byte>(thd, range,
-  //                             static_cast<std::byte*>(non_empty_domain));
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return setup_range<std::byte>(thd, range,
+    //                             static_cast<std::byte*>(non_empty_domain));
 
   case tiledb_datatype_t::TILEDB_BOOL:
-    return setup_range<bool>(thd, range,
-                               static_cast<bool*>(non_empty_domain));
+    return setup_range<bool>(thd, range, static_cast<bool *>(non_empty_domain));
   default: {
     const char *datatype_str;
     tiledb_datatype_to_str(range->datatype, &datatype_str);
@@ -515,13 +514,13 @@ int tile::set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
                                            cmp_type, range, datatype);
     break;
   // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
+  // case tiledb_datatype_t::TILEDB_BLOB:
   //  tile::set_range_from_item_consts<std::byte>(thd, lower_const, upper_const,
   //                                           cmp_type, range, datatype);
   //  break;
   case tiledb_datatype_t::TILEDB_BOOL:
     tile::set_range_from_item_consts<bool>(thd, lower_const, upper_const,
-                                             cmp_type, range, datatype);
+                                           cmp_type, range, datatype);
     break;
 
   default: {
@@ -707,9 +706,10 @@ tile::get_unique_non_contained_in_ranges(
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return get_unique_non_contained_in_ranges_str(in_ranges, main_range);
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return get_unique_non_contained_in_ranges<std::byte>(in_ranges, main_range);
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return get_unique_non_contained_in_ranges<std::byte>(in_ranges,
+    //  main_range);
 
   case tiledb_datatype_t::TILEDB_BOOL:
     return get_unique_non_contained_in_ranges<bool>(in_ranges, main_range);
@@ -1027,17 +1027,19 @@ tile::build_ranges_from_key(THD *thd, const TABLE *table, const uchar *key,
       break;
     }
 
-  // Uncomment to support BLOB dimensions
-  //  case tiledb_datatype_t::TILEDB_BLOB: {
-  //    ranges[key_part_index] =
-  //        build_range_from_key<std::byte>(key + key_offset, length, find_flag,
-  //                                     start_key, last_key_part, datatype);
-  //    break;
-  //  }
+      // Uncomment to support BLOB dimensions
+      //  case tiledb_datatype_t::TILEDB_BLOB: {
+      //    ranges[key_part_index] =
+      //        build_range_from_key<std::byte>(key + key_offset, length,
+      //        find_flag,
+      //                                     start_key, last_key_part,
+      //                                     datatype);
+      //    break;
+      //  }
     case tiledb_datatype_t::TILEDB_BOOL: {
       ranges[key_part_index] =
           build_range_from_key<bool>(key + key_offset, length, find_flag,
-                                       start_key, last_key_part, datatype);
+                                     start_key, last_key_part, datatype);
       break;
     }
 
@@ -1163,10 +1165,10 @@ void tile::update_range_from_key_for_super_range(
         range, key, key_offset, start_key, last_key_part, char_length);
   }
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return update_range_from_key_for_super_range<std::byte>(
-  //      range, key, key_offset, start_key, last_key_part);
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return update_range_from_key_for_super_range<std::byte>(
+    //      range, key, key_offset, start_key, last_key_part);
 
   case tiledb_datatype_t::TILEDB_BOOL:
     return update_range_from_key_for_super_range<bool>(
@@ -1233,9 +1235,9 @@ int8_t tile::compare_typed_buffers(const void *lhs, const void *rhs,
   case tiledb_datatype_t::TILEDB_UINT64:
     return compare_typed_buffers<uint64_t>(lhs, rhs, size);
 
-  // Uncomment to support BLOB dimensions
-  //case tiledb_datatype_t::TILEDB_BLOB:
-  //  return compare_typed_buffers<std::byte>(lhs, rhs, size);
+    // Uncomment to support BLOB dimensions
+    // case tiledb_datatype_t::TILEDB_BLOB:
+    //  return compare_typed_buffers<std::byte>(lhs, rhs, size);
 
   case tiledb_datatype_t::TILEDB_BOOL:
     return compare_typed_buffers<bool>(lhs, rhs, size);

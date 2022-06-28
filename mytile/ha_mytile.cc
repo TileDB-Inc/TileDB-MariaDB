@@ -2837,6 +2837,10 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
 
     return compare_key_to_dim<char>(key + key_offset, char_length, buff, size);
   }
+  case TILEDB_BLOB:
+    return compare_key_to_dim<std::byte>(key, key_part_len, fixed_buff_pointer);
+  case TILEDB_BOOL:
+    return compare_key_to_dim<bool>(key, key_part_len, fixed_buff_pointer);
   default: {
     my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in key compare",
                     ME_ERROR_LOG | ME_FATAL);

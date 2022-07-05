@@ -719,6 +719,11 @@ int tile::mytile::init_scan(THD *thd) {
     // If a query condition on an attribute was set, apply it
     if (this->query_condition != nullptr) {
       this->query->set_condition(*this->query_condition);
+      if (!array_schema->allows_dups() &&
+          tile::sysvars::read_query_layout(thd) == TILEDB_UNORDERED) {
+        config["sm.query.sparse_global_order.reader"] = "legacy";
+        query->set_config(config);
+      }
     }
 
     if (!this->valid_pushed_ranges() &&

@@ -117,10 +117,9 @@ static MYSQL_THDVAR_BOOL(create_allow_subset_existing_array,
                          "Allow registering a subset of column", NULL, NULL,
                          false);
 
-static MYSQL_THDVAR_BOOL(mrr_support,
-                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
-                         "Should MRR support be enabled for queries", NULL, NULL,
-                         false);
+static MYSQL_THDVAR_BOOL(mrr_support, PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
+                         "Should MRR support be enabled for queries", NULL,
+                         NULL, false);
 
 const char *log_level_names[] = {"error", "warning", "info", "debug", NullS};
 
@@ -181,9 +180,7 @@ my_bool create_allow_subset_existing_array(THD *thd) {
   return THDVAR(thd, create_allow_subset_existing_array);
 }
 
-my_bool mrr_support(THD *thd) {
-  return THDVAR(thd, mrr_support);
-}
+my_bool mrr_support(THD *thd) { return THDVAR(thd, mrr_support); }
 
 LOG_LEVEL log_level(THD *thd) { return LOG_LEVEL(THDVAR(thd, log_level)); }
 } // namespace sysvars

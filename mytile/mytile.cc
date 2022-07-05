@@ -175,6 +175,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
     return MYSQL_TYPE_FLOAT;
   }
 
+  case tiledb_datatype_t::TILEDB_BOOL:
   case tiledb_datatype_t::TILEDB_INT8:
   case tiledb_datatype_t::TILEDB_UINT8: {
     if (multi_value)
@@ -351,6 +352,10 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
     if (s[0] == '\0')
       s = "\\0";
     return std::string("'") + s + std::string("'");
+  }
+  case TILEDB_BOOL: {
+    auto v = static_cast<const bool *>(value);
+    return std::to_string(*v);
   }
 
   default: {
@@ -733,6 +738,9 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   case tiledb_datatype_t::TILEDB_BLOB:
     return alloc_buffer<std::byte>(rounded_size);
 
+  case tiledb_datatype_t::TILEDB_BOOL:
+    return alloc_buffer<bool>(rounded_size);
+
   default: {
     my_printf_error(ER_UNKNOWN_ERROR,
                     "Unknown tiledb data type in allocating buffers",
@@ -1037,6 +1045,10 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     return set_time_field(thd, field, buff, i, hours, minutes, seconds, us,
                           MYSQL_TIMESTAMP_TIME);
   }
+  case TILEDB_BLOB:
+    return set_string_field<std::byte>(field, buff, i, &my_charset_latin1);
+  case TILEDB_BOOL:
+    return set_field<bool>(field, buff, i);
   default: {
     const char *type_str = nullptr;
     tiledb_datatype_to_str(buff->type, &type_str);
@@ -1217,6 +1229,16 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
     return set_buffer_from_field<int64_t>(xs, field_null, buff, i);
   }
+  case TILEDB_BLOB: {
+    if (buff->offset_buffer != nullptr)
+      return set_string_buffer_from_field<std::byte>(field, field_null, buff,
+                                                     i);
+
+    return set_fixed_string_buffer_from_field<std::byte>(field, field_null,
+                                                         buff, i);
+  }
+  case TILEDB_BOOL:
+    return set_buffer_from_field<bool>(field->val_int(), field_null, buff, i);
   default: {
     const char *type_str = nullptr;
     tiledb_datatype_to_str(buff->type, &type_str);
@@ -1390,6 +1412,8 @@ const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_TIME_FS:
   case tiledb_datatype_t::TILEDB_TIME_AS:
     return &constants::empty_int64;
+  case tiledb_datatype_t::TILEDB_BOOL:
+    return &constants::empty_bool;
   }
 
   return nullptr;
@@ -1442,6 +1466,7 @@ bool tile::is_string_datatype(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_TIME_PS:
   case tiledb_datatype_t::TILEDB_TIME_FS:
   case tiledb_datatype_t::TILEDB_TIME_AS:
+  case tiledb_datatype_t::TILEDB_BOOL:
     return false;
   case tiledb_datatype_t::TILEDB_CHAR:
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
@@ -1471,6 +1496,8 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
   uint64_t num_float32_buffers = 0;
   uint64_t num_float64_buffers = 0;
   uint64_t num_var_length_uint8_buffers = 0;
+  uint64_t num_blob_buffers = 0;
+  uint64_t num_bool_buffers = 0;
 
   for (const auto &field_type : field_types) {
     tiledb_datatype_t datatype = std::get<0>(field_type);
@@ -1551,6 +1578,12 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
       case TILEDB_TIME_AS:
         num_int64_buffers += 1;
         break;
+      case TILEDB_BLOB:
+        num_blob_buffers += 1;
+        break;
+      case TILEDB_BOOL:
+        num_bool_buffers += 1;
+        break;
       default: {
         const char *datatype_str;
         tiledb_datatype_to_str(datatype, &datatype_str);
@@ -1568,7 +1601,9 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
                          (num_int64_buffers * sizeof(uint64_t)) +
                          (num_float32_buffers * sizeof(float)) +
                          (num_float64_buffers * sizeof(double)) +
-                         (num_var_length_uint8_buffers * sizeof(uint64_t));
+                         (num_var_length_uint8_buffers * sizeof(uint64_t)) +
+                         (num_blob_buffers * sizeof(uint8_t)) +
+                         (num_bool_buffers * sizeof(bool));
 
   // Every buffer alloc gets the same size.
   uint64_t nbytes = memory_budget / num_weighted_buffers;
@@ -1584,7 +1619,8 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
       nbytes * sizeof(int16_t), nbytes * sizeof(int32_t),
       nbytes * sizeof(uint32_t), nbytes * sizeof(uint64_t),
       nbytes * sizeof(int64_t), nbytes * sizeof(float), nbytes * sizeof(double),
-      nbytes * sizeof(uint64_t));
+      nbytes * sizeof(uint64_t), nbytes * sizeof(uint8_t),
+      nbytes * sizeof(bool));
 
   return sizes;
 }
@@ -1595,6 +1631,8 @@ const int tile::constants::empty_int32 = std::numeric_limits<int32_t>::min();
 /** The special value for an empty int64. */
 const int64_t tile::constants::empty_int64 =
     std::numeric_limits<int64_t>::min();
+
+const bool tile::constants::empty_bool = 0;
 
 /** The special value for an empty float32. */
 const float tile::constants::empty_float32 =

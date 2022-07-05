@@ -96,6 +96,8 @@ std::string tile::build_metadata_value_string(THD *thd, const void *data,
   case TILEDB_TIME_FS:
   case TILEDB_TIME_AS:
     return tile::build_metadata_time_value_string(thd, data, num, type);
+  case TILEDB_BOOL:
+    return tile::build_metadata_numeric_value_string<bool>(data, num);
   }
   return "";
 }

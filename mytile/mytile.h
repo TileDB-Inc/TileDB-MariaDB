@@ -46,7 +46,8 @@ struct BufferSizeByType {
       const uint64_t &uint32_buffer_size, const uint64_t &uint64_buffer_size,
       const uint64_t &int64_buffer_size, const uint64_t &float32_buffer_size,
       const uint64_t &float64_buffer_size,
-      const uint64_t &var_length_uint8_buffer_size) {
+      const uint64_t &var_length_uint8_buffer_size,
+      const uint64_t &blob_buffer_size, const uint64_t &bool_buffer_size) {
     this->char_buffer_size = char_buffer_size;
     this->uint8_buffer_size = uint8_buffer_size;
     this->int8_buffer_size = int8_buffer_size;
@@ -59,6 +60,8 @@ struct BufferSizeByType {
     this->float32_buffer_size = float32_buffer_size;
     this->float64_buffer_size = float64_buffer_size;
     this->var_length_uint8_buffer_size = var_length_uint8_buffer_size;
+    this->blob_buffer_size = blob_buffer_size;
+    this->bool_buffer_size = bool_buffer_size;
   }
 
   BufferSizeByType() = default;
@@ -122,6 +125,10 @@ struct BufferSizeByType {
     case TILEDB_TIME_FS:
     case TILEDB_TIME_AS:
       return int64_buffer_size;
+    case TILEDB_BLOB:
+      return blob_buffer_size;
+    case TILEDB_BOOL:
+      return bool_buffer_size;
     default: {
       const char *str;
       tiledb_datatype_to_str(datatype, &str);
@@ -146,6 +153,8 @@ struct BufferSizeByType {
   uint64_t float32_buffer_size = 0;
   uint64_t float64_buffer_size = 0;
   uint64_t var_length_uint8_buffer_size = 0;
+  uint64_t bool_buffer_size = 0;
+  uint64_t blob_buffer_size = 0;
 };
 
 /**
@@ -717,6 +726,9 @@ extern const int empty_int32;
 
 /** The special value for an empty int64. */
 extern const int64_t empty_int64;
+
+/** The special value for an empty bool. */
+extern const bool empty_bool;
 
 /** The special value for an empty float32. */
 extern const float empty_float32;

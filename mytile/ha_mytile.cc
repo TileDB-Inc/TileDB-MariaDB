@@ -719,6 +719,11 @@ int tile::mytile::init_scan(THD *thd) {
     // If a query condition on an attribute was set, apply it
     if (this->query_condition != nullptr) {
       this->query->set_condition(*this->query_condition);
+      if (!array_schema->allows_dups() &&
+          tile::sysvars::read_query_layout(thd) == TILEDB_UNORDERED) {
+        config["sm.query.sparse_global_order.reader"] = "legacy";
+        query->set_config(config);
+      }
     }
 
     if (!this->valid_pushed_ranges() &&
@@ -2837,6 +2842,10 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
 
     return compare_key_to_dim<char>(key + key_offset, char_length, buff, size);
   }
+  case TILEDB_BLOB:
+    return compare_key_to_dim<std::byte>(key, key_part_len, fixed_buff_pointer);
+  case TILEDB_BOOL:
+    return compare_key_to_dim<bool>(key, key_part_len, fixed_buff_pointer);
   default: {
     my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in key compare",
                     ME_ERROR_LOG | ME_FATAL);
@@ -3248,7 +3257,8 @@ int tile::mytile::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
   DBUG_ENTER("tile::mytile::multi_range_read_init");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_init(seq, seq_init_param, n_ranges, mode, buf));
+    DBUG_RETURN(handler::multi_range_read_init(seq, seq_init_param, n_ranges,
+                                               mode, buf));
   }
   mrr_iter = seq->init(seq_init_param, n_ranges, mode);
   mrr_funcs = *seq;
@@ -3283,7 +3293,8 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   DBUG_ENTER("tile::mytile::multi_range_read_info_const");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_info_const(keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
+    DBUG_RETURN(handler::multi_range_read_info_const(
+        keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
   }
   /*
     This call is here because there is no location where this->table would
@@ -3306,8 +3317,8 @@ ha_rows tile::mytile::multi_range_read_info(uint keyno, uint n_ranges,
   DBUG_ENTER("tile::mytile::multi_range_read_info");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
-    DBUG_RETURN(handler::multi_range_read_info(keyno, n_ranges, keys, key_parts, bufsz,
-                                          flags, cost));
+    DBUG_RETURN(handler::multi_range_read_info(keyno, n_ranges, keys, key_parts,
+                                               bufsz, flags, cost));
   }
   ds_mrr.init(this, table);
   *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
@@ -3371,7 +3382,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0161,                     /* version number (0.16.1) */
+    0x0170,                     /* version number (0.17.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     NULL,                                   /* config options */
@@ -3388,9 +3399,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0161,                     /* version number (0.16.1) */
+    0x0170,                     /* version number (0.17.0) */
     NULL,                       /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
-    "0.16.1",                               /* string version */
+    "0.17.0",                               /* string version */
     MariaDB_PLUGIN_MATURITY_BETA            /* maturity */
 } maria_declare_plugin_end;

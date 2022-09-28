@@ -53,10 +53,10 @@ ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-10.5.13"
 WORKDIR /tmp
 
-ARG MYTILE_VERSION="0.18.1"
+ARG MYTILE_VERSION="0.18.2"
 
-ARG TILEDB_VERSION="2.11.1"
-ARG TILEDB_VERSION_SHORT_SHA="15a1161"
+ARG TILEDB_VERSION="2.11.3"
+ARG TILEDB_VERSION_SHORT_SHA="a55a910"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added

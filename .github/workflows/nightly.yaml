@@ -52,5 +52,5 @@ jobs:
           gh issue create \
             --assignee Shelnutt2,ihnorton,jdblischak \
             --body "Nightly build failed in run [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
-            --label "bug" \
+            --label "nightly-failure" \
             --title "Nightly build failed on $(date '+%A (%Y-%m-%d)')"

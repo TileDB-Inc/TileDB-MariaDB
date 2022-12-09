@@ -41,6 +41,7 @@
 #include "ha_mytile.h"
 #include "mytile-errors.h"
 #include "mytile-discovery.h"
+#include "mytile-statusvars.h"
 #include "mytile-sysvars.h"
 #include "mytile-metadata.h"
 #include "mytile.h"
@@ -3378,7 +3379,7 @@ mysql_declare_plugin(mytile){
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
     0x0192,                     /* version number (0.19.2) */
-    NULL,                       /* status variables */
+    tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     NULL,                                   /* config options */
     0,                                      /* flags */
@@ -3395,7 +3396,7 @@ maria_declare_plugin(mytile){
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
     0x0192,                     /* version number (0.19.2) */
-    NULL,                       /* status variables */
+    tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables, /* system variables */
     "0.19.2",                               /* string version */
     MariaDB_PLUGIN_MATURITY_BETA            /* maturity */

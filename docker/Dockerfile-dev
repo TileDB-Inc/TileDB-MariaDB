@@ -51,8 +51,8 @@ RUN apt-get update && apt-get install -y \
 
 ENV MTR_MEM /tmp
 
-ARG TILEDB_VERSION="2.12.2"
-ARG TILEDB_VERSION_SHORT_SHA="a9d60c8"
+ARG TILEDB_VERSION="2.13.0"
+ARG TILEDB_VERSION_SHORT_SHA="db00e70"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 WORKDIR /tmp
@@ -61,7 +61,7 @@ WORKDIR /tmp
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-# Install tiledb using 2.4 release
+# Install tiledb
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
  && rm  ${TILEDB_PREBUILT_FILE} \

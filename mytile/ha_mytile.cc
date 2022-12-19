@@ -2181,30 +2181,20 @@ void tile::mytile::alloc_read_buffers(uint64_t memory_budget) {
     if (buff == nullptr)
       continue;
 
+    this->ctx.handle_error(tiledb_query_set_data_buffer(
+        this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+        buff->buffer, &buff->buffer_size));
+    
     if (buff->validity_buffer != nullptr) {
-      if (buff->offset_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_buffer_var_nullable(
+        this->ctx.handle_error(tiledb_query_set_validity_buffer(
             this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-            &buff->buffer_size, buff->validity_buffer,
-            &buff->validity_buffer_size));
-      } else {
-        this->ctx.handle_error(tiledb_query_set_buffer_nullable(
+            buff->validity_buffer, &buff->validity_buffer_size));
+    }
+
+    if (buff->offset_buffer != nullptr) {
+        this->ctx.handle_error(tiledb_query_set_offsets_buffer(
             this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->buffer, &buff->buffer_size, buff->validity_buffer,
-            &buff->validity_buffer_size));
-      }
-    } else {
-      if (buff->offset_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_buffer_var(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size, buff->buffer,
-            &buff->buffer_size));
-      } else {
-        this->ctx.handle_error(tiledb_query_set_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->buffer, &buff->buffer_size));
-      }
+            buff->offset_buffer, &buff->offset_buffer_size));
     }
   }
 }
@@ -2370,30 +2360,24 @@ int tile::mytile::flush_write() {
   try {
 
     for (auto &buff : this->buffers) {
+
+      if (buff == nullptr)
+        continue;
+
+      this->ctx.handle_error(tiledb_query_set_data_buffer(
+          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+          buff->buffer, &buff->buffer_size));
+      
       if (buff->validity_buffer != nullptr) {
-        if (buff->offset_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_buffer_var_nullable(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->offset_buffer,
-              &buff->offset_buffer_size, buff->buffer, &buff->buffer_size,
+          this->ctx.handle_error(tiledb_query_set_validity_buffer(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
               buff->validity_buffer, &buff->validity_buffer_size));
-        } else {
-          this->ctx.handle_error(tiledb_query_set_buffer_nullable(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->buffer, &buff->buffer_size,
-              buff->validity_buffer, &buff->validity_buffer_size));
-        }
-      } else {
-        if (buff->offset_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_buffer_var(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->offset_buffer,
-              &buff->offset_buffer_size, buff->buffer, &buff->buffer_size));
-        } else {
-          this->ctx.handle_error(tiledb_query_set_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(),
-              buff->name.c_str(), buff->buffer, &buff->buffer_size));
-        }
+      }
+
+      if (buff->offset_buffer != nullptr) {
+          this->ctx.handle_error(tiledb_query_set_offsets_buffer(
+              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+              buff->offset_buffer, &buff->offset_buffer_size));
       }
     }
 

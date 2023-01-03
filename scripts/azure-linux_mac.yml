@@ -46,7 +46,7 @@ steps:
     fi
 
     if [[ "$AGENT_OS" == "Darwin" ]]; then
-      brew install cmake jemalloc traildb/judy/judy openssl@1.1 boost gnutls m4 bison@2.7
+      brew install cmake jemalloc openssl@1.1 boost gnutls m4 bison@2.7
       export PATH="$(brew --prefix bison@2.7)/bin:$PATH"
 
       export OSX_FLAGS_NEEDED="-Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"

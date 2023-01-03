@@ -10,5 +10,4 @@ brew install \
   gnutls \
   jemalloc \
   m4 \
-  openssl@1.1 \
-  traildb/judy/judy
+  openssl@1.1

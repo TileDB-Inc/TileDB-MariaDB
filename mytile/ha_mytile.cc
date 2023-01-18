@@ -1347,7 +1347,8 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     nullable = attr.nullable();
 
     if (!attr.variable_sized() ||
-        (attr.variable_sized() && (datatype == TILEDB_STRING_ASCII || datatype == TILEDB_STRING_UTF8))) {
+        (attr.variable_sized() &&
+         (datatype == TILEDB_STRING_ASCII || datatype == TILEDB_STRING_UTF8))) {
       use_query_condition = true;
     } else {
       // If we can't use query condition let MariaDB filter the attribute
@@ -2184,17 +2185,17 @@ void tile::mytile::alloc_read_buffers(uint64_t memory_budget) {
     this->ctx.handle_error(tiledb_query_set_data_buffer(
         this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
         buff->buffer, &buff->buffer_size));
-    
+
     if (buff->validity_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_validity_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->validity_buffer, &buff->validity_buffer_size));
+      this->ctx.handle_error(tiledb_query_set_validity_buffer(
+          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+          buff->validity_buffer, &buff->validity_buffer_size));
     }
 
     if (buff->offset_buffer != nullptr) {
-        this->ctx.handle_error(tiledb_query_set_offsets_buffer(
-            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-            buff->offset_buffer, &buff->offset_buffer_size));
+      this->ctx.handle_error(tiledb_query_set_offsets_buffer(
+          this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+          buff->offset_buffer, &buff->offset_buffer_size));
     }
   }
 }
@@ -2367,17 +2368,17 @@ int tile::mytile::flush_write() {
       this->ctx.handle_error(tiledb_query_set_data_buffer(
           this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
           buff->buffer, &buff->buffer_size));
-      
+
       if (buff->validity_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_validity_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-              buff->validity_buffer, &buff->validity_buffer_size));
+        this->ctx.handle_error(tiledb_query_set_validity_buffer(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->validity_buffer, &buff->validity_buffer_size));
       }
 
       if (buff->offset_buffer != nullptr) {
-          this->ctx.handle_error(tiledb_query_set_offsets_buffer(
-              this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
-              buff->offset_buffer, &buff->offset_buffer_size));
+        this->ctx.handle_error(tiledb_query_set_offsets_buffer(
+            this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
+            buff->offset_buffer, &buff->offset_buffer_size));
       }
     }
 
@@ -3364,9 +3365,9 @@ mysql_declare_plugin(mytile){
     NULL,                       /* Plugin Deinit */
     0x0210,                     /* version number (0.21.0) */
     tile::statusvars::mytile_status_variables, /* status variables */
-    tile::sysvars::mytile_system_variables, /* system variables */
-    NULL,                                   /* config options */
-    0,                                      /* flags */
+    tile::sysvars::mytile_system_variables,    /* system variables */
+    NULL,                                      /* config options */
+    0,                                         /* flags */
 } mysql_declare_plugin_end;
 maria_declare_plugin(mytile){
     MYSQL_STORAGE_ENGINE_PLUGIN, /* the plugin type (a MYSQL_XXX_PLUGIN value)
@@ -3381,7 +3382,7 @@ maria_declare_plugin(mytile){
     NULL,                       /* Plugin Deinit */
     0x0210,                     /* version number (0.21.0) */
     tile::statusvars::mytile_status_variables, /* status variables */
-    tile::sysvars::mytile_system_variables, /* system variables */
-    "0.21.0",                               /* string version */
-    MariaDB_PLUGIN_MATURITY_BETA            /* maturity */
+    tile::sysvars::mytile_system_variables,    /* system variables */
+    "0.21.0",                                  /* string version */
+    MariaDB_PLUGIN_MATURITY_BETA               /* maturity */
 } maria_declare_plugin_end;

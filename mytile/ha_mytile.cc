@@ -2486,6 +2486,12 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     // First rebuild context with new config if needed
     tiledb::Config cfg = build_config(ha_thd());
 
+    const char* enc_type_str;
+    tiledb_encryption_type_to_str(
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM, &enc_type_str);
+    cfg.set("sm.encryption_type", enc_type_str);
+    cfg.set("sm.encryption_key", encryption_key);
+
     if (!compare_configs(cfg, this->config)) {
       this->config = cfg;
       this->ctx = build_context(this->config);
@@ -2493,13 +2499,10 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     if (this->table->s->option_struct->open_at != UINT64_MAX) {
       this->array = std::make_shared<tiledb::Array>(
           this->ctx, this->uri, TILEDB_READ,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key, this->table->s->option_struct->open_at);
+          this->table->s->option_struct->open_at);
     } else {
       this->array = std::make_shared<tiledb::Array>(
-          this->ctx, this->uri, TILEDB_READ,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key);
+          this->ctx, this->uri, TILEDB_READ);
     }
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
@@ -2513,13 +2516,9 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       if (this->table->s->option_struct->open_at != UINT64_MAX) {
         this->array->open(
             TILEDB_READ,
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key, this->table->s->option_struct->open_at);
+            this->table->s->option_struct->open_at);
       } else {
-        this->array->open(TILEDB_READ,
-                          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                 : TILEDB_AES_256_GCM,
-                          encryption_key);
+        this->array->open(TILEDB_READ);
       }
     }
 
@@ -2563,14 +2562,18 @@ void tile::mytile::open_array_for_writes(THD *thd) {
     // First rebuild context with new config if needed
     tiledb::Config cfg = build_config(ha_thd());
 
+    const char* enc_type_str;
+    tiledb_encryption_type_to_str(
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM, &enc_type_str);
+    cfg.set("sm.encryption_type", enc_type_str);
+    cfg.set("sm.encryption_key", encryption_key);
+
     if (!compare_configs(cfg, this->config)) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }
     this->array = std::make_shared<tiledb::Array>(
-        this->ctx, this->uri, TILEDB_WRITE,
-        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        encryption_key);
+        this->ctx, this->uri, TILEDB_WRITE);
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
     // Else lets try to open reopen and use existing contexts
@@ -2581,10 +2584,7 @@ void tile::mytile::open_array_for_writes(THD *thd) {
       if (this->array->is_open())
         this->array->close();
 
-      this->array->open(TILEDB_WRITE,
-                        encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                               : TILEDB_AES_256_GCM,
-                        encryption_key);
+      this->array->open(TILEDB_WRITE);
     }
     if (this->query == nullptr || this->query->query_type() != TILEDB_WRITE) {
       this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array,

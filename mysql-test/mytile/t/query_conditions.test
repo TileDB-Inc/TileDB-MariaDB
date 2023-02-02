@@ -30,5 +30,8 @@ SELECT * FROM test_filter WHERE a2 IS NULL;
 SELECT * FROM test_filter WHERE a3 IS NULL;
 SELECT * FROM test_filter WHERE a2 IS NULL AND a3 IS NOT NULL;
 SELECT * FROM test_filter WHERE a2 IS NOT NULL AND a3 IS NULL;
+SELECT * FROM test_filter WHERE a3 = "beef" OR a4 = "beef";
+SELECT * FROM test_filter WHERE a1 = 300 OR a3 = "test";
+SELECT * FROM test_filter WHERE a1 >= 300 OR a1 = 100;
 
 DROP TABLE test_filter;

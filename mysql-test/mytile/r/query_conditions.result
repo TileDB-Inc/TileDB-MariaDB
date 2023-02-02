@@ -62,4 +62,16 @@ id	a1	a2	a3	a4
 2	100	NULL	test	orange
 SELECT * FROM test_filter WHERE a2 IS NOT NULL AND a3 IS NULL;
 id	a1	a2	a3	a4
+SELECT * FROM test_filter WHERE a3 = "beef" OR a4 = "beef";
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a1 = 300 OR a3 = "test";
+id	a1	a2	a3	a4
+2	100	NULL	test	orange
+3	300	400	def	beef
+SELECT * FROM test_filter WHERE a1 >= 300 OR a1 = 100;
+id	a1	a2	a3	a4
+2	100	NULL	test	orange
+3	300	400	def	beef
 DROP TABLE test_filter;

@@ -46,6 +46,7 @@
 #include "mytile-metadata.h"
 #include "mytile.h"
 #include "utils.h"
+#include "item.h"
 #include <cstring>
 #include <log.h>
 #include <my_config.h>
@@ -1282,32 +1283,69 @@ void tile::mytile::dealloc_buffers() {
 
 const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   DBUG_ENTER("tile::mytile::cond_push_cond");
+  tiledb_query_condition_combination_op_t op;
+
   switch (cond_item->functype()) {
   case Item_func::COND_AND_FUNC:
-    // vop = OP_AND;
+    op = TILEDB_AND;
     break;
-  case Item_func::COND_OR_FUNC: // Currently don't support OR pushdown
-    DBUG_RETURN(cond_item);
-    //    break;
+  case Item_func::COND_OR_FUNC:
+    op = TILEDB_OR;
+    break;
   default:
-    DBUG_RETURN(nullptr);
-  } // endswitch functype
+    DBUG_RETURN(cond_item);
+  }
 
   List<Item> *arglist = cond_item->argument_list();
   List_iterator<Item> li(*arglist);
   const Item *subitem;
+  std::shared_ptr<tiledb::QueryCondition> queryCondition;
+  std::shared_ptr<tiledb::QueryCondition> operatorCondition;
 
+  // Depending on the condition type (OR, AND), we create a combination of
+  // conditions. Then we combine this combined Query Condition with the "primary"
+  // Query Condition with an AND. In the end, the "primary" Query Condition
+  // contains all the sub conditions.
   for (uint32_t i = 0; i < arglist->elements; i++) {
     if ((subitem = li++)) {
       // COND_ITEMs
-      cond_push_local(dynamic_cast<const COND *>(subitem));
+      cond_push_local(dynamic_cast<const COND *>(subitem), queryCondition);
+      // Dimensions do not support QCs, hence the queryCondition ptr
+      // returned from cond_push_local() will be null, so skip
+      if (queryCondition != nullptr) {
+        if (i == 0) {
+          // if we are dealing with the first qc of this multi-predicate
+          // operator, we need to initialize
+          operatorCondition =
+              std::make_shared<tiledb::QueryCondition>(*queryCondition);
+        } else {
+          tiledb::QueryCondition tempCondition =
+              queryCondition->combine(*operatorCondition, op);
+          operatorCondition =
+              std::make_shared<tiledb::QueryCondition>(tempCondition);
+        }
+      }
+    }
+  }
+  if (operatorCondition != nullptr) {
+    if (this->query_condition == nullptr) {
+      this->query_condition =
+          std::make_shared<tiledb::QueryCondition>(*operatorCondition);
+    } else {
+      // Combine all previous QCs with the current
+      tiledb::QueryCondition qc =
+          this->query_condition->combine(*operatorCondition, TILEDB_AND);
+      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
     }
   }
   DBUG_RETURN(nullptr);
 }
 
-const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
+const COND *tile::mytile::cond_push_func_datetime(
+    const Item_func *func_item,
+    std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func_datetime");
+
   Item **args = func_item->arguments();
   bool neg = FALSE;
 
@@ -1370,34 +1408,16 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
-      this->query_condition->init(column_field->field_name.str, nullptr, 0,
-                                  TILEDB_EQ);
-    } else {
-      tiledb::QueryCondition null_qc(ctx);
-      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
-      tiledb::QueryCondition qc =
-          this->query_condition->combine(null_qc, TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
+    qcPtr = std::make_shared<tiledb::QueryCondition>(ctx);
+    qcPtr->init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
-      this->query_condition->init(column_field->field_name.str, nullptr, 0,
-                                  TILEDB_NE);
-    } else {
-      tiledb::QueryCondition null_qc(ctx);
-      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
-      tiledb::QueryCondition qc =
-          this->query_condition->combine(null_qc, TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
+    qcPtr = std::make_shared<tiledb::QueryCondition>(ctx);
+    qcPtr->init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
     break;
   }
   case Item_func::NE_FUNC: {
@@ -1426,15 +1446,8 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
       DBUG_RETURN(func_item);
 
     // If this is an attribute add it to the query condition
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(
-          range->QueryCondition(ctx, column_field->field_name.str));
-    } else {
-      tiledb::QueryCondition qc = this->query_condition->combine(
-          range->QueryCondition(ctx, column_field->field_name.str), TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
-
+    qcPtr = std::make_shared<tiledb::QueryCondition>(
+        range->QueryCondition(ctx, column_field->field_name.str));
     break;
   }
     // In is special because we need to do a tiledb range per argument and treat
@@ -1512,15 +1525,8 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
 
     // If this is an attribute add it to the query condition
     if (use_query_condition) {
-      if (this->query_condition == nullptr) {
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(
-            range->QueryCondition(ctx, column_field->field_name.str));
-      } else {
-        tiledb::QueryCondition qc = this->query_condition->combine(
-            range->QueryCondition(ctx, column_field->field_name.str),
-            TILEDB_AND);
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-      }
+      qcPtr = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
     } else {
       // Add the range to the pushdown in ranges
       auto &range_vec = this->pushdown_ranges[dim_idx];
@@ -1579,15 +1585,8 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
 
     // If this is an attribute add it to the query condition
     if (use_query_condition) {
-      if (this->query_condition == nullptr) {
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(
-            range->QueryCondition(ctx, column_field->field_name.str));
-      } else {
-        tiledb::QueryCondition qc = this->query_condition->combine(
-            range->QueryCondition(ctx, column_field->field_name.str),
-            TILEDB_AND);
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-      }
+      qcPtr = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
     } else {
       // Add the range to the pushdown in ranges
       auto &range_vec = this->pushdown_ranges[dim_idx];
@@ -1602,7 +1601,9 @@ const COND *tile::mytile::cond_push_func_datetime(const Item_func *func_item) {
   DBUG_RETURN(nullptr);
 }
 
-const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
+const COND *
+tile::mytile::cond_push_func(const Item_func *func_item,
+                             std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
   bool neg = FALSE;
@@ -1665,34 +1666,16 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
-      this->query_condition->init(column_field->field_name.str, nullptr, 0,
-                                  TILEDB_EQ);
-    } else {
-      tiledb::QueryCondition null_qc(ctx);
-      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
-      tiledb::QueryCondition qc =
-          this->query_condition->combine(null_qc, TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
+    qcPtr = std::make_shared<tiledb::QueryCondition>(ctx);
+    qcPtr->init(column_field->field_name.str, nullptr, 0, TILEDB_EQ);
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(ctx);
-      this->query_condition->init(column_field->field_name.str, nullptr, 0,
-                                  TILEDB_NE);
-    } else {
-      tiledb::QueryCondition null_qc(ctx);
-      null_qc.init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
-      tiledb::QueryCondition qc =
-          this->query_condition->combine(null_qc, TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
+    qcPtr = std::make_shared<tiledb::QueryCondition>(ctx);
+    qcPtr->init(column_field->field_name.str, nullptr, 0, TILEDB_NE);
     break;
   }
   case Item_func::NE_FUNC: {
@@ -1721,15 +1704,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
       DBUG_RETURN(func_item);
 
     // If this is an attribute add it to the query condition
-    if (this->query_condition == nullptr) {
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(
-          range->QueryCondition(ctx, column_field->field_name.str));
-    } else {
-      tiledb::QueryCondition qc = this->query_condition->combine(
-          range->QueryCondition(ctx, column_field->field_name.str), TILEDB_AND);
-      this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-    }
-
+    qcPtr = std::make_shared<tiledb::QueryCondition>(
+        range->QueryCondition(ctx, column_field->field_name.str));
     break;
   }
     // In is special because we need to do a tiledb range per argument and treat
@@ -1809,15 +1785,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
 
     // If this is an attribute add it to the query condition
     if (use_query_condition) {
-      if (this->query_condition == nullptr) {
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(
-            range->QueryCondition(ctx, column_field->field_name.str));
-      } else {
-        tiledb::QueryCondition qc = this->query_condition->combine(
-            range->QueryCondition(ctx, column_field->field_name.str),
-            TILEDB_AND);
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-      }
+      qcPtr = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
     } else {
       // Add the range to the pushdown in ranges
       auto &range_vec = this->pushdown_ranges[dim_idx];
@@ -1875,15 +1844,8 @@ const COND *tile::mytile::cond_push_func(const Item_func *func_item) {
 
     // If this is an attribute add it to the query condition
     if (use_query_condition) {
-      if (this->query_condition == nullptr) {
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(
-            range->QueryCondition(ctx, column_field->field_name.str));
-      } else {
-        tiledb::QueryCondition qc = this->query_condition->combine(
-            range->QueryCondition(ctx, column_field->field_name.str),
-            TILEDB_AND);
-        this->query_condition = std::make_shared<tiledb::QueryCondition>(qc);
-      }
+      qcPtr = std::make_shared<tiledb::QueryCondition>(
+          range->QueryCondition(ctx, column_field->field_name.str));
     } else {
       // Add the range to the pushdown in ranges
       auto &range_vec = this->pushdown_ranges[dim_idx];
@@ -1907,10 +1869,13 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     DBUG_RETURN(cond);
   }
 
-  DBUG_RETURN(cond_push_local(cond));
+  std::shared_ptr<tiledb::QueryCondition> null;
+  DBUG_RETURN(cond_push_local(cond, null));
 }
 
-const COND *tile::mytile::cond_push_local(const COND *cond) {
+const COND *
+tile::mytile::cond_push_local(const COND *cond,
+                              std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_local");
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty()) {
@@ -1942,11 +1907,12 @@ const COND *tile::mytile::cond_push_local(const COND *cond) {
           item->field_type() == enum_field_types::MYSQL_TYPE_TIMESTAMP2 ||
           item->field_type() == enum_field_types::MYSQL_TYPE_TIME ||
           item->field_type() == enum_field_types::MYSQL_TYPE_TIME2) {
-        ret = cond_push_func_datetime(func_item);
+        ret = cond_push_func_datetime(func_item, qcPtr);
         DBUG_RETURN(ret);
       }
     }
-    ret = cond_push_func(func_item);
+
+    ret = cond_push_func(func_item, qcPtr);
     DBUG_RETURN(ret);
     break;
   }
@@ -1969,7 +1935,8 @@ void tile::mytile::cond_pop() {
 
 Item *tile::mytile::idx_cond_push(uint keyno, Item *idx_cond) {
   DBUG_ENTER("tile::mytile::idx_cond_push");
-  auto ret = cond_push_local(static_cast<Item_cond *>(idx_cond));
+  std::shared_ptr<tiledb::QueryCondition> null;
+  auto ret = cond_push_local(static_cast<Item_cond *>(idx_cond), null);
   DBUG_RETURN(const_cast<Item *>(ret));
 }
 

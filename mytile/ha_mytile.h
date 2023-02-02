@@ -264,16 +264,21 @@ public:
   /**
    *  Handle function condition pushdowns
    * @param func_item
+   * @param qcPtr
    * @return
    */
-  const COND *cond_push_func(const Item_func *func_item);
+  const COND *cond_push_func(const Item_func *func_item,
+                             std::shared_ptr<tiledb::QueryCondition> &qcPtr);
 
   /**
    * Handle datetiem function pushdowns
    * @param func_item
+   * @param qcPtr
    * @return
    */
-  const COND *cond_push_func_datetime(const Item_func *func_item);
+  const COND *
+  cond_push_func_datetime(const Item_func *func_item,
+                          std::shared_ptr<tiledb::QueryCondition> &qcPtr);
 
   /**
   Push condition down to the table handler.
@@ -304,9 +309,11 @@ public:
    * indx_cond_push
    *
    * @param cond condition being pushed
+   * @param qcPtr pointer to the Query Condition to be pushed
    * @return condition stack which could not be pushed
    */
-  const COND *cond_push_local(const COND *cond);
+  const COND *cond_push_local(const COND *cond,
+                              std::shared_ptr<tiledb::QueryCondition> &qcPtr);
 
   /**
     Pop the top condition from the condition stack of the storage engine

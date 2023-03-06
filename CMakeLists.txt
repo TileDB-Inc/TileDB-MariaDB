@@ -51,7 +51,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     include(ExternalProject)
 
     SET(TILEDB_VERSION_MAJOR "2")
-    SET(TILEDB_VERSION_MINOR "14")
+    SET(TILEDB_VERSION_MINOR "15")
     SET(TILEDB_VERSION_PATCH "0")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
@@ -59,7 +59,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=aef02a467df51d33306498d740a206be448f118f
+	    URL_HASH SHA1=b281debe6799c635ab8c2984496ebe1f473a56d9
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

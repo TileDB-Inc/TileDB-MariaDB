@@ -1283,6 +1283,56 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
         filter.set_option(TILEDB_POSITIVE_DELTA_MAX_WINDOW, value);
         break;
       }
+      case TILEDB_FILTER_SCALE_FLOAT: {
+        sql_print_information("TILEDB_SCALE_FLOAT Data=%s", f[1].c_str());
+        size_t start = 0;
+        size_t end = 0;
+        if (f[1][0] == '(') {
+          start = 1;
+        }
+        if (f[1][f[1].size() - 1] == ')') {
+          end = f[1].size() - 1;
+        }
+        std::vector<std::string> values = split(f[1].substr(start, end), '-');
+
+        auto value_bytewidth = parse_value<uint64_t>(values[0]);
+        sql_print_information("TILEDB_SCALE_FLOAT_BYTEWIDTH=%d",
+                              value_bytewidth);
+        filter.set_option(TILEDB_SCALE_FLOAT_BYTEWIDTH, value_bytewidth);
+
+        auto value_factor = parse_value<double>(values[0]);
+        sql_print_information("TILEDB_SCALE_FLOAT_FACTOR=%d", value_factor);
+        filter.set_option(TILEDB_SCALE_FLOAT_FACTOR, value_factor);
+
+        auto value_offset = parse_value<double>(values[0]);
+        sql_print_information("TILEDB_SCALE_FLOAT_OFFSET=%d", value_offset);
+        filter.set_option(TILEDB_SCALE_FLOAT_OFFSET, value_offset);
+        break;
+      }
+      case TILEDB_FILTER_WEBP: {
+        size_t start = 0;
+        size_t end = 0;
+        if (f[1][0] == '(') {
+          start = 1;
+        }
+        if (f[1][f[1].size() - 1] == ')') {
+          end = f[1].size() - 1;
+        }
+        std::vector<std::string> values = split(f[1].substr(start, end), '-');
+
+        auto value_format = parse_value<uint8_t>(values[0]);
+        sql_print_information("TILEDB_WEBP_INPUT_FORMAT=%d", value_format);
+        filter.set_option(TILEDB_WEBP_INPUT_FORMAT, value_format);
+
+        auto value_lossless = parse_value<uint8_t>(values[0]);
+        sql_print_information("TILEDB_WEBP_LOSSLESS=%d", value_lossless);
+        filter.set_option(TILEDB_WEBP_LOSSLESS, value_lossless);
+
+        auto value_quality = parse_value<float>(values[0]);
+        sql_print_information("TILEDB_WEBP_QUALITY=%f", value_quality);
+        filter.set_option(TILEDB_WEBP_QUALITY, value_quality);
+        break;
+      }
       // The following have no filter options
       case TILEDB_FILTER_NONE:
       case TILEDB_FILTER_RLE:
@@ -1291,6 +1341,7 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
       case TILEDB_FILTER_DOUBLE_DELTA:
       case TILEDB_FILTER_CHECKSUM_MD5:
       case TILEDB_FILTER_CHECKSUM_SHA256:
+      case TILEDB_FILTER_DICTIONARY:
         break;
       // Handle all compressions with default
       default: {
@@ -1325,6 +1376,35 @@ std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
       str << "=" << value << ",";
       break;
     }
+    case TILEDB_FILTER_SCALE_FLOAT: {
+      uint64_t value_bytewidth;
+      filter.get_option<uint64_t>(TILEDB_SCALE_FLOAT_BYTEWIDTH,
+                                  &value_bytewidth);
+      str << "=(" << value_bytewidth << "-";
+
+      double value_factor;
+      filter.get_option<double>(TILEDB_SCALE_FLOAT_FACTOR, &value_factor);
+      str << value_factor << "-";
+
+      double value_offset;
+      filter.get_option<double>(TILEDB_SCALE_FLOAT_OFFSET, &value_offset);
+      str << value_offset << "),";
+      break;
+    }
+    case TILEDB_FILTER_WEBP: {
+      uint8_t value_format;
+      filter.get_option<uint8_t>(TILEDB_WEBP_INPUT_FORMAT, &value_format);
+      str << "=(" << value_format << "-";
+
+      uint8_t value_lossless;
+      filter.get_option<uint8_t>(TILEDB_WEBP_LOSSLESS, &value_lossless);
+      str << value_lossless << "-";
+
+      float value_quality;
+      filter.get_option<float>(TILEDB_WEBP_QUALITY, &value_quality);
+      str << value_quality << "),";
+      break;
+    }
     // The following have no filter options
     case TILEDB_FILTER_NONE:
     case TILEDB_FILTER_RLE:
@@ -1333,6 +1413,7 @@ std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
     case TILEDB_FILTER_DOUBLE_DELTA:
     case TILEDB_FILTER_CHECKSUM_MD5:
     case TILEDB_FILTER_CHECKSUM_SHA256:
+    case TILEDB_FILTER_DICTIONARY:
       str << ",";
       break;
     // Handle all compressions with default

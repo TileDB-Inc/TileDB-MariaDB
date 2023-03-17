@@ -1303,9 +1303,9 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   std::shared_ptr<tiledb::QueryCondition> operatorCondition;
 
   // Depending on the condition type (OR, AND), we create a combination of
-  // conditions. Then we combine this combined Query Condition with the "primary"
-  // Query Condition with an AND. In the end, the "primary" Query Condition
-  // contains all the sub conditions.
+  // conditions. Then we combine this combined Query Condition with the
+  // "primary" Query Condition with an AND. In the end, the "primary" Query
+  // Condition contains all the sub conditions.
   for (uint32_t i = 0; i < arglist->elements; i++) {
     if ((subitem = li++)) {
       // COND_ITEMs
@@ -2458,33 +2458,37 @@ void tile::mytile::open_array_for_reads(THD *thd) {
       this->ctx = build_context(this->config);
     }
     if (this->table->s->option_struct->open_at != UINT64_MAX) {
-      #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-        this->array = std::make_shared<tiledb::Array>(
-            this->ctx, this->uri, TILEDB_READ,
-            tiledb::TemporalPolicy(tiledb::TimeTravel, this->table->s->option_struct->open_at),
-            tiledb::EncryptionAlgorithm(encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            this->table->s->option_struct->encryption_key));
-      #else
-        this->array = std::make_shared<tiledb::Array>(
-            this->ctx, this->uri, TILEDB_READ,
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key, this->table->s->option_struct->open_at);
-      #endif
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ,
+          tiledb::TemporalPolicy(tiledb::TimeTravel,
+                                 this->table->s->option_struct->open_at),
+          tiledb::EncryptionAlgorithm(
+              encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                     : TILEDB_AES_256_GCM,
+              this->table->s->option_struct->encryption_key));
+#else
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key, this->table->s->option_struct->open_at);
+#endif
 
     } else {
 
-      #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-        this->array = std::make_shared<tiledb::Array>(
-            this->ctx, this->uri, TILEDB_READ,
-            tiledb::TemporalPolicy(),
-            tiledb::EncryptionAlgorithm(encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            this->table->s->option_struct->encryption_key));
-      #else
-        this->array = std::make_shared<tiledb::Array>(
-            this->ctx, this->uri, TILEDB_READ,
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key);
-      #endif
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ, tiledb::TemporalPolicy(),
+          tiledb::EncryptionAlgorithm(
+              encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                     : TILEDB_AES_256_GCM,
+              this->table->s->option_struct->encryption_key));
+#else
+      this->array = std::make_shared<tiledb::Array>(
+          this->ctx, this->uri, TILEDB_READ,
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+          encryption_key);
+#endif
     }
     this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_READ);
@@ -2552,20 +2556,20 @@ void tile::mytile::open_array_for_writes(THD *thd) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }
-    
-    #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-      this->array = std::make_shared<tiledb::Array>(
-          this->ctx, this->uri, TILEDB_WRITE,
-          tiledb::TemporalPolicy(),
-          tiledb::EncryptionAlgorithm(encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          this->table->s->option_struct->encryption_key));
-    #else
-      this->array = std::make_shared<tiledb::Array>(
-          this->ctx, this->uri, TILEDB_WRITE,
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-          encryption_key);
-    #endif
-      this->query =
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    this->array = std::make_shared<tiledb::Array>(
+        this->ctx, this->uri, TILEDB_WRITE, tiledb::TemporalPolicy(),
+        tiledb::EncryptionAlgorithm(
+            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+            this->table->s->option_struct->encryption_key));
+#else
+    this->array = std::make_shared<tiledb::Array>(
+        this->ctx, this->uri, TILEDB_WRITE,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key);
+#endif
+    this->query =
         std::make_unique<tiledb::Query>(this->ctx, *this->array, TILEDB_WRITE);
     // Else lets try to open reopen and use existing contexts
   } else {
@@ -3357,7 +3361,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0220,                     /* version number (0.22.0) */
+    0x0221,                     /* version number (0.22.1) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
     NULL,                                      /* config options */
@@ -3374,9 +3378,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0220,                     /* version number (0.22.0) */
+    0x0221,                     /* version number (0.22.1) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
-    "0.22.0",                                  /* string version */
+    "0.22.1",                                  /* string version */
     MariaDB_PLUGIN_MATURITY_BETA               /* maturity */
 } maria_declare_plugin_end;

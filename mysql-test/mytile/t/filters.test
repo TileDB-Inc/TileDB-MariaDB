@@ -50,3 +50,25 @@ SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo # Float Scaling
+CREATE TABLE t1 (
+  dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 float filters='SCALE_FLOAT=(8-1.0-0.0)'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,1.1);
+SELECT * FROM t1;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # Dictionary
+CREATE TABLE t1 (
+  dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  attr1 varchar(255) filters='DICTIONARY_ENCODING'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1, "abc");
+SELECT * FROM t1;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

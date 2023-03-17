@@ -79,3 +79,35 @@ t1	CREATE TABLE `t1` (
   `attr1` bigint(20) DEFAULT NULL `filters`='BYTESHUFFLE'
 ) ENGINE=MyTile DEFAULT CHARSET=latin1 `coordinate_filters`='LZ4=-1' `offset_filters`='BZIP2=3'
 DROP TABLE t1;
+# Float Scaling
+CREATE TABLE t1 (
+dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+attr1 float filters='SCALE_FLOAT=(8-1.0-0.0)'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,1.1);
+SELECT * FROM t1;
+dim1	attr1
+1	0
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `dim1` bigint(20) DEFAULT NULL `dimension`=1 `lower_bound`='0' `upper_bound`='100' `tile_extent`='10',
+  `attr1` float DEFAULT NULL `filters`='SCALE_FLOAT=(8-1.0-0.0)'
+) ENGINE=MyTile DEFAULT CHARSET=latin1 `coordinate_filters`='LZ4=-1' `offset_filters`='BZIP2=3'
+DROP TABLE t1;
+# Dictionary
+CREATE TABLE t1 (
+dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+attr1 varchar(255) filters='DICTIONARY_ENCODING'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1, "abc");
+SELECT * FROM t1;
+dim1	attr1
+1	abc
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `dim1` bigint(20) DEFAULT NULL `dimension`=1 `lower_bound`='0' `upper_bound`='100' `tile_extent`='10',
+  `attr1` varchar(255) DEFAULT NULL `filters`='DICTIONARY_ENCODING'
+) ENGINE=MyTile DEFAULT CHARSET=latin1 `coordinate_filters`='LZ4=-1' `offset_filters`='BZIP2=3'
+DROP TABLE t1;

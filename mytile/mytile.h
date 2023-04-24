@@ -170,7 +170,7 @@ tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
  * @param type
  * @return
  */
-int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value);
+int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num);
 
 /**
  * Converts a value of tiledb_datatype_t to a string
@@ -419,6 +419,25 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
 }
 
 /**
+ * Sets a fixed size multi value field to a mysql blob field as a sequence of bytes.
+ * The user is then responsible for converting it to the desired datatype.
+ *
+ * @tparam T
+ * @param field
+ * @param buff
+ * @param i
+ * @param fixed_size_elements
+ * @return
+ */
+template <typename T>
+int set_fixed_blob_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i, uint64_t fixed_size_elements) {
+  T *buffer = static_cast<T *>(buff->buffer);
+  uint64_t start = i * fixed_size_elements;
+  size_t bytes_needed = sizeof(T) * fixed_size_elements;
+  return field->store_binary(reinterpret_cast<char *>(&buffer[start]), bytes_needed);
+}
+
+/**
  * Set field from fixed size (1) varchar
  * @tparam T
  * @param field
@@ -466,9 +485,14 @@ int set_string_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i,
  * @return
  */
 template <typename T>
-int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff) {
+int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff,
+              bool fixed_size_multi_value, uint64_t fixed_size_elements) {
   if (set_field_null_from_validity(buff, field, i)) {
     return 0;
+  }
+
+  if (fixed_size_multi_value) {
+    return set_fixed_blob_field<T>(field, buff, i, fixed_size_elements);
   }
 
   void *buffer = buff->buffer;
@@ -476,19 +500,6 @@ int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff) {
   if (std::is_floating_point<T>())
     return field->store(val);
   return field->store(val, std::is_signed<T>());
-}
-
-/**
- * Set field from type
- * @tparam T
- * @param field
- * @param buff
- * @param i
- * @return
- */
-template <typename T>
-int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
-  return set_field<T>(field, i, buff);
 }
 
 /**
@@ -503,7 +514,6 @@ int set_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i) {
 template <typename T>
 int set_string_buffer_from_field(Field *field, bool field_null,
                                  std::shared_ptr<buffer> &buff, uint64_t i) {
-
   // Validate we are not over the offset size
   if ((i * sizeof(uint64_t)) > buff->allocated_offset_buffer_size) {
     return ERR_WRITE_FLUSH_NEEDED;

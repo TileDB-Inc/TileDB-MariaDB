@@ -246,7 +246,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     }
 
     for (const auto &dim : schema->domain().dimensions()) {
-      int mysql_type = TileDBTypeToMysqlType(dim.type(), false);
+      int mysql_type = TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num());
 
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
@@ -286,7 +286,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       sql_string << std::endl << "`" << attribute.name() << "` ";
 
       auto mysql_type =
-          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1);
+          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num());
       if (mysql_type == MYSQL_TYPE_VARCHAR) {
         sql_string << "TEXT";
       } else {

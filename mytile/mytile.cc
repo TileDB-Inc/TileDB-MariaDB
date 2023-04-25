@@ -164,7 +164,11 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num) {
+  if (val_num > 1 && val_num != TILEDB_VAR_NUM){
+    return MYSQL_TYPE_BLOB;
+  }
+
   switch (type) {
 
   case tiledb_datatype_t::TILEDB_FLOAT64: {
@@ -204,6 +208,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value) {
 
   case tiledb_datatype_t::TILEDB_CHAR:
   case tiledb_datatype_t::TILEDB_STRING_ASCII: {
+
     return MYSQL_TYPE_VARCHAR;
   }
   case tiledb_datatype_t::TILEDB_STRING_UTF8:
@@ -811,38 +816,40 @@ int tile::set_time_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                     uint64_t i) {
+  uint64_t fixed_size_elements = buff->fixed_size_elements;
+  bool fixed_size_multi_value = fixed_size_elements > 1;
+
   switch (buff->type) {
   /** 8-bit signed integer */
   case TILEDB_INT8:
-    return set_field<int8_t>(field, buff, i);
+    return set_field<int8_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 8-bit unsigned integer */
   case TILEDB_UINT8:
-    return set_field<uint8_t>(field, buff, i);
+    return set_field<uint8_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 16-bit signed integer */
   case TILEDB_INT16:
-    return set_field<int16_t>(field, buff, i);
+    return set_field<int16_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 16-bit unsigned integer */
   case TILEDB_UINT16:
-    return set_field<uint16_t>(field, buff, i);
+    return set_field<uint16_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 32-bit signed integer */
   case TILEDB_INT32:
-    return set_field<int32_t>(field, buff, i);
-
+    return set_field<int32_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 32-bit unsigned integer */
   case TILEDB_UINT32:
-    return set_field<uint32_t>(field, buff, i);
+    return set_field<uint32_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 64-bit signed integer */
   case TILEDB_INT64:
-    return set_field<int64_t>(field, buff, i);
+    return set_field<int64_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 64-bit unsigned integer */
   case TILEDB_UINT64:
-    return set_field<uint64_t>(field, buff, i);
+    return set_field<uint64_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 32-bit floating point value */
   case TILEDB_FLOAT32:
-    return set_field<float>(field, buff, i);
+    return set_field<float>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   /** 64-bit floating point value */
   case TILEDB_FLOAT64:
-    return set_field<double>(field, buff, i);
+    return set_field<double>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
 
   /** Character */
   case TILEDB_CHAR:
@@ -1048,7 +1055,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case TILEDB_BLOB:
     return set_string_field<std::byte>(field, buff, i, &my_charset_latin1);
   case TILEDB_BOOL:
-    return set_field<bool>(field, buff, i);
+    return set_field<bool>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
   default: {
     const char *type_str = nullptr;
     tiledb_datatype_to_str(buff->type, &type_str);
@@ -1586,15 +1593,9 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
     bool nullable = std::get<2>(field_type);
     bool list = std::get<3>(field_type);
 
-    if (var_len) {
+    if (var_len && !list) {
       num_int64_buffers += 1;
       num_var_length_uint8_buffers += 1;
-    }
-
-    // Currently we don't support list buffers in TileDB schema but this will
-    // just work when we do
-    if (list) {
-      num_int64_buffers += 1;
     }
 
     // nullables use a uint8 buffer
@@ -1602,8 +1603,14 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
       num_int8_buffers += 1;
     }
 
+//     Currently we don't support list buffers in TileDB schema but this will
+//     just work when we do //todo comment irrelevant
+    if (list) {
+      num_blob_buffers += 1;
+    }
+
     // For non var length we want to count the datatype
-    if (!var_len) {
+    if (!var_len || !list) {
       switch (datatype) {
       case TILEDB_UINT32:
       case TILEDB_INT32:

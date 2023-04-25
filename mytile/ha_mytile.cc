@@ -2029,6 +2029,7 @@ tile::mytile::build_field_details_for_buffers(const tiledb::ArraySchema &schema,
       datatype = attr.type();
       var_len = attr.cell_val_num();
       nullable = attr.nullable();
+      list = attr.cell_val_num() > 1 && attr.cell_val_num() != TILEDB_VAR_NUM;
     }
 
     ret.emplace_back(std::make_tuple(datatype, var_len, nullable, list));

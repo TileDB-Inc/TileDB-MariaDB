@@ -7,6 +7,7 @@ cd libtiledb
 mkdir -p build
 cd build
 cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/ \
   -DTILEDB_VERBOSE=ON \
   -DTILEDB_S3=ON \
   -DTILEDB_SERIALIZATION=ON \

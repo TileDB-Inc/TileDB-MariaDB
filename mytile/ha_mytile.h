@@ -616,6 +616,9 @@ private:
   // Array Schema
   std::unique_ptr<tiledb::ArraySchema> array_schema;
 
+  // Subarray
+  std::unique_ptr<tiledb::Subarray> subarray;
+
   uint64_t records = 0;
   uint64_t records_read = 0;
   tiledb::Query::Status status = tiledb::Query::Status::UNINITIALIZED;

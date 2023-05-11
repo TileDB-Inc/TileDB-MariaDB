@@ -255,14 +255,18 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       open_array_for_reads(ha_thd());
 
       auto dims = domain.dimensions();
+
+      this->subarray =
+          std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+              this->ctx, *this->array));
       // For each dimension we calculate the non empty domain (equivalent to
-      // `select * from ...`, and the result is used to add a range)
+      // `select * from ...`, and the result is used to add a range to the subarray)
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain.dimension(dim_idx);
 
         if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
           const auto pair = this->array->non_empty_domain_var(dim_idx);
-          this->query->add_range(dim_idx, pair.first, pair.second);
+          this->subarray->add_range(dim_idx, pair.first, pair.second);
         } else {
           uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
           auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
@@ -277,8 +281,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
                         tiledb_datatype_size(dimension.type());
 
           // set range
-          this->ctx.handle_error(tiledb_query_add_range(
-              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+          this->ctx.handle_error(tiledb_subarray_add_range(
+              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
               upper, nullptr));
         }
       }
@@ -286,6 +290,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       // Since we added ranges, we calculate the total number of records the
       // array contains
       this->records_upper_bound = this->computeRecordsUB();
+      this->query->set_subarray(*this->subarray);
     }
 
   } catch (const tiledb::TileDBError &e) {
@@ -723,6 +728,10 @@ int tile::mytile::init_scan(THD *thd) {
       this->query->set_condition(*this->query_condition);
     }
 
+    this->subarray =
+        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+            this->ctx, *this->array));
+
     if (!this->valid_pushed_ranges() &&
         !this->valid_pushed_in_ranges()) { // No pushdown
       if (this->empty_read)
@@ -737,14 +746,14 @@ int tile::mytile::init_scan(THD *thd) {
         // set range
         if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
           auto &pair = nonEmptyDomainVars[dim_idx];
-          this->query->add_range(dim_idx, pair.first, pair.second);
+          this->subarray->add_range(dim_idx, pair.first, pair.second);
         } else {
 
           void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
           void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
                         tiledb_datatype_size(dimension.type());
-          this->ctx.handle_error(tiledb_query_add_range(
-              this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+          this->ctx.handle_error(tiledb_subarray_add_range(
+              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
               upper, nullptr));
         }
       }
@@ -784,8 +793,8 @@ int tile::mytile::init_scan(THD *thd) {
                 setup_range(thd, range, non_empty_domain, dims[dim_idx]);
 
                 // set range
-                this->ctx.handle_error(tiledb_query_add_range_var(
-                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                this->ctx.handle_error(tiledb_subarray_add_range_var(
+                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
                     range->lower_value.get(), range->lower_value_size,
                     range->upper_value.get(), range->upper_value_size));
               }
@@ -803,19 +812,18 @@ int tile::mytile::init_scan(THD *thd) {
                 // setup range so values are set to correct datatypes
                 setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
                 // set range
-                this->ctx.handle_error(tiledb_query_add_range_var(
-                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                this->ctx.handle_error(tiledb_subarray_add_range_var(
+                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
                     in_range->lower_value.get(), in_range->lower_value_size,
                     in_range->upper_value.get(), in_range->upper_value_size));
               }
             }
           } else { // If the range is empty we need to use the non-empty-domain
 
-            this->query->add_range(dim_idx, non_empty_domain.first,
+            this->subarray->add_range(dim_idx, non_empty_domain.first,
                                    non_empty_domain.second);
           }
         } else {
-
           // get start of non empty domain
           void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
           // If the ranges for this dimension are not empty, we'll push it down
@@ -835,8 +843,8 @@ int tile::mytile::init_scan(THD *thd) {
                 setup_range(thd, range, lower, dims[dim_idx]);
 
                 // set range
-                this->ctx.handle_error(tiledb_query_add_range(
-                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                this->ctx.handle_error(tiledb_subarray_add_range(
+                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
                     range->lower_value.get(), range->upper_value.get(),
                     nullptr));
               }
@@ -854,8 +862,8 @@ int tile::mytile::init_scan(THD *thd) {
                 // setup range so values are set to correct datatypes
                 setup_range(thd, in_range, lower, dims[dim_idx]);
                 // set range
-                this->ctx.handle_error(tiledb_query_add_range(
-                    this->ctx.ptr().get(), this->query->ptr().get(), dim_idx,
+                this->ctx.handle_error(tiledb_subarray_add_range(
+                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
                     in_range->lower_value.get(), in_range->upper_value.get(),
                     nullptr));
               }
@@ -867,13 +875,16 @@ int tile::mytile::init_scan(THD *thd) {
 
             void *upper = static_cast<char *>(lower) +
                           tiledb_datatype_size(dimension.type());
-            this->ctx.handle_error(tiledb_query_add_range(
-                this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, lower,
+            this->ctx.handle_error(tiledb_subarray_add_range(
+                this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
                 upper, nullptr));
           }
         }
       }
     }
+    // set subarray
+    this->query->set_subarray(*this->subarray);
+
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
@@ -1173,6 +1184,9 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
 
     auto domain = this->array_schema->domain();
     int current_offset = 0;
+    this->subarray =
+        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+            this->ctx, *this->array));
     // Reads dimensions in the same order as we wrote them
     // to ref in tile::mytile::position
     for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
@@ -1188,15 +1202,16 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
 
       // set range
       if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-        this->ctx.handle_error(tiledb_query_add_range_var(
-            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
+        this->ctx.handle_error(tiledb_subarray_add_range_var(
+            this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, point,
             size, point, size));
       } else {
-        this->ctx.handle_error(tiledb_query_add_range(
-            this->ctx.ptr().get(), this->query->ptr().get(), dim_idx, point,
+        this->ctx.handle_error(tiledb_subarray_add_range(
+            this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, point,
             point, nullptr));
       }
     }
+    this->query->set_subarray(*this->subarray);
 
     // Reset indicators
     this->record_index = 0;

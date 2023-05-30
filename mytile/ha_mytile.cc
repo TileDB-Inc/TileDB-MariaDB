@@ -47,6 +47,8 @@
 #include "mytile.h"
 #include "utils.h"
 #include "item.h"
+#include "sql_type_geom.h"
+#include "spatial.h"
 #include <cstring>
 #include <log.h>
 #include <my_config.h>
@@ -1617,6 +1619,204 @@ const COND *tile::mytile::cond_push_func_datetime(
 }
 
 const COND *
+tile::mytile::cond_push_func_spatial(const Item_func *func_item,
+                                     std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
+  DBUG_ENTER("tile::mytile::cond_push_func_spatial");
+  Item **args = func_item->arguments();
+  bool neg = FALSE;
+
+  // Find the geometry column name in order to identify valid operands
+  std::string geometry_column = "wkb_geometry";
+  this->load_metadata();
+  auto sr = this->metadata_map.find("GEOMETRY_ATTRIBUTE_NAME");
+  if (sr != this->metadata_map.end()) {
+      geometry_column = sr->second;
+  }
+  std::string expected_cast = "GeometryFromWkb(" + geometry_column +")";
+
+  // Loop through args, determine which one is
+  // a) the cast wkb_geometry attribute/column
+  // b) a function that evaluates to a constant geometry
+  int wkb_arg = -1;
+  int aoi_arg = -1;
+  for (uint i = 0; i < func_item->argument_count(); i++) {
+    std::cout << "arg " << i << " ";
+    switch (args[i]->type()) {
+    case Item::FIELD_ITEM: {
+      Item_field *column_field = dynamic_cast<Item_field *>(args[i]);
+      if (column_field != nullptr) {
+        // TODO test for blob type directly
+        if (column_field->field_name.str == geometry_column) {
+          std::cout << "ERROR. We got a BLOB, expecting " << expected_cast << std::endl;
+          // TODO throw std::invalid_argument("must cast from blob to geometry");
+          DBUG_RETURN(nullptr);
+        }
+      }
+      break;
+    }
+    case Item::CACHE_ITEM: {
+      Item_cache *c = dynamic_cast<Item_cache *>(args[i]);
+      if (c != nullptr) {
+        if (c->const_item() && c->const_during_execution()) {
+          std::cout << "CACHE_ITEM is const, proceed!" << std::endl;
+          aoi_arg = i;
+        }
+      }
+      break;
+    }
+    case Item::FUNC_ITEM: {
+      Item_func *f = dynamic_cast<Item_func *>(args[i]);
+      // Has to match the literal cast string e.g. "GeometryFromWkb(wkb_geometry)"
+      if (f->full_name() == expected_cast) {
+        std::cout << "FUNC_ITEM is a geometry cast, proceed!" << std::endl;
+        wkb_arg = i;
+      } else if (f->const_item() || f->const_during_execution()) {
+          std::cout << "FUNC_ITEM is const, proceed!" << std::endl;
+          aoi_arg = i;
+      } else {
+        std::cout << "unknown function type" << std::endl;
+      }
+      break;
+    }
+    default: {
+      std::cout << "unknown arg type" << std::endl;
+      break;
+    }
+    }
+  }
+
+  if (aoi_arg >= 0 && wkb_arg >= 0) {
+    // Determine padding
+    auto find_x = this->metadata_map.find("PAD_X");
+    auto find_y = this->metadata_map.find("PAD_Y");
+    double pad_x;
+    double pad_y;
+    if (find_x != this->metadata_map.end() && find_y != this->metadata_map.end()) {
+      std::cout << "padding: " << find_x->first << " " << find_x->second;
+      std::cout << " " << find_y->first << " " << find_y->second << std::endl;
+      pad_x = std::stod(find_x->second);
+      pad_y = std::stod(find_y->second);
+    } else {
+      std::cout << "Failed to find PAD_X and PAD_Y metadata; zero padding" << std::endl;
+      pad_x = 0.0;
+      pad_y = 0.0;
+    }
+
+    // ----------------- BEGIN SKETCHY SECTION --------------------- //
+    // HACK: hardcode the coords to test the pushdown logic
+    // until the code below can calculate it;
+    double x1 = -70.7;
+    double y1 = 41.2;
+    double x2 = -69.0;
+    double y2 = 41.6;
+
+    // TODO handle Item_func too
+    // TODO DRY we already do this dyncast in the switch statement above...
+    auto *aoi = dynamic_cast<Item_cache *>(args[aoi_arg]);
+
+    // Evaluate to native geometry type
+    aoi->eval_const_cond();
+    if (aoi->has_value()) {
+      // TODO I have no idea how to use the val_native* methods
+      Geometry *geom = nullptr;
+      const Type_handler_geometry *th= new Type_handler_geometry();
+      bool a = aoi->val_native_with_conversion_result(ha_thd(), dynamic_cast<Native *>(geom), th);
+      DBUG_ASSERT(a);
+
+      // Calculate minimum bounding rectangle of geometry
+      // TODO This Geometry is still not valid
+      if (geom != nullptr) {
+        MBR mbr;
+        const char *c_end;
+        geom->get_mbr(&mbr, &c_end);
+        x1 = mbr.xmin;
+        y1 = mbr.ymin;
+        x2 = mbr.xmax;
+        y2 = mbr.ymax;
+      } else {
+        std::cout << "ERROR! Geometry is not valid, using dummy mbr" << std::endl;
+      }
+    }
+    // ----------------- END SKETCHY SECTION --------------------- //
+
+    // Expand the bbox by padding
+    x1 = x1 - (pad_x / 2.0);
+    y1 = y1 - (pad_y / 2.0);
+    x2 = x2 + (pad_x / 2.0);
+    y2 = y2 + (pad_y / 2.0);
+    std::cout << "Padded MBR "<< x1 << " " << y1 << " " << x2 << " " << y2 << std::endl;
+
+    // Find X and Y dimensions
+    // TODO use the GDAL metadata to determine field names
+    auto dims = this->array_schema->domain().dimensions();
+
+    uint64_t x_idx = std::numeric_limits<uint64_t>::max();
+    uint64_t y_idx = std::numeric_limits<uint64_t>::max();
+    tiledb_datatype_t x_datatype;
+    tiledb_datatype_t y_datatype;
+
+    for (uint64_t d = 0; d < this->ndim; d++) {
+      if (dims[d].name() == "_X") {
+        x_idx = d;
+        x_datatype = dims[d].type();
+      } else if (dims[d].name() == "_Y") {
+        y_idx = d;
+        y_datatype = dims[d].type();
+      }
+    }
+
+    // If we've identified _X and _Y dims, we can implement the pushdown
+    if (x_idx <= this->ndim && y_idx <= this->ndim) {
+      std::cout << "push down to TileDB range" << std::endl;
+      Item_result cmp_type = Item_result::REAL_RESULT;
+      THD *thd = ha_thd();
+
+      // X dimension
+      {
+        std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+        Item_float *lower = new (thd->mem_root) Item_float(thd, x1, 0);
+        Item_float *upper = new (thd->mem_root) Item_float(thd, x2, 0);
+        int ret = set_range_from_item_consts(thd, dynamic_cast<Item_basic_constant *>(lower),
+                                             dynamic_cast<Item_basic_constant *>(upper), cmp_type,
+                                             range, x_datatype);
+        if (ret) {
+          std::cout << "ERROR ret X" << std::endl;
+          DBUG_RETURN(func_item);
+        }
+        auto &range_vec = this->pushdown_ranges[x_idx];
+        range_vec.push_back(std::move(range));
+      }
+
+      // Y dimension
+      {
+        std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
+            Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
+
+        Item_float *lower = new (thd->mem_root) Item_float(thd, y1, 0);
+        Item_float *upper = new (thd->mem_root) Item_float(thd, y2, 0);
+        int ret = set_range_from_item_consts(thd, dynamic_cast<Item_basic_constant *>(lower),
+                                             dynamic_cast<Item_basic_constant *>(upper), cmp_type,
+                                             range, y_datatype);
+        if (ret) {
+          std::cout << "ERROR ret X" << std::endl;
+          DBUG_RETURN(func_item);
+        }
+        auto &range_vec = this->pushdown_ranges[y_idx];
+        range_vec.push_back(std::move(range));
+      }
+    }
+  }
+
+  DBUG_RETURN(nullptr);
+}
+
+const COND *
 tile::mytile::cond_push_func(const Item_func *func_item,
                              std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func");
@@ -1925,6 +2125,13 @@ tile::mytile::cond_push_local(const COND *cond,
         ret = cond_push_func_datetime(func_item, qcPtr);
         DBUG_RETURN(ret);
       }
+    }
+
+    if (func_item->functype() == Item_func::SP_INTERSECTS_FUNC ||
+        func_item->functype() == Item_func::SP_OVERLAPS_FUNC) {
+      std::cout << "invoke cond_push_func_spatial" << std::endl;
+      ret = cond_push_func_spatial(func_item, qcPtr);
+      DBUG_RETURN(ret);
     }
 
     ret = cond_push_func(func_item, qcPtr);

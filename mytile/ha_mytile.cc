@@ -2539,8 +2539,8 @@ void tile::mytile::open_array_for_reads(THD *thd) {
 
   // Set layout
   this->query->set_layout(query_layout);
-  // If the layout is unordered by the the array type is dense we will set it to
-  // the tile order instead Currently multi-range queries do not support dense
+  // If the layout is unordered but the array type is dense we will set it to
+  // the tile order instead. Currently, multi-range queries do not support dense
   // unordered reads
   if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_DENSE &&
       query_layout == tiledb_layout_t::TILEDB_UNORDERED) {
@@ -2746,32 +2746,32 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   switch (buf->type) {
 
   case TILEDB_FLOAT32:
-    return compare_key_to_dim<float>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<float>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_FLOAT64:
-    return compare_key_to_dim<double>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<double>(dim_idx, key, key_part_len, fixed_buff_pointer);
     //  case TILEDB_CHAR:
   case TILEDB_INT8:
-    return compare_key_to_dim<int8>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int8>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT8:
-    return compare_key_to_dim<uint8>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint8>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT16:
-    return compare_key_to_dim<int16>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int16>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT16:
-    return compare_key_to_dim<uint16>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint16>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT32:
-    return compare_key_to_dim<int32>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int32>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT32:
-    return compare_key_to_dim<uint32>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint32>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_UINT64:
-    return compare_key_to_dim<uint64>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint64>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_INT64:
-    return compare_key_to_dim<int64>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int64>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_DATETIME_YEAR: {
     // XXX: for some reason maria uses year offset from 1900 here
     MYSQL_TIME mysql_time = {1900U + *((uint8_t *)(key)), 0, 0, 0, 0, 0, 0, 0,
                              MYSQL_TIMESTAMP_TIME};
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
-    return compare_key_to_dim<int64>((uchar *)&xs, key_part_len,
+    return compare_key_to_dim<int64>(dim_idx, (uchar *)&xs, key_part_len,
                                      fixed_buff_pointer);
   }
   case TILEDB_DATETIME_MONTH:
@@ -2804,7 +2804,7 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
     field->ptr = tmp;
 
     int64_t xs = MysqlTimeToTileDBTimeVal(ha_thd(), mysql_time, buf->type);
-    return compare_key_to_dim<int64>((uchar *)&xs, key_part_len,
+    return compare_key_to_dim<int64>(dim_idx, (uchar *)&xs, key_part_len,
                                      fixed_buff_pointer);
   }
   case TILEDB_STRING_ASCII: {
@@ -2835,12 +2835,12 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
 
     void *buff = (static_cast<char *>(buf->buffer) + start_position);
 
-    return compare_key_to_dim<char>(key + key_offset, char_length, buff, size);
+    return compare_key_to_dim<char>(dim_idx, key + key_offset, char_length, buff, size);
   }
   case TILEDB_BLOB:
-    return compare_key_to_dim<std::byte>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<std::byte>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_BOOL:
-    return compare_key_to_dim<bool>(key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<bool>(dim_idx, key, key_part_len, fixed_buff_pointer);
   default: {
     my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in key compare",
                     ME_ERROR_LOG | ME_FATAL);
@@ -3084,13 +3084,13 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
       this->pushdown_in_ranges.clear();
       this->pushdown_ranges.resize(this->ndim);
       this->pushdown_in_ranges.resize(this->ndim);
-    }
 
-    // Copy shared pointer to main range pushdown
-    for (uint64_t i = 0; i < this->ndim; i++) {
-      auto range = ranges_from_keys[i];
-      if (range.get() != nullptr) {
-        this->pushdown_ranges[i].push_back(range);
+      // Copy shared pointer to main range pushdown
+      for (uint64_t i = 0; i < this->ndim; i++) {
+        auto range = ranges_from_keys[i];
+        if (range.get() != nullptr) {
+          this->pushdown_ranges[i].push_back(range);
+        }
       }
     }
   }

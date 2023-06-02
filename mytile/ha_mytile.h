@@ -480,9 +480,17 @@ public:
                             const std::shared_ptr<buffer> &buf);
 
   template <typename T>
-  int8_t compare_key_to_dim(const uchar *key, uint64_t key_length,
-                            const void *buffer,
+  int8_t compare_key_to_dim(const uint64_t dim_index, const uchar *key,
+                            uint64_t key_length, const void *buffer,
                             uint64_t buffer_size = sizeof(T)) {
+    // if a dim has zero ranges, return 0 (key == buffer)
+    const auto &ranges = this->pushdown_ranges[dim_index];
+    const auto &in_ranges = this->pushdown_in_ranges[dim_index];
+
+    if (ranges.empty() && in_ranges.empty()) {
+      return 0;
+    }
+
     // If the lower is null, set it
     if (std::is_same<T, char>()) {
       auto cmp = memcmp(buffer, key, std::min(key_length, buffer_size));

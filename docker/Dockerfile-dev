@@ -67,7 +67,7 @@ RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION
  && rm  ${TILEDB_PREBUILT_FILE} \
  && ldconfig
 
-ENV MARIADB_VERSION="mariadb-10.5.19"
+ENV MARIADB_VERSION="mariadb-10.5.13"
 
 ADD . /tmp/mytile
 

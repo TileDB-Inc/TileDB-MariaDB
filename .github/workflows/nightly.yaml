@@ -17,7 +17,7 @@ jobs:
         os: ["macos-12", "ubuntu-20.04"]
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
-      REF_MARIADB: mariadb-10.5.19
+      REF_MARIADB: mariadb-10.5.13
       REF_LIBTILEDB: dev
       REF_TILEDB_MARIADB: ${{ github.sha }}
       TILEDB_FORCE_ALL_DEPS: OFF

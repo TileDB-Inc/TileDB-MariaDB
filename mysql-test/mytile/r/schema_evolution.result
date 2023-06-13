@@ -1,0 +1,38 @@
+#
+# The purpose of this test is to validate the schema evolution functionality
+#
+CREATE TABLE `evol` (
+`id` int dimension=1 `lower_bound`="-10000" `upper_bound`="100000000" tile_extent="1",
+`a1` int filters='GZIP=6',
+`a2` int default null,
+`a3` varchar(255) default null,
+`a4` varchar(255) not null,
+PRIMARY KEY(id)
+) ENGINE=MyTile;
+INSERT INTO evol VALUES (1, 1, 1, "1", "1"), (2, 2, NULL, NULL, "2"), (3, 300, 300, "abc", "def");
+INSERT INTO evol VALUES (1, 1, 10, "beef", "stew"), (2, 100, NULL, "test", "orange"), (3, 300, 400, "def", "beef");
+SELECT * FROM evol;
+id	a1	a2	a3	a4
+1	1	10	beef	stew
+2	100	NULL	test	orange
+3	300	400	def	beef
+ALTER TABLE `evol` DROP `a3`;
+select * from evol;
+id	a1	a2	a4
+1	1	10	stew
+2	100	NULL	orange
+3	300	400	beef
+ALTER TABLE `evol` ADD COLUMN (`a10` int filters='GZIP=6');
+ALTER TABLE `evol` ADD COLUMN (`a30` varchar(255));
+select * from evol;
+id	a1	a2	a4	a10	a30
+1	1	10	stew	NULL	NULL
+2	100	NULL	orange	NULL	NULL
+3	300	400	beef	NULL	NULL
+INSERT INTO evol VALUES (1, 1, 10, "stew", 10, "a"), (2, 100, NULL, "orange", 20, "b"), (3, 300, 400, "beef", 30, "c");
+select * from evol;
+id	a1	a2	a4	a10	a30
+1	1	10	stew	10	a
+2	100	NULL	orange	20	b
+3	300	400	beef	30	c
+DROP TABLE evol;

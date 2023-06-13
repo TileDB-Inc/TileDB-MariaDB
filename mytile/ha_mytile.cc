@@ -57,6 +57,7 @@
 #include <vector>
 #include <unordered_map>
 #include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
+#include "tiledb/array_schema_evolution.h"
 
 // Handler for mytile engine
 handlerton *mytile_hton;
@@ -335,6 +336,133 @@ int tile::mytile::close(void) {
     DBUG_RETURN(ERR_CLOSE_OTHER);
   }
   DBUG_RETURN(0);
+}
+
+bool tile::mytile::fields_have_same_name(Field* a, Field* b) {
+  DBUG_ENTER("tile::mytile::fields_have_same_name");
+  DBUG_RETURN(strcmp(a->field_name.str, b->field_name.str) == 0); //success
+}
+
+void tile::mytile::find_columns_to_drop(TABLE* new_table, TABLE* orig_table,
+                                        std::vector<std::string>& columns_to_be_dropped) {
+  DBUG_ENTER("tile::mytile::find_columns_to_drop");
+
+  uint new_index = 0;
+  // iterate the schema with the greater number of columns, in this case the original table
+  for (uint orig_index = 0; orig_index < orig_table->s->fields; orig_index++) {
+    Field *curr_field_in_orig = orig_table->field[orig_index];
+
+    // if we have reached the end of the smaller new table, add the remaining columns
+    // to the columns_to_be_dropped vector
+    if (new_index == new_table->s->fields) {
+      columns_to_be_dropped.push_back(curr_field_in_orig->field_name.str);
+      continue;
+    }
+
+    // increase the index of the new table only when you find the column in the original
+    // array
+    Field *curr_field_in_new = new_table->field[new_index];
+    if (fields_have_same_name(curr_field_in_new, curr_field_in_orig)) {
+      new_index++;
+    } else {
+      columns_to_be_dropped.push_back(curr_field_in_orig->field_name.str);
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+void tile::mytile::find_columns_to_add(TABLE *new_table, TABLE *orig_table,
+                                       tiledb::Context context,
+                                       std::vector<tiledb::Attribute>& columns_to_be_added) {
+  DBUG_ENTER("tile::mytile::find_columns_to_add");
+
+  // create a set of the existing atts
+  std::unordered_set<std::string> orig_atts;
+  for (uint orig_index = 0; orig_index < orig_table->s->fields; orig_index++) {
+    Field *curr_field_in_orig = orig_table->field[orig_index];
+    orig_atts.insert(curr_field_in_orig->field_name.str);
+  }
+
+  // loop over the atts of the new schema and add those who are not present in the set
+  for (uint new_index = 0; new_index < new_table->s->fields; new_index++) {
+    Field *curr_field_in_new = new_table->field[new_index];
+    auto it = orig_atts.find(curr_field_in_new->field_name.str);
+    if (it == orig_atts.end()) {
+      bool is_nullable = field_is_nullable(curr_field_in_new);
+
+      // add filters
+      tiledb::FilterList filter_list(context);
+      if (curr_field_in_new->option_struct->filters != nullptr) {
+        filter_list =
+            tile::parse_filter_list(context, curr_field_in_new->option_struct->filters);
+      }
+      tiledb::Attribute attr =
+          tile::create_field_attribute(context, curr_field_in_new, filter_list);
+
+      // set if nullable
+      attr.set_nullable(is_nullable);
+      columns_to_be_added.push_back(attr);
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
+bool tile::mytile::inplace_alter_table(TABLE* altered_table, Alter_inplace_info* ha_alter_info){
+  DBUG_ENTER("tile::mytile::inplace_alter_table");
+
+  // create evolution object
+  auto evolution = tiledb::ArraySchemaEvolution(this->ctx);
+  // if the evolution is a DROP column
+  if (ha_alter_info->handler_flags & ALTER_DROP_COLUMN) {
+    // figuring out what columns have been dropped
+    std::vector<std::string> columns_to_be_dropped;
+    find_columns_to_drop(altered_table, this->table, columns_to_be_dropped);
+
+    // drop columns
+    for (const std::string& col : columns_to_be_dropped) {
+      evolution.drop_attribute(col.c_str());
+    }
+    // evolve array
+    evolution.array_evolve(this->uri);
+
+    DBUG_RETURN(false); //success
+
+    // if the evolution is an ADD column
+  } else if (ha_alter_info->handler_flags & ALTER_ADD_COLUMN) {
+    // figuring out what columns to add
+    std::vector<tiledb::Attribute> atts;
+    find_columns_to_add(altered_table, this->table, this->ctx, atts);
+
+    // adding attributes
+    for (const tiledb::Attribute& a : atts) {
+      evolution.add_attribute(a);
+    }
+
+    // evolve array
+    evolution.array_evolve(this->uri);
+    DBUG_RETURN(false); //success
+  }
+
+  DBUG_RETURN(true); //error
+}
+
+enum_alter_inplace_result tile::mytile::check_if_supported_inplace_alter(
+    TABLE *altered_table, Alter_inplace_info *const ha_alter_info) {
+  DBUG_ENTER("tile::check_if_supported_inplace_alter");
+
+  DBUG_ASSERT(ha_alter_info != nullptr);
+
+  // checking if ALTER operation is supported
+  if (ha_alter_info->handler_flags &
+      (ALTER_ADD_COLUMN | ALTER_DROP_COLUMN )) {
+    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK); //todo check lock type
+  }
+
+  my_printf_error(
+      ER_ALTER_OPERATION_NOT_SUPPORTED,
+    "[SchemaEvolution] ALTER operation not supported. TileDB supports only ADD and DROP.",
+    ME_ERROR_LOG | ME_FATAL);
+  DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
 
 bool tile::mytile::field_has_default_value(Field *field) const {

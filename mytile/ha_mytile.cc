@@ -1623,7 +1623,7 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
                                      std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func_spatial");
   Item **args = func_item->arguments();
-  bool neg = FALSE;
+//  bool neg = FALSE;
 
   // Find the geometry column name in order to identify valid operands
   std::string geometry_column = "wkb_geometry";
@@ -1717,15 +1717,21 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
     // Evaluate to native geometry type
     aoi->eval_const_cond();
     if (aoi->has_value()) {
-      // TODO I have no idea how to use the val_native* methods
-      Geometry *geom = nullptr;
-      const Type_handler_geometry *th= new Type_handler_geometry();
-      bool a = aoi->val_native_with_conversion_result(ha_thd(), dynamic_cast<Native *>(geom), th);
-      DBUG_ASSERT(a);
+      //    Geometry *geom = nullptr;
+
+      //    const Type_handler_geometry *th= new Type_handler_geometry();
+      //    bool a = aoi->val_native_with_conversion_result(ha_thd(), dynamic_cast<Native *>(geom), th); DBUG_ASSERT(a);
+      String arg_val;
+      String *swkb = aoi->val_str(&arg_val);
+      Geometry_buffer buffer;
+      Geometry *geom = NULL;
+
+      geom = Geometry::construct(&buffer, swkb->ptr(), swkb->length());
 
       // Calculate minimum bounding rectangle of geometry
       // TODO This Geometry is still not valid
       if (geom != nullptr) {
+        std::cout << "GEOMETRY VALID!" << std::endl;
         MBR mbr;
         const char *c_end;
         geom->get_mbr(&mbr, &c_end);
@@ -1733,6 +1739,8 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
         y1 = mbr.ymin;
         x2 = mbr.xmax;
         y2 = mbr.ymax;
+        std::cout << "MBR before padding: " << x1 << " " << y1 << " " << x2
+                  << " " << y2 << " " << std::endl;
       } else {
         std::cout << "ERROR! Geometry is not valid, using dummy mbr" << std::endl;
       }

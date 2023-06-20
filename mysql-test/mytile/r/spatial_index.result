@@ -1,0 +1,48 @@
+# SPATIAL INDEX PUSHDOWN
+# Create a test array 
+create table t1 (
+_X           double DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+_Y           double DIMENSION=1 lower_bound="0" upper_bound="100" tile_extent="10",
+name         varchar(255) filters="GZIP=-1",
+wkb_geometry blob NOT NULL
+)
+engine=MyTile
+array_type='SPARSE'
+;
+# Insert 2 polygon geometries
+set @g1 = GeometryFromText('POLYGON((10.0 10.0, 20.0 10.0, 20.0 20.0, 10.0 20.0, 10.0 10.0))');
+set @g2 = GeometryFromText('POLYGON((84.0 84.0, 94.0 84.0, 94.0 94.0, 84.0 94.0, 84.0 84.0))');
+set @bbox1 = ST_Centroid(ST_Envelope(@g1));
+set @bbox2 = ST_Centroid(ST_Envelope(@g2));
+insert into t1 (_X, _Y, name, wkb_geometry) values
+(ST_X(@bbox1), ST_Y(@bbox1), "building1", aswkb(@g1)),
+(ST_X(@bbox2), ST_Y(@bbox2), "building2", aswkb(@g2))
+;
+# Test that only one intersects a search radius
+set @point_text = 'POINT(90.0 90.0)';
+set @buffer_distance = 10;
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Intersects(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80V@\x00\x00\x00\x00\x00\x00T@\xB2\...'
+# Test again, but without the spatial index
+# (results should be identical, but without pushdown to _X _Y)
+set @mytile_enable_pushdown = false;
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Intersects(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80V@\x00\x00\x00\x00\x00\x00T@\xB2\...'
+set @mytile_enable_pushdown = true;
+drop table t1;

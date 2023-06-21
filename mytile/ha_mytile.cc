@@ -1665,11 +1665,10 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
     }
     case Item::FUNC_ITEM: {
       Item_func *f = dynamic_cast<Item_func *>(args[i]);
+      // Special case: Sentinel value used to signify the wkb attribute
       // Has to match the literal cast string e.g. "GeometryFromWkb(wkb_geometry)"
       if (f->full_name() == expected_cast) {
-        wkb_arg = i;
-      } else if (f->const_item() || f->const_during_execution()) {
-          aoi_arg = i;
+          wkb_arg = i;
       }
       break;
     }
@@ -1698,11 +1697,8 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
     double x2 = 0;
     double y2 = 0;
 
-    // TODO handle Item_func too
-    // TODO DRY we already do this dyncast in the switch statement above...
-    auto *aoi = dynamic_cast<Item_cache *>(args[aoi_arg]);
-
     // Evaluate to native geometry type
+    auto *aoi = dynamic_cast<Item_cache *>(args[aoi_arg]);
     aoi->eval_const_cond();
     if (aoi->has_value()) {
       String arg_val;

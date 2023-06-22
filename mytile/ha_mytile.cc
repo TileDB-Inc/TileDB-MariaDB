@@ -1648,7 +1648,11 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
       Item_field *column_field = dynamic_cast<Item_field *>(args[i]);
       if (column_field != nullptr) {
         if (column_field->field_name.str == geometry_column) {
-          // The bare field name references a blob, should be a type error
+          // If the user passes the column name of the blob-typed attribute, bail.
+          // The spatial functions use it despite the type mismatch and return garbage.
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "[cond_push_func_spatial] wkb must be cast, GeometryFromWkb",
+                          ME_ERROR_LOG | ME_FATAL);
           DBUG_RETURN(nullptr);
         }
       }
@@ -1717,6 +1721,10 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
         y1 = mbr.ymin;
         x2 = mbr.xmax;
         y2 = mbr.ymax;
+      } else {
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "[cond_push_func_spatial] Invalid constant geometry",
+                        ME_ERROR_LOG | ME_FATAL);
       }
     }
 
@@ -1790,7 +1798,7 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
         range_vec.push_back(std::move(range));
       }
     }
-  }
+  }  // else: not eligible for pushdown
 
   DBUG_RETURN(nullptr);
 }
@@ -2106,13 +2114,12 @@ tile::mytile::cond_push_local(const COND *cond,
       }
     }
 
-    // We don't support
-    // SP_DISJOINT_FUNC, SP_WITHIN_FUNC, SP_CONTAINS_FUNC
-    // b/c they have they are special cases for the pushdown logic.
+    // We don't support these predicates yet:
+    // SP_DISJOINT_FUNC b/c it's the inverse
+    // SP_WITHIN_FUNC, SP_CONTAINS_FUNC, SP_CROSSES_FUNC b/c not symetrical
+    // SP_TOUCHES b/c there's a small chance that we'll miss it with 0 padding
     // The rest should automatically benefit from the spatial index
     if (func_item->functype() == Item_func::SP_INTERSECTS_FUNC ||
-        func_item->functype() == Item_func::SP_TOUCHES_FUNC ||
-        func_item->functype() == Item_func::SP_CROSSES_FUNC ||
         func_item->functype() == Item_func::SP_EQUALS_FUNC ||
         func_item->functype() == Item_func::SP_OVERLAPS_FUNC) {
       ret = cond_push_func_spatial(func_item, qcPtr);

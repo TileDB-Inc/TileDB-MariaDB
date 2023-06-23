@@ -287,6 +287,15 @@ public:
                              std::shared_ptr<tiledb::QueryCondition> &qcPtr);
 
   /**
+   *  Handle spatial condition pushdowns
+   * @param func_item
+   * @param qcPtr
+   * @return
+   */
+  const COND *cond_push_func_spatial(const Item_func *func_item,
+                             std::shared_ptr<tiledb::QueryCondition> &qcPtr);
+
+  /**
    * Handle datetiem function pushdowns
    * @param func_item
    * @param qcPtr

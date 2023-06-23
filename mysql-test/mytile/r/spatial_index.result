@@ -1,0 +1,84 @@
+# SPATIAL INDEX PUSHDOWN
+# Create a test array 
+create table t1 (
+_X           double DIMENSION=1 lower_bound="0" upper_bound="120" tile_extent="10",
+_Y           double DIMENSION=1 lower_bound="0" upper_bound="120" tile_extent="10",
+name         varchar(255) filters="GZIP=-1",
+wkb_geometry blob NOT NULL
+)
+engine=MyTile
+array_type='SPARSE'
+;
+# Insert 2 polygon geometries
+set @g1 = GeometryFromText('POLYGON((10.0 10.0, 20.0 10.0, 20.0 20.0, 10.0 20.0, 10.0 10.0))');
+set @g2 = GeometryFromText('POLYGON((84.0 84.0, 94.0 84.0, 94.0 94.0, 84.0 94.0, 84.0 84.0))');
+set @centroid1 = ST_Centroid(ST_Envelope(@g1));
+set @centroid2 = ST_Centroid(ST_Envelope(@g2));
+insert into t1 (_X, _Y, name, wkb_geometry) values
+(ST_X(@centroid1), ST_Y(@centroid1), "building1", aswkb(@g1)),
+(ST_X(@centroid2), ST_Y(@centroid2), "building2", aswkb(@g2))
+;
+# Test all spatial binary predicates that use the spatial index
+# They should all match 'building 2'
+# INTERSECTS
+set @point_text = 'POINT(90.0 90.0)';
+set @buffer_distance = 10;
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Intersects(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80V@\x00\x00\x00\x00\x00\x00T@\xB2\...'
+# INTERSECTS, confirm pushdown in explain
+set @point_text = 'POINT(90.0 90.0)';
+set @buffer_distance = 10;
+explain select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Intersects(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80V@\x00\x00\x00\x00\x00\x00T@\xB2\...'
+# OVERLAPS
+set @point_text = 'POINT(70.0 70.0)';
+set @buffer_distance = 25;
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Overlaps(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80Q@\x00\x00\x00\x00\x00\x80F@\xBD\...'
+# EQUALS
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_EQUALS(@g2, GeometryFromWkb(wkb_geometry));
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+# Test again, but without the spatial index
+# (results should be identical, but without pushdown to _X _Y)
+set @point_text = 'POINT(90.0 90.0)';
+set @buffer_distance = 10;
+set @mytile_enable_pushdown = false;
+select name, ST_Area(GeometryFromWkb(wkb_geometry))
+from t1
+where ST_Intersects(
+ST_Buffer(GeometryFromText(@point_text), @buffer_distance),
+GeometryFromWkb(wkb_geometry)
+);
+name	ST_Area(GeometryFromWkb(wkb_geometry))
+building2	100
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '\x00\x00\x00\x00\x01\x03\x00\x00\x00\x01\x00\x00\x00\x7F\x00\x00\x00\x00\x00\x00\x00\x00\x80V@\x00\x00\x00\x00\x00\x00T@\xB2\...'
+set @mytile_enable_pushdown = true;
+drop table t1;

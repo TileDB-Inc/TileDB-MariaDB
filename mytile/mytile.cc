@@ -68,9 +68,11 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   case MYSQL_TYPE_BLOB:
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
-  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_TINY_BLOB: {
+    return tiledb_datatype_t::TILEDB_BLOB;
+  }
+
   case MYSQL_TYPE_ENUM: {
-    // TODO: We really should differentiate between blobs and text fields
     return tiledb_datatype_t::TILEDB_CHAR;
   }
 
@@ -418,7 +420,7 @@ bool tile::TileDBDateTimeType(tiledb_datatype_t type) {
 }
 
 /**
- * Returns if a mysql tpye is a blob
+ * Returns if a mysql type is a blob
  * @param type
  * @return
  */

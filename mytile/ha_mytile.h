@@ -44,7 +44,7 @@
 #include <memory>
 #include <map>
 #include <tiledb/tiledb>
-
+#include <tiledb/tiledb_experimental>
 #include "handler.h"   /* handler */
 #include "my_base.h"   /* ha_rows */
 #include "my_global.h" /* ulonglong */

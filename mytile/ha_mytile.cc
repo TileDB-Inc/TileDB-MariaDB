@@ -59,7 +59,6 @@
 #include <vector>
 #include <unordered_map>
 #include <key.h> // key_copy, key_unpack, key_cmp_if_same, key_cmp
-#include "tiledb/array_schema_evolution.h"
 
 // Handler for mytile engine
 handlerton *mytile_hton;

@@ -2226,6 +2226,18 @@ tile::mytile::cond_push_local(const COND *cond,
   case Item::FUNC_ITEM: {
     const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
 
+    // We don't support these predicates yet:
+    // SP_DISJOINT_FUNC b/c it's the inverse
+    // SP_WITHIN_FUNC, SP_CONTAINS_FUNC, SP_CROSSES_FUNC b/c not symetrical
+    // SP_TOUCHES b/c there's a small chance that we'll miss it with 0 padding
+    // The rest should automatically benefit from the spatial index
+    if (func_item->functype() == Item_func::SP_INTERSECTS_FUNC ||
+        func_item->functype() == Item_func::SP_EQUALS_FUNC ||
+        func_item->functype() == Item_func::SP_OVERLAPS_FUNC) {
+      ret = cond_push_func_spatial(func_item, qcPtr);
+      DBUG_RETURN(ret);
+    }
+
     if (func_item->argument_count() > 1) {
       Item **args = func_item->arguments();
 
@@ -2270,18 +2282,6 @@ tile::mytile::cond_push_local(const COND *cond,
         ret = cond_push_func_datetime(func_item, qcPtr);
         DBUG_RETURN(ret);
       }
-    }
-
-    // We don't support these predicates yet:
-    // SP_DISJOINT_FUNC b/c it's the inverse
-    // SP_WITHIN_FUNC, SP_CONTAINS_FUNC, SP_CROSSES_FUNC b/c not symetrical
-    // SP_TOUCHES b/c there's a small chance that we'll miss it with 0 padding
-    // The rest should automatically benefit from the spatial index
-    if (func_item->functype() == Item_func::SP_INTERSECTS_FUNC ||
-        func_item->functype() == Item_func::SP_EQUALS_FUNC ||
-        func_item->functype() == Item_func::SP_OVERLAPS_FUNC) {
-      ret = cond_push_func_spatial(func_item, qcPtr);
-      DBUG_RETURN(ret);
     }
 
     ret = cond_push_func(func_item, qcPtr);

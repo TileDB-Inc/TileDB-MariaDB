@@ -1582,8 +1582,8 @@ const COND *tile::mytile::cond_push_func_datetime(
     }
 
     int ret = set_range_from_item_datetime(
-        ha_thd(), dynamic_cast<Item_cache_datetime *>(args[1]),
-        dynamic_cast<Item_cache_datetime *>(args[1]), cmp_type, range,
+        ha_thd(), dynamic_cast<Item_basic_constant *>(args[1]),
+        dynamic_cast<Item_basic_constant *>(args[1]), cmp_type, range,
         datatype);
 
     if (ret)
@@ -1599,11 +1599,11 @@ const COND *tile::mytile::cond_push_func_datetime(
   case Item_func::IN_FUNC:
     // Start at 1 because 0 is the field
     for (uint i = 1; i < func_item->argument_count(); i++) {
-      Item_cache_datetime *lower_const =
-          dynamic_cast<Item_cache_datetime *>(args[i]);
+      Item_basic_constant *lower_const =
+          dynamic_cast<Item_basic_constant *>(args[i]);
       // Init upper to be same becase for in clauses this is required
-      Item_cache_datetime *upper_const =
-          dynamic_cast<Item_cache_datetime *>(args[i]);
+      Item_basic_constant *upper_const =
+          dynamic_cast<Item_basic_constant *>(args[i]);
 
       // Create unique ptrs
       std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
@@ -1691,8 +1691,8 @@ const COND *tile::mytile::cond_push_func_datetime(
   case Item_func::GE_FUNC:
   case Item_func::GT_FUNC: {
     // the range
-    Item_cache_datetime *lower_const = nullptr;
-    Item_cache_datetime *upper_const = nullptr;
+    Item_basic_constant *lower_const = nullptr;
+    Item_basic_constant *upper_const = nullptr;
 
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
@@ -1703,16 +1703,16 @@ const COND *tile::mytile::cond_push_func_datetime(
 
     // If we have 3 items then we can set lower and upper
     if (func_item->argument_count() == 3) {
-      lower_const = dynamic_cast<Item_cache_datetime *>(args[1]);
-      upper_const = dynamic_cast<Item_cache_datetime *>(args[2]);
+      lower_const = dynamic_cast<Item_basic_constant *>(args[1]);
+      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
       // If the condition is less than we know its the upper limit we have
     } else if (func_item->functype() == Item_func::LT_FUNC ||
                func_item->functype() == Item_func::LE_FUNC) {
-      upper_const = dynamic_cast<Item_cache_datetime *>(args[1]);
+      upper_const = dynamic_cast<Item_basic_constant *>(args[1]);
       // If the condition is greater than we know its the lower limit we have
     } else if (func_item->functype() == Item_func::GT_FUNC ||
                func_item->functype() == Item_func::GE_FUNC) {
-      lower_const = dynamic_cast<Item_cache_datetime *>(args[1]);
+      lower_const = dynamic_cast<Item_basic_constant *>(args[1]);
     }
 
     // Create unique ptrs
@@ -1736,7 +1736,6 @@ const COND *tile::mytile::cond_push_func_datetime(
       auto &range_vec = this->pushdown_ranges[dim_idx];
       range_vec.push_back(std::move(range));
     }
-
     break;
   }
   default:
@@ -2228,14 +2227,46 @@ tile::mytile::cond_push_local(const COND *cond,
     const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
 
     if (func_item->argument_count() > 1) {
-      Item *item = func_item->arguments()[1];
-      if (item->field_type() == enum_field_types::MYSQL_TYPE_DATE ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_DATETIME ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_DATETIME2 ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_TIMESTAMP ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_TIMESTAMP2 ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_TIME ||
-          item->field_type() == enum_field_types::MYSQL_TYPE_TIME2) {
+      Item **args = func_item->arguments();
+
+      Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
+
+      if (column_field == nullptr) {
+        DBUG_RETURN(func_item);
+      }
+
+      tiledb_datatype_t datatype = tiledb_datatype_t::TILEDB_ANY;
+
+      if (this->array_schema->has_attribute(column_field->name.str)){
+        auto attr = this->array_schema->attribute(column_field->name.str);
+        datatype = attr.type();
+      } else {
+        auto dim = this->array_schema->domain().dimension(column_field->name.str);
+        datatype = dim.type();
+      }
+
+      if (datatype == TILEDB_DATETIME_AS ||
+          datatype == TILEDB_DATETIME_FS ||
+          datatype == TILEDB_DATETIME_PS ||
+          datatype == TILEDB_DATETIME_NS ||
+          datatype == TILEDB_DATETIME_US ||
+          datatype == TILEDB_DATETIME_MS ||
+          datatype == TILEDB_DATETIME_SEC ||
+          datatype == TILEDB_DATETIME_MIN ||
+          datatype == TILEDB_DATETIME_HR ||
+          datatype == TILEDB_DATETIME_DAY ||
+          datatype == TILEDB_DATETIME_WEEK ||
+          datatype == TILEDB_DATETIME_MONTH ||
+          datatype == TILEDB_DATETIME_YEAR ||
+          datatype == TILEDB_TIME_AS ||
+          datatype == TILEDB_TIME_FS ||
+          datatype == TILEDB_TIME_PS ||
+          datatype == TILEDB_TIME_NS ||
+          datatype == TILEDB_TIME_US ||
+          datatype == TILEDB_TIME_MS ||
+          datatype == TILEDB_TIME_SEC ||
+          datatype == TILEDB_TIME_MIN ||
+          datatype == TILEDB_TIME_HR ) {
         ret = cond_push_func_datetime(func_item, qcPtr);
         DBUG_RETURN(ret);
       }

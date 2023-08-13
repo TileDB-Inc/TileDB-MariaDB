@@ -413,6 +413,15 @@ bool tile::TileDBDateTimeType(tiledb_datatype_t type) {
   case tiledb_datatype_t::TILEDB_DATETIME_PS:
   case tiledb_datatype_t::TILEDB_DATETIME_FS:
   case tiledb_datatype_t::TILEDB_DATETIME_AS:
+  case tiledb_datatype_t::TILEDB_TIME_HR:
+  case tiledb_datatype_t::TILEDB_TIME_MIN:
+  case tiledb_datatype_t::TILEDB_TIME_SEC:
+  case tiledb_datatype_t::TILEDB_TIME_MS:
+  case tiledb_datatype_t::TILEDB_TIME_US:
+  case tiledb_datatype_t::TILEDB_TIME_NS:
+  case tiledb_datatype_t::TILEDB_TIME_PS:
+  case tiledb_datatype_t::TILEDB_TIME_FS:
+  case tiledb_datatype_t::TILEDB_TIME_AS:
     return true;
   default:
     return false;

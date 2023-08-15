@@ -52,14 +52,14 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     SET(TILEDB_VERSION_MAJOR "2")
     SET(TILEDB_VERSION_MINOR "16")
-    SET(TILEDB_VERSION_PATCH "0")
+    SET(TILEDB_VERSION_PATCH "3")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=c2779f931c84d931e5fca6dc3a858e66fc542276
+	    URL_HASH SHA1=f03d4d6d50dd94922a314f2c5d0c035ad3f34785
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

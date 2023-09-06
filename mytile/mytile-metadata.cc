@@ -330,7 +330,6 @@ std::string tile::build_datetime_string(THD *thd, uint64_t seconds,
   MYSQL_TIME to;
   if (type != MYSQL_TIMESTAMP_DATE) {
     thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
-    thd->time_zone_used = true;
     to.second_part = second_part;
     adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
   } else {

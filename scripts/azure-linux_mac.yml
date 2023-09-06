@@ -37,8 +37,8 @@ steps:
     git config --global user.name 'Azure Pipeline'
     git config --global user.email 'no-reply@tiledb.io'
 
-    export CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
-    export CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
+    export CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations -Wno-error=missing-braces"
+    export CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations -Wno-error=missing-braces"
     if [[ "$AGENT_OS" == "Linux" ]]; then
       sudo apt update
       sudo apt install -y libncurses5-dev bison gdb
@@ -49,7 +49,7 @@ steps:
       brew install cmake jemalloc openssl@1.1 boost gnutls m4 bison@2.7
       export PATH="$(brew --prefix bison@2.7)/bin:$PATH"
 
-      export OSX_FLAGS_NEEDED="-Wno-error=deprecated-non-prototype -Wno-error=inconsistent-missing-override -Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"
+      export OSX_FLAGS_NEEDED="-Wno-overloaded-virtual -Wno-error=deprecated-non-prototype -Wno-error=inconsistent-missing-override -Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"
       export CXXFLAGS="${CXXFLAGS} ${OSX_FLAGS_NEEDED}"
       export CFLAGS="${CFLAGS} ${OSX_FLAGS_NEEDED}"
       export DYLD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:$DYLD_LIBRARY_PATH
@@ -61,16 +61,16 @@ steps:
 
 - bash: |
     set -e pipefail
-    BUILDDIR=$BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/log/mysqld.1.err
+    BUILDDIR=$BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/log/mysqld.1.err
     # Display log files if the build failed
     echo "Dumping log files for failed build"
     echo "----------------------------------"
     echo "$BUILD_REPOSITORY_LOCALPATH"
     ls $BUILD_REPOSITORY_LOCALPATH/
-    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/
-    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/
-    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/
-    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/log
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/log
     echo "$BUILDDIR"
     echo "======"
     cat $BUILDDIR

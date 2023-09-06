@@ -3,7 +3,7 @@
 set -v -e -x
 
 original_dir=$PWD
-export MARIADB_VERSION=${MARIADB_VERSION:="mariadb-10.6.10"}
+export MARIADB_VERSION=${MARIADB_VERSION:="mariadb-11.0.2"}
 mkdir tmp
 shopt -s extglob
 mv !(tmp) tmp # Move everything but tmp
@@ -33,7 +33,7 @@ if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
      && cd $original_dir
    fi
 else # set superbuild flags
-  export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations"
+  export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations -Wno-error=missing-braces"
   export CXXFLAGS="${CXXFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
   export CFLAGS="${CFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
 fi

@@ -11,7 +11,7 @@ then
   echo $LD_LIBRARY_PATH
 elif [[ "$OS" == "Darwin" ]]
 then
-  FLAGS_NEEDED="-Wno-error=inconsistent-missing-override -Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"
+  FLAGS_NEEDED="-Wno-error=deprecated-non-prototype -Wno-error=inconsistent-missing-override -Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"
   export PATH="$(brew --prefix bison@2.7)/bin:$PATH"
   export DYLD_LIBRARY_PATH=$(pwd)/libtiledb/build_deps/TileDB/dist/lib:/usr/local/lib:${DYLD_LIBRARY_PATH-}
   echo $DYLD_LIBRARY_PATH
@@ -39,6 +39,7 @@ cmake \
   -DPLUGIN_CONNECT=NO \
   -DCMAKE_BUILD_TYPE=Debug \
   -DWITH_DEBUG=1 \
+  -DCMAKE_INCLUDE_PATH="/usr/local/include" \
   -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS-NO} \
   ..
 make -j2

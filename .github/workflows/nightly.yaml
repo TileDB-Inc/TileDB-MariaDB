@@ -45,7 +45,10 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Open Issue
+        uses: TileDB-Inc/github-actions/open-issue@main
+        with:
+          name: nightly build
+          label: nightly-failure
+          assignee: Shelnutt2,ihnorton
         env:
-          GH_TOKEN: ${{ github.token }}
           TZ: "America/New_York"
-        run: bash scripts/nightly/open-issue.sh

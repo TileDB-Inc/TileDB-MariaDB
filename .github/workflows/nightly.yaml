@@ -49,6 +49,6 @@ jobs:
         with:
           name: nightly build
           label: nightly-failure
-          assignee: Shelnutt2,ihnorton
+          assignee: DimitrisStaratzis,ihnorton,Shelnutt2
         env:
           TZ: "America/New_York"

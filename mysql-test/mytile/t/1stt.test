@@ -1,0 +1,8 @@
+--echo # Test pre-existing array
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE enum_array ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/enum_array';
+DESCRIBE enum_array;
+select * from `enum_array`;
+set mytile_delete_arrays=0;
+DROP TABLE `enum_array`;
+set mytile_delete_arrays=1;

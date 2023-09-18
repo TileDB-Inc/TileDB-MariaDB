@@ -170,7 +170,7 @@ tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
  * @param type
  * @return
  */
-int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num);
+int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num, bool is_enum);
 
 /**
  * Converts a value of tiledb_datatype_t to a string

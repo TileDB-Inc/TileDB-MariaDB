@@ -35,6 +35,7 @@
 #include "my_global.h" /* ulonglong */
 #include <handler.h>
 #include <tiledb/tiledb>
+#include <tiledb/tiledb_experimental>
 
 namespace tile {
 /**

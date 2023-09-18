@@ -128,7 +128,6 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
       ctx.set_tag(tag_key, value);
     }
   }
-
   return ctx;
 }
 
@@ -1189,7 +1188,6 @@ int tile::mytile::metadata_to_fields(
 int tile::mytile::metadata_next() {
   DBUG_ENTER("'tile::mytile::metadata_next");
   int rc = 0;
-
   // Check if we are out of metadata
   if (this->metadata_map_iterator == this->metadata_map.end()) {
     DBUG_RETURN(HA_ERR_END_OF_FILE);

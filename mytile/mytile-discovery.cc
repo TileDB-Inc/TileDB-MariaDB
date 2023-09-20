@@ -52,6 +52,7 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
 }
 
 int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
+
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
   tiledb::Config config = build_config(thd);
@@ -70,6 +71,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     encryption_key = std::string(ts->option_struct->encryption_key);
   }
 
+
   tiledb::VFS vfs(ctx);
 
   bool array_found = false;
@@ -80,6 +82,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         info->option_struct->array_uri != nullptr) {
       array_uri_timestamp =
           get_real_uri_and_timestamp(info->option_struct->array_uri);
+
 
       // Check if @metadata is ending of uri, if so the user is trying to query
       // the metadata we need to remove the keyword for checking if the array
@@ -153,6 +156,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           encryption_key);
     }
   } else {
+    std::cout << "no table" << std::endl;
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 
@@ -169,6 +173,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   }
 
   try {
+
     // Now that we have the schema opened we need to build the create table
     // statement Its easier to build the create table query string than to try
     // to create the fmt data.
@@ -299,14 +304,28 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                                    encryption_key);
         auto enmr = tiledb::ArrayExperimental::get_enumeration(
             ctx, array, enmr_name.value());
-        auto enum_vec = enmr.as_vector<std::string>();
-        for (size_t i = 0; i < enum_vec.size(); ++i) {
-          sql_string << "'" << enum_vec[i] << "'";
-          if (i < enum_vec.size() - 1) {
-            sql_string << ", ";
+
+        auto enum_vec_string = enmr.as_vector<std::string>();
+
+        //TODO make the code below a method
+        if (enum_vec_string.size() != 0) {
+          for (size_t i = 0; i < enum_vec_string.size(); ++i) {
+            sql_string << "'" << enum_vec_string[i] << "'";
+            if (i < enum_vec_string.size() - 1) {
+              sql_string << ", ";
+            }
           }
+          sql_string << ")";
+        }else {
+          auto enum_vec_int = enmr.as_vector<int>();
+          for (size_t i = 0; i < enum_vec_int.size(); ++i) {
+            sql_string << "'" <<  enum_vec_int[i] << "'";
+            if (i < enum_vec_int.size() - 1) {
+              sql_string << ", ";
+            }
+          }
+          sql_string << ")";
         }
-        sql_string << ")";
       } else {
         if (mysql_type == MYSQL_TYPE_VARCHAR) {
           sql_string << "TEXT";

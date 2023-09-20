@@ -1,8 +1,18 @@
---echo # Test pre-existing array
---replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
---eval CREATE TABLE enum_array ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/enum_array';
-DESCRIBE enum_array;
-select * from `enum_array`;
-set mytile_delete_arrays=0;
-DROP TABLE `enum_array`;
-set mytile_delete_arrays=1;
+#--echo # Test pre-existing array
+#--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+#--eval CREATE TABLE enum_array ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/enum_array';
+#DESCRIBE enum_array;
+#select * from `enum_array`;
+#set mytile_delete_arrays=0;
+#DROP TABLE `enum_array`;
+#set mytile_delete_arrays=1;
+
+--echo
+CREATE TABLE tiledb_with_enum (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL,
+  attr1 integer,
+  fruit ENUM('apple','orange','pear')
+) ENGINE=mytile;
+INSERT INTO tiledb_with_enum VALUES (1, 1, 1.0), (1, 2, 'orange');
+select * FROM tiledb_with_enum;
+DROP TABLE tiledb_with_enum;

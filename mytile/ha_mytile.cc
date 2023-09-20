@@ -684,6 +684,25 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           dealloc_buffer(buff);
         }
 
+        // we create a vector with the enum labels and we add it to the
+        // corresponding attribute
+        if (field->real_type() == MYSQL_TYPE_ENUM){
+          std::vector<std::string> enum_values;
+          Field_enum *field_enum= (Field_enum*) field;
+          const TYPELIB *enum_typelib = field_enum->get_typelib();
+          std::string enum_name = std::string(field->field_name.str) + "_enum";
+
+          if (enum_typelib != nullptr) {
+            const tiledb::ArraySchema& const_schema = *schema;
+            for (uint i = 0; i < enum_typelib->count; ++i) {
+              enum_values.push_back(enum_typelib->type_names[i]);
+            }
+            auto enmr = tiledb::Enumeration::create(ctx, enum_name, enum_values);
+            tiledb::ArraySchemaExperimental::add_enumeration(ctx, const_schema, enmr);
+            tiledb::AttributeExperimental::set_enumeration_name(ctx, attr, enum_name);
+          }
+
+        }
         schema->add_attribute(attr);
       };
     }
@@ -2465,6 +2484,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
       }
     } else { // attribute
+
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
 
       uint8_t *validity_buffer = nullptr;

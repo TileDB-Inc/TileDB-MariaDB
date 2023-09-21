@@ -165,13 +165,9 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num, bool is_enum) {
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num) {
   if (val_num > 1 && val_num != TILEDB_VAR_NUM){
     return MYSQL_TYPE_BLOB;
-  }
-
-  if (is_enum) {
-      return MYSQL_TYPE_ENUM;
   }
 
   switch (type) {

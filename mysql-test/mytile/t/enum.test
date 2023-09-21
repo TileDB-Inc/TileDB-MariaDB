@@ -1,0 +1,33 @@
+--echo # Test pre-existing array
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE enum_array ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/enum_array';
+
+SELECT column_name, COLUMN_TYPE, is_nullable, column_default
+FROM information_schema.COLUMNS
+WHERE table_name = 'enum_array' order by column_name;
+
+select `rows`, `a0`, `a1`, `a2`, `a3` from `enum_array` order by `rows`;
+select `rows`, `a0`, `a1`, `a2`, `a3` from `enum_array` where a1 = 'bb' order by `rows`;
+select `rows`, `a0`, `a1`, `a2`, `a3` from `enum_array` where a2 = 'kk' order by `rows`;
+select `rows`, `a0`, `a1`, `a2`, `a3` from `enum_array` where `rows` > 20 order by `rows`;
+select `rows`, `a0`, `a1`, `a2`, `a3` from `enum_array` where `rows` > 20 and a2 = 'll' order by `rows`;
+
+set mytile_delete_arrays=0;
+DROP TABLE `enum_array`;
+set mytile_delete_arrays=1;
+
+--echo # Test array creation
+CREATE TABLE tiledb_with_enum (
+  dim1 integer dimension=1 lower_bound="0" upper_bound="100" tile_extent="10" NOT NULL,
+  attr1 integer,
+  fruit ENUM('apple','orange','pear')
+) ENGINE=mytile;
+INSERT INTO tiledb_with_enum VALUES (1, 1, 'pear'), (1, 2, 'orange');
+
+SELECT column_name, COLUMN_TYPE, is_nullable, column_default
+FROM information_schema.COLUMNS
+WHERE table_name = 'tiledb_with_enum' order by column_name;
+
+select `dim1`, `attr1`, `fruit` from tiledb_with_enum order by `dim1`;
+select `dim1`, `attr1`, `fruit` FROM tiledb_with_enum where fruit = 'pear' order by `dim1`;
+DROP TABLE tiledb_with_enum;

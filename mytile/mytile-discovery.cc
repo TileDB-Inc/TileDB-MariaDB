@@ -52,7 +52,6 @@ int tile::mytile_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *ts) {
 }
 
 int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
-
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
   tiledb::Config config = build_config(thd);
@@ -71,7 +70,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     encryption_key = std::string(ts->option_struct->encryption_key);
   }
 
-
   tiledb::VFS vfs(ctx);
 
   bool array_found = false;
@@ -82,7 +80,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         info->option_struct->array_uri != nullptr) {
       array_uri_timestamp =
           get_real_uri_and_timestamp(info->option_struct->array_uri);
-
 
       // Check if @metadata is ending of uri, if so the user is trying to query
       // the metadata we need to remove the keyword for checking if the array
@@ -156,7 +153,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           encryption_key);
     }
   } else {
-    std::cout << "no table" << std::endl;
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
   }
 
@@ -173,7 +169,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   }
 
   try {
-
     // Now that we have the schema opened we need to build the create table
     // statement Its easier to build the create table query string than to try
     // to create the fmt data.
@@ -251,7 +246,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     }
 
     for (const auto &dim : schema->domain().dimensions()) {
-      int mysql_type = TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num(), false);
+      int mysql_type = TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num());
 
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
@@ -285,6 +280,10 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                    << ",";
       }
     }
+    auto array = tiledb::Array(ctx, array_uri_timestamp.first, TILEDB_READ,
+                               encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                                      : TILEDB_AES_256_GCM,
+                               encryption_key);
 
     for (const auto &attributeMap : schema->attributes()) {
       auto attribute = attributeMap.second;
@@ -294,21 +293,17 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       bool is_enum = enmr_name.has_value();
 
       auto mysql_type =
-          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num(), is_enum);
+          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num());
 
       if (is_enum) {
-        sql_string << MysqlTypeString(mysql_type) << "(";
-        auto array = tiledb::Array(ctx, array_uri_timestamp.first, TILEDB_READ,
-                                   encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                          : TILEDB_AES_256_GCM,
-                                   encryption_key);
+        // if the attribute has an enum
         auto enmr = tiledb::ArrayExperimental::get_enumeration(
             ctx, array, enmr_name.value());
 
         auto enum_vec_string = enmr.as_vector<std::string>();
 
-        //TODO make the code below a method
         if (enum_vec_string.size() != 0) {
+          sql_string << "ENUM" << "(";
           for (size_t i = 0; i < enum_vec_string.size(); ++i) {
             sql_string << "'" << enum_vec_string[i] << "'";
             if (i < enum_vec_string.size() - 1) {
@@ -317,14 +312,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           }
           sql_string << ")";
         }else {
-          auto enum_vec_int = enmr.as_vector<int>();
-          for (size_t i = 0; i < enum_vec_int.size(); ++i) {
-            sql_string << "'" <<  enum_vec_int[i] << "'";
-            if (i < enum_vec_int.size() - 1) {
-              sql_string << ", ";
-            }
-          }
-          sql_string << ")";
+          sql_string << MysqlTypeString(mysql_type);
         }
       } else {
         if (mysql_type == MYSQL_TYPE_VARCHAR) {
@@ -356,9 +344,10 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         attribute.get_fill_value(&default_value, &default_value_size);
       }
 
-      if (!is_enum){ //todo revisit default values in enums
-          if (valid == 0)
-              sql_string << " DEFAULT NULL";
+      if (!is_enum){
+          if (valid == 0){
+            sql_string << " DEFAULT NULL";
+          }
           else {
               // Only set the default value if its set by the user or we include
               // defaults for non-string type. TileDB strings uses default fill values
@@ -374,7 +363,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
               }
           }
       }
-
 
       // Check for filters
       tiledb::FilterList filters = attribute.filter_list();

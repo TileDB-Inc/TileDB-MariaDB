@@ -688,15 +688,18 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         // corresponding attribute
         if (field->real_type() == MYSQL_TYPE_ENUM){
           std::vector<std::string> enum_values;
+          // casting to field enum
           Field_enum *field_enum= (Field_enum*) field;
           const TYPELIB *enum_typelib = field_enum->get_typelib();
           std::string enum_name = std::string(field->field_name.str) + "_enum";
 
+          // getting all the enum labels to create the TileDB enum
           if (enum_typelib != nullptr) {
             const tiledb::ArraySchema& const_schema = *schema;
             for (uint i = 0; i < enum_typelib->count; ++i) {
               enum_values.push_back(enum_typelib->type_names[i]);
             }
+            // setting the enum to the attribute
             auto enmr = tiledb::Enumeration::create(ctx, enum_name, enum_values);
             tiledb::ArraySchemaExperimental::add_enumeration(ctx, const_schema, enmr);
             tiledb::AttributeExperimental::set_enumeration_name(ctx, attr, enum_name);
@@ -1566,6 +1569,7 @@ const COND *tile::mytile::cond_push_func_datetime(
 
   switch (func_item->functype()) {
   case Item_func::ISNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
@@ -1574,6 +1578,7 @@ const COND *tile::mytile::cond_push_func_datetime(
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
@@ -1952,6 +1957,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
   bool neg = FALSE;
+  bool is_enum = false;
 
   Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
   // If we can't convert the condition to a column let's bail
@@ -1983,7 +1989,10 @@ tile::mytile::cond_push_func(const Item_func *func_item,
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
     nullable = attr.nullable();
+    auto enmr_name = tiledb::AttributeExperimental::get_enumeration_name(ctx, attr);
+    is_enum = enmr_name.has_value();
 
+    if (is_enum) DBUG_RETURN(func_item); //disable enum push down for now TODO
     if (!attr.variable_sized() ||
         (attr.variable_sized() && datatype == TILEDB_STRING_ASCII)) {
       use_query_condition = true;
@@ -2004,6 +2013,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
 
   switch (func_item->functype()) {
   case Item_func::ISNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
@@ -2012,6 +2022,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
@@ -2210,8 +2221,7 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     DBUG_RETURN(cond);
   }
 
-  std::shared_ptr<tiledb::QueryCondition> null;
-  DBUG_RETURN(cond_push_local(cond, null));
+  DBUG_RETURN(cond_push_local(cond, this->query_condition));
 }
 
 const COND *
@@ -2480,7 +2490,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
       }
     } else { // attribute
-
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
 
       uint8_t *validity_buffer = nullptr;

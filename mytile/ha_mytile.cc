@@ -1980,10 +1980,6 @@ tile::mytile::cond_push_func(const Item_func *func_item,
   bool nullable = false;
   if (this->array_schema->has_attribute(column_field->field_name.str)) {
 
-    // Dense arrays do not support query conditions
-    if (this->array_schema->array_type() == TILEDB_DENSE)
-      DBUG_RETURN(func_item);
-
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
     nullable = attr.nullable();

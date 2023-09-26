@@ -10,4 +10,5 @@ brew install \
   gnutls \
   jemalloc \
   m4 \
-  openssl@1.1
+  openssl@1.1 \
+  pkg-config

@@ -13,6 +13,9 @@ MYSQL_TIME epoch{1970, 1, 1, 0, 0, 0, 0, false, MYSQL_TIMESTAMP_DATETIME};
 
 tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   switch (type) {
+  case MYSQL_TYPE_ENUM: {
+    return tiledb_datatype_t::TILEDB_INT64;
+  }
 
   case MYSQL_TYPE_DOUBLE:
   case MYSQL_TYPE_DECIMAL:
@@ -70,10 +73,6 @@ tiledb_datatype_t tile::mysqlTypeToTileDBType(int type, bool signedInt) {
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_TINY_BLOB: {
     return tiledb_datatype_t::TILEDB_BLOB;
-  }
-
-  case MYSQL_TYPE_ENUM: {
-    return tiledb_datatype_t::TILEDB_CHAR;
   }
 
   case MYSQL_TYPE_DATE:
@@ -548,7 +547,7 @@ tile::create_field_attribute(tiledb::Context &ctx, Field *field,
                              const tiledb::FilterList &filter_list) {
 
   tiledb_datatype_t datatype =
-      tile::mysqlTypeToTileDBType(field->type(), false);
+      tile::mysqlTypeToTileDBType(field->real_type(), false);
   tiledb::Attribute attr(ctx, field->field_name.str, datatype);
 
   // Only support variable length strings and blobs for now

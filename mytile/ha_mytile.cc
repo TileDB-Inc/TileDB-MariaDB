@@ -128,7 +128,6 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
       ctx.set_tag(tag_key, value);
     }
   }
-
   return ctx;
 }
 
@@ -685,6 +684,28 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           dealloc_buffer(buff);
         }
 
+        // we create a vector with the enum labels and we add it to the
+        // corresponding attribute
+        if (field->real_type() == MYSQL_TYPE_ENUM){
+          std::vector<std::string> enum_values;
+          // casting to field enum
+          Field_enum *field_enum= (Field_enum*) field;
+          const TYPELIB *enum_typelib = field_enum->get_typelib();
+          std::string enum_name = std::string(field->field_name.str) + "_enum";
+
+          // getting all the enum labels to create the TileDB enum
+          if (enum_typelib != nullptr) {
+            const tiledb::ArraySchema& const_schema = *schema;
+            for (uint i = 0; i < enum_typelib->count; ++i) {
+              enum_values.push_back(enum_typelib->type_names[i]);
+            }
+            // setting the enum to the attribute
+            auto enmr = tiledb::Enumeration::create(ctx, enum_name, enum_values);
+            tiledb::ArraySchemaExperimental::add_enumeration(ctx, const_schema, enmr);
+            tiledb::AttributeExperimental::set_enumeration_name(ctx, attr, enum_name);
+          }
+
+        }
         schema->add_attribute(attr);
       };
     }
@@ -1189,7 +1210,6 @@ int tile::mytile::metadata_to_fields(
 int tile::mytile::metadata_next() {
   DBUG_ENTER("'tile::mytile::metadata_next");
   int rc = 0;
-
   // Check if we are out of metadata
   if (this->metadata_map_iterator == this->metadata_map.end()) {
     DBUG_RETURN(HA_ERR_END_OF_FILE);
@@ -1549,6 +1569,7 @@ const COND *tile::mytile::cond_push_func_datetime(
 
   switch (func_item->functype()) {
   case Item_func::ISNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
@@ -1557,6 +1578,7 @@ const COND *tile::mytile::cond_push_func_datetime(
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
@@ -1935,6 +1957,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
   bool neg = FALSE;
+  bool is_enum = false;
 
   Item_field *column_field = dynamic_cast<Item_field *>(args[0]);
   // If we can't convert the condition to a column let's bail
@@ -1963,14 +1986,13 @@ tile::mytile::cond_push_func(const Item_func *func_item,
   bool nullable = false;
   if (this->array_schema->has_attribute(column_field->field_name.str)) {
 
-    // Dense arrays do not support query conditions
-    if (this->array_schema->array_type() == TILEDB_DENSE)
-      DBUG_RETURN(func_item);
-
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
     nullable = attr.nullable();
+    auto enmr_name = tiledb::AttributeExperimental::get_enumeration_name(ctx, attr);
+    is_enum = enmr_name.has_value();
 
+    if (is_enum) DBUG_RETURN(func_item); //disable enum push down for now TODO
     if (!attr.variable_sized() ||
         (attr.variable_sized() && datatype == TILEDB_STRING_ASCII)) {
       use_query_condition = true;
@@ -1991,6 +2013,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
 
   switch (func_item->functype()) {
   case Item_func::ISNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is null is not supported for ranges*/
 
@@ -1999,6 +2022,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
     break;
   }
   case Item_func::ISNOTNULL_FUNC: {
+    DBUG_RETURN(func_item);
     if (!use_query_condition || !nullable)
       DBUG_RETURN(func_item); /* Is not null is not supported for ranges*/
 
@@ -2197,8 +2221,7 @@ const COND *tile::mytile::cond_push(const COND *cond) {
     DBUG_RETURN(cond);
   }
 
-  std::shared_ptr<tiledb::QueryCondition> null;
-  DBUG_RETURN(cond_push_local(cond, null));
+  DBUG_RETURN(cond_push_local(cond, this->query_condition));
 }
 
 const COND *
@@ -3734,7 +3757,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0250,                     /* version number (0.25.0) */
+    0x0251,                     /* version number (0.25.1) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
     NULL,                                      /* config options */
@@ -3751,9 +3774,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0250,                     /* version number (0.25.0) */
+    0x0251,                     /* version number (0.25.1) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
-    "0.25.0",                                  /* string version */
+    "0.25.1",                                  /* string version */
     MariaDB_PLUGIN_MATURITY_BETA               /* maturity */
 } maria_declare_plugin_end;

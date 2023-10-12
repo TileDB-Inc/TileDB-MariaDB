@@ -280,19 +280,47 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                    << ",";
       }
     }
+    auto array = tiledb::Array(ctx, array_uri_timestamp.first, TILEDB_READ,
+                               encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                                      : TILEDB_AES_256_GCM,
+                               encryption_key);
 
     for (const auto &attributeMap : schema->attributes()) {
       auto attribute = attributeMap.second;
       sql_string << std::endl << "`" << attribute.name() << "` ";
 
+      auto enmr_name = tiledb::AttributeExperimental::get_enumeration_name(ctx, attribute);
+      bool is_enum = enmr_name.has_value();
+
       auto mysql_type =
           TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num());
-      if (mysql_type == MYSQL_TYPE_VARCHAR) {
-        sql_string << "TEXT";
-      } else {
-        sql_string << MysqlTypeString(mysql_type);
-      }
 
+      if (is_enum) {
+        // if the attribute has an enum
+        auto enmr = tiledb::ArrayExperimental::get_enumeration(
+            ctx, array, enmr_name.value());
+
+        auto enum_vec_string = enmr.as_vector<std::string>();
+
+        if (enum_vec_string.size() != 0) {
+          sql_string << "ENUM" << "(";
+          for (size_t i = 0; i < enum_vec_string.size(); ++i) {
+            sql_string << "'" << enum_vec_string[i] << "'";
+            if (i < enum_vec_string.size() - 1) {
+              sql_string << ", ";
+            }
+          }
+          sql_string << ")";
+        }else {
+          sql_string << MysqlTypeString(mysql_type);
+        }
+      } else {
+        if (mysql_type == MYSQL_TYPE_VARCHAR) {
+          sql_string << "TEXT";
+        } else {
+          sql_string << MysqlTypeString(mysql_type);
+        }
+      }
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";
@@ -316,21 +344,24 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         attribute.get_fill_value(&default_value, &default_value_size);
       }
 
-      if (valid == 0)
-        sql_string << " DEFAULT NULL";
-      else {
-        // Only set the default value if its set by the user or we include
-        // defaults for non-string type. TileDB strings uses default fill values
-        // that mariadb doesn't like (i.e. \200) so we just avoid setting those.
-        if (!tile::is_fill_value_default(attribute.type(), default_value,
-                                         default_value_size) ||
-            !tile::is_string_datatype(attribute.type())) {
-          auto default_value_str = TileDBTypeValueToString(
-              attribute.type(), default_value, default_value_size);
+      if (!is_enum){
+          if (valid == 0){
+            sql_string << " DEFAULT NULL";
+          }
+          else {
+              // Only set the default value if its set by the user or we include
+              // defaults for non-string type. TileDB strings uses default fill values
+              // that mariadb doesn't like (i.e. \200) so we just avoid setting those.
+              if (!tile::is_fill_value_default(attribute.type(), default_value,
+                                               default_value_size) ||
+                  !tile::is_string_datatype(attribute.type())) {
+                  auto default_value_str = TileDBTypeValueToString(
+                          attribute.type(), default_value, default_value_size);
 
-          if (!default_value_str.empty())
-            sql_string << " DEFAULT " << default_value_str;
-        }
+                  if (!default_value_str.empty())
+                      sql_string << " DEFAULT " << default_value_str;
+              }
+          }
       }
 
       // Check for filters

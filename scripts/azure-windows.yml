@@ -26,9 +26,9 @@ steps:
     cd build_deps
     powershell -Command "Invoke-WebRequest https://netactuate.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-dep.zip -OutFile bison-2.4.1-dep.zip"
     powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-bin.zip -OutFile bison-2.4.1-bin.zip"
-    powershell -Command "Invoke-WebRequest https://github.com/madler/zlib/releases/download/v1.3/zlib13.zip -OutFile zlib-1.3-bin.zip"
+    powershell -Command "Invoke-WebRequest https://gnuwin32.sourceforge.net/downlinks/zlib-bin-zip.php -OutFile zlib-bin.zip"
 
-    tar -xf zlib-1.3-bin.zip
+    tar -xf zlib-bin.zip
     tar -xf bison-2.4.1-dep.zip
     tar -xf bison-2.4.1-bin.zip
 
@@ -42,25 +42,6 @@ steps:
 
     git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
     cd $(MARIADB_VERSION)
-
-    cd storage
-    mkdir mytile
-    cd mytile
-    mkdir cmake
-    mkdir docker
-    mkdir mysql-test
-    mkdir mytile
-    mkdir scripts
-    
-    xcopy /I "$(ROOT_DIR)CMakeLists.txt" "."
-    xcopy /I "$(ROOT_DIR)LICENSE" "."
-    xcopy /E /I "$(ROOT_DIR)\cmake" "./cmake"
-    xcopy /E /I "$(ROOT_DIR)\docker" "./docker"
-    xcopy /E /I "$(ROOT_DIR)\mysql-test" "./mysql-test"
-    xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
-    xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
-
-    cd ../../
 
     mkdir builddir
     cd builddir

@@ -10,7 +10,7 @@ stages:
   - stage: CI
     variables:
       TILEDB_VERSION: 2.3.3
-      MARIADB_VERSION: 'mariadb-10.5.12'
+      MARIADB_VERSION: 'mariadb-10.6.10'
       ROOT_DIR: '$(Build.Repository.Localpath)\'
       BUILD_DEPS: '$(Build.Repository.Localpath)\build_deps'
       TILEDB_SRC: '$(Build.Repository.Localpath)\tiledb_src'

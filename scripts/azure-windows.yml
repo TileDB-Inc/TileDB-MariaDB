@@ -46,6 +46,25 @@ steps:
 
     git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
     cd $(MARIADB_VERSION)
+    
+    cd storage
+    mkdir mytile
+    cd mytile
+    mkdir cmake
+    mkdir docker
+    mkdir mysql-test
+    mkdir mytile
+    mkdir scripts
+    
+    xcopy /I "$(ROOT_DIR)CMakeLists.txt" "."
+    xcopy /I "$(ROOT_DIR)LICENSE" "."
+    xcopy /E /I "$(ROOT_DIR)\cmake" "./cmake"
+    xcopy /E /I "$(ROOT_DIR)\docker" "./docker"
+    xcopy /E /I "$(ROOT_DIR)\mysql-test" "./mysql-test"
+    xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
+    xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
+
+    cd ../../
 
     mkdir builddir
     cd builddir
@@ -60,8 +79,7 @@ steps:
 
     cd $(MARIADB_VERSION)\builddir\mysql-test
     #TODO
-    #perl /mysql-test-run.pl --suite=mytile --debug
-    perl mysql-test-run.pl --suite=main --parallel=auto
+    perl mysql-test-run.pl --suite=mytile --debug
 
   displayName: "Run mysql-test"
 

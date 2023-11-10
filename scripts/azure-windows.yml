@@ -24,13 +24,17 @@ steps:
 
     mkdir build_deps
     cd build_deps
-    powershell -Command "Invoke-WebRequest https://netactuate.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-dep.zip -OutFile bison-2.4.1-dep.zip"
+    powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-dep.zip -OutFile bison-2.4.1-dep.zip"
     powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-bin.zip -OutFile bison-2.4.1-bin.zip"
     powershell -Command "Invoke-WebRequest https://gnuwin32.sourceforge.net/downlinks/zlib-bin-zip.php -OutFile zlib-bin.zip"
+    
+    ls -l
 
-    tar -xf zlib-bin.zip
-    tar -xf bison-2.4.1-dep.zip
-    tar -xf bison-2.4.1-bin.zip
+    unzip bison-2.4.1-dep.zip
+    unzip bison-2.4.1-bin.zip
+    unzip zlib-bin.zip
+    
+    ls -l
 
   displayName: "Install dependencies"
 - script: |

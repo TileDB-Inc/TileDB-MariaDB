@@ -44,7 +44,6 @@ steps:
 
     set PATH=%PATH%;$(BUILD_DEPS)\bin
     set PATH=%PATH%;$(TILEDB_INSTALL)
-    set PATH=%PATH%;$(TILEDB_INSTALL)\bin
     set PATH=%PATH%;$(TILEDB_INSTALL)\include
     set PATH=%PATH%;$(TILEDB_INSTALL)\lib
     set PATH=%PATH%;$(BUILD_DEPS)\bin

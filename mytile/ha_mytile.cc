@@ -2826,9 +2826,15 @@ int tile::mytile::write_row(const uchar *buf) {
 
 ulong tile::mytile::index_flags(uint idx, uint part, bool all_parts) const {
   DBUG_ENTER("tile::mytile::index_flags");
+#if MYSQL_VERSION_ID < 100500
   DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
-              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN | HA_DO_INDEX_COND_PUSHDOWN | HA_CLUSTERED_INDEX);
-
+              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN |
+              HA_DO_INDEX_COND_PUSHDOWN);
+#else
+  DBUG_RETURN(HA_READ_NEXT | HA_READ_PREV | HA_READ_ORDER | HA_READ_RANGE |
+              HA_KEYREAD_ONLY | HA_DO_RANGE_FILTER_PUSHDOWN |
+              HA_DO_INDEX_COND_PUSHDOWN | HA_CLUSTERED_INDEX);
+#endif
 }
 
 void tile::mytile::open_array_for_reads(THD *thd) {

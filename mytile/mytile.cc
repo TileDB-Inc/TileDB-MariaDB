@@ -670,7 +670,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   }
   }
   return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str,
-                                            std::array<uint8, 2>{0, 0}, 10);
+                                            std::array<uint8, 2>{{0, 0}}, 10);
 }
 void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   // Round the size to the nearest unit for the datatype using integer division
@@ -789,7 +789,6 @@ int tile::set_datetime_field(THD *thd, Field *field,
   MYSQL_TIME to;
   if (type != MYSQL_TIMESTAMP_DATE) {
     thd->variables.time_zone->gmt_sec_to_TIME(&to, seconds);
-    thd->time_zone_used = true;
     to.second_part = second_part;
     adjust_time_range_with_warn(thd, &to, TIME_SECOND_PART_DIGITS);
   } else {

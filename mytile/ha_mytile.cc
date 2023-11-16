@@ -3663,13 +3663,13 @@ int tile::mytile::multi_range_read_next(range_id_t *range_info) {
 ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                   void *seq_init_param,
                                                   uint n_ranges, uint *bufsz,
-                                                  uint *flags,
+                                                  uint *mrr_mode, ha_rows limit,
                                                   Cost_estimate *cost) {
   DBUG_ENTER("tile::mytile::multi_range_read_info_const");
   // If MRR is disabled fall back to default implementation
   if (!tile::sysvars::mrr_support(ha_thd())) {
     DBUG_RETURN(handler::multi_range_read_info_const(
-        keyno, seq, seq_init_param, n_ranges, bufsz, flags, cost));
+        keyno, seq, seq_init_param, n_ranges, bufsz, mrr_mode, limit, cost));
   }
   /*
     This call is here because there is no location where this->table would
@@ -3677,11 +3677,9 @@ ha_rows tile::mytile::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
     TODO: consider moving it into some per-query initialization call.
   */
   ds_mrr.init(this, table);
-  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
   bool rc = ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges, bufsz,
-                                    flags, cost);
+                                    mrr_mode, limit, cost);
 
-  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
   DBUG_RETURN(rc);
 }
 
@@ -3757,7 +3755,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0254,                     /* version number (0.25.4) */
+    0x0255,                     /* version number (0.25.5) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
     NULL,                                      /* config options */
@@ -3774,9 +3772,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0254,                     /* version number (0.25.4) */
+    0x0255,                     /* version number (0.25.5) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
-    "0.25.4",                                  /* string version */
+    "0.25.5",                                  /* string version */
     MariaDB_PLUGIN_MATURITY_BETA               /* maturity */
 } maria_declare_plugin_end;

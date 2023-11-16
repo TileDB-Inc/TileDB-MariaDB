@@ -274,8 +274,8 @@ template <typename T> T parse_value(const std::string &s) {
  * @return
  */
 template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
-  std::array<T, 2> domain = {std::numeric_limits<T>::lowest(),
-                             std::numeric_limits<T>::max()};
+  std::array<T, 2> domain = {{std::numeric_limits<T>::lowest(),
+                             std::numeric_limits<T>::max()}};
   domain[1] -= parse_value<T>(field->option_struct->tile_extent);
   if (field->option_struct->lower_bound != nullptr)
     domain[0] = parse_value<T>(field->option_struct->lower_bound);

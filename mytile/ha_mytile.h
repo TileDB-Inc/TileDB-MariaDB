@@ -464,8 +464,8 @@ public:
    * @return true because tiledb data is storted based on dimensions and layout
    */
   bool primary_key_is_clustered() override { return TRUE; }
-
 #endif
+
   /**
    * Pushdown an index condition
    * @param keyno key number

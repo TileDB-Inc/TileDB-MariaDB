@@ -8,28 +8,40 @@ trigger:
 
 stages:
   - stage: CI
+    variables:
+      TILEDB_VERSION: 2.17.4
+      MARIADB_VERSION: 'mariadb-10.6.10'
+      ROOT_DIR: '$(Build.Repository.Localpath)\'
+      BUILD_DEPS: '$(Build.Repository.Localpath)\build_deps'
+      TILEDB_SRC: '$(Build.Repository.Localpath)\tiledb_src'
+      TILEDB_INSTALL: '$(Build.Repository.Localpath)\tiledb_install'
     condition: not(or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), contains(variables['Build.SourceBranchName'], 'release-')))
     jobs:
-    - job: Build
+#    - job: Build
+#      strategy:
+#        matrix:
+#          linux:
+#            imageName: 'ubuntu-16.04'
+#            CXX: g++
+#          macOS:
+#            imageName: 'macOS-10.14'
+#            CXX: clang++
+#
+#      pool:
+#        vmImage: $(imageName)
+#      steps:
+#      - template: scripts/azure-linux_mac.yml
+
+    - job: Build_windows
+      timeoutInMinutes: 90
       strategy:
         matrix:
-          linux:
-            imageName: 'ubuntu-20.04'
-            CXX: g++
-          linux_superbuild:
-            imageName: 'ubuntu-20.04'
-            CXX: g++
-            SUPERBUILD: 'ON'
-            TILEDB_FORCE_ALL_DEPS: 'OFF'
-          macOS:
-            imageName: 'macOS-13'
-            CXX: clang++
-
+          VS2019:
+            imageName: 'windows-2019'
       pool:
         vmImage: $(imageName)
       steps:
-      - template: scripts/azure-linux_mac.yml
-
+      - template: scripts/azure-windows.yml
 
   - stage: Docker
     condition: or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))

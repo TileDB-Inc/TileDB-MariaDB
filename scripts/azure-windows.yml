@@ -1,0 +1,132 @@
+steps:
+- script: |
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+    echo ON
+    cd $(ROOT_DIR)
+
+    mkdir $(TILEDB_INSTALL)
+    git clone https://github.com/TileDB-Inc/TileDB $(TILEDB_SRC)
+    git -C $(TILEDB_SRC) checkout $(TILEDB_VERSION)
+
+    cd $(TILEDB_SRC)
+    mkdir build
+    cd build
+
+    cmake -A X64 -DTILEDB_WERROR=ON -DTILEDB_TBB=OFF -DTILEDB_S3=OFF -DTILEDB_TBB_SHARED=OFF -DTILEDB_TOOLS=OFF -DTILEDB_SUPERBUILD=ON -DTILEDB_FORCE_ALL_DEPS=ON -DTILEDB_CPP_API=ON -DTILEDB_TESTS=OFF -DTILEDB_HDFS=OFF -DTILEDB_LOG_OUTPUT_ON_FAILURE=ON -DTILEDB_STATIC=ON -DTILEDB_VERBOSE=ON -DMSVC_MP_FLAG="/MP3" -DCMAKE_INSTALL_PREFIX=$(TILEDB_INSTALL) ..
+
+    cmake --build . --config Debug -j3
+    cmake --build . --target install-tiledb --config Debug
+
+  displayName: "Pull / Build TileDB"
+- script: |
+    echo ON
+    cd $(ROOT_DIR)
+
+    mkdir build_deps
+    cd build_deps
+    powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-dep.zip -OutFile bison-2.4.1-dep.zip"
+    powershell -Command "Invoke-WebRequest https://cfhcable.dl.sourceforge.net/project/gnuwin32/bison/2.4.1/bison-2.4.1-bin.zip -OutFile bison-2.4.1-bin.zip"
+    powershell -Command "Invoke-WebRequest https://gnuwin32.sourceforge.net/downlinks/zlib-bin-zip.php -OutFile zlib-bin.zip"
+    
+    ls -l
+
+    unzip bison-2.4.1-dep.zip
+    unzip bison-2.4.1-bin.zip
+    unzip zlib-bin.zip
+    
+    ls -l
+
+  displayName: "Install dependencies"
+- script: |
+    call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+    echo ON
+    cd $(ROOT_DIR)
+
+    set PATH=%PATH%;$(BUILD_DEPS)\bin
+    set PATH=%PATH%;$(TILEDB_INSTALL)
+    set PATH=%PATH%;$(TILEDB_INSTALL)\include
+    set PATH=%PATH%;$(TILEDB_INSTALL)\lib
+    set PATH=%PATH%;$(BUILD_DEPS)\bin
+    dir $(TILEDB_INSTALL)
+    dir $(TILEDB_INSTALL)\include
+    dir $(TILEDB_INSTALL)\include\tiledb
+
+    git clone https://github.com/MariaDB/server.git -b $(MARIADB_VERSION) $(MARIADB_VERSION)
+    cd $(MARIADB_VERSION)
+    
+    cd storage
+    mkdir mytile
+    cd mytile
+    mkdir cmake
+    mkdir docker
+    mkdir mysql-test
+    mkdir mytile
+    mkdir scripts
+    
+    xcopy /I "$(ROOT_DIR)CMakeLists.txt" "."
+    xcopy /I "$(ROOT_DIR)LICENSE" "."
+    xcopy /E /I "$(ROOT_DIR)\cmake" "./cmake"
+    xcopy /E /I "$(ROOT_DIR)\docker" "./docker"
+    xcopy /E /I "$(ROOT_DIR)\mysql-test" "./mysql-test"
+    xcopy /E /I "$(ROOT_DIR)\mytile" "./mytile"
+    xcopy /E /I "$(ROOT_DIR)\scripts" "./scripts"
+
+    cd ../../
+
+    mkdir builddir
+    cd builddir
+
+    cmake -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release ..
+    cmake --build . --config Release -j4
+
+  displayName: "Pull / Build MariaDB"
+- script: |
+    echo ON
+    cd $(ROOT_DIR)
+
+    cd $(MARIADB_VERSION)\builddir\mysql-test
+    #TODO
+    perl mysql-test-run.pl --suite=mytile --debug
+
+  displayName: "Run mysql-test"
+
+- bash: |
+      set -e pipefail
+      BUILDDIR=$BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/log/mysqld.1.err
+      # Display log files if the build failed
+      echo "Dumping log files for failed build"
+      echo "----------------------------------"
+      echo "$BUILD_REPOSITORY_LOCALPATH"
+      ls $BUILD_REPOSITORY_LOCALPATH/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/
+      ls $BUILD_REPOSITORY_LOCALPATH/mariadb-10.6.10/builddir/mysql-test/var/log
+      echo "$BUILDDIR"
+      echo "======"
+      cat $BUILDDIR
+  condition: failed() # only run this job if the build step failed
+  displayName: "Print log files (failed build only)"
+
+#- task: ArchiveFiles@2
+#  inputs:
+#      rootFolderOrFile: '$(Build.Repository.LocalPath)'
+#      includeRootFolder: false
+#      archiveType: 'tar'
+#      tarCompression: 'gz'
+#      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+#      replaceExistingArchive: true
+#      verbose: true
+#  condition: failed() # only run this job if the build step failed
+#
+#- task: PublishBuildArtifacts@1
+#  inputs:
+#      pathToPublish: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+#      artifactName: 'build-dirs'
+#  condition: failed() # only run this job if the build step failed
+#- task: PublishBuildArtifacts@1
+#  inputs:
+#   pathToPublish: '$(Agent.BuildDirectory)\s'
+##   artifactName: 'tiledb-windows-x64-$(Build.SourceVersion)'
+#   artifactName: 'build-dirs'
+#  condition: failed() # only run this job if the build step failed

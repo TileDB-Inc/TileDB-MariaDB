@@ -1,5 +1,6 @@
 name: nightly
 on:
+  pull_request:
   push:
     paths:
       - '.github/workflows/nightly.yaml'
@@ -36,19 +37,19 @@ jobs:
         run: bash scripts/nightly/build-libtiledb.sh
       - name: Build TileDB-MariaDB
         run: bash scripts/nightly/build-tiledb-mariadb.sh
-  issue:
-    permissions:
-      issues: write
-    runs-on: ubuntu-latest
-    needs: build
-    if: ( failure() || cancelled() ) && github.repository_owner == 'TileDB-Inc' && github.event_name == 'schedule'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Open Issue
-        uses: TileDB-Inc/github-actions/open-issue@main
-        with:
-          name: nightly build
-          label: nightly-failure
-          assignee: DimitrisStaratzis,ihnorton,Shelnutt2
-        env:
-          TZ: "America/New_York"
+#  issue:
+#    permissions:
+#      issues: write
+#    runs-on: ubuntu-latest
+#    needs: build
+#    if: ( failure() || cancelled() ) && github.repository_owner == 'TileDB-Inc' && github.event_name == 'schedule'
+#    steps:
+#      - uses: actions/checkout@v3
+#      - name: Open Issue
+#        uses: TileDB-Inc/github-actions/open-issue@main
+#        with:
+#          name: nightly build
+#          label: nightly-failure
+#          assignee: DimitrisStaratzis,ihnorton,Shelnutt2
+#        env:
+#          TZ: "America/New_York"

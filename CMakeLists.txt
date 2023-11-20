@@ -43,6 +43,7 @@ endif()
 include(GNUInstallDirs)
 
 set(EP_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}/externals/install")
+list(APPEND CMAKE_PREFIX_PATH "/usr/local")
 
 find_package(TileDB QUIET)
 

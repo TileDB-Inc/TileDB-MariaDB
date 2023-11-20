@@ -39,7 +39,6 @@ cmake \
   -DPLUGIN_CONNECT=NO \
   -DCMAKE_BUILD_TYPE=Debug \
   -DWITH_DEBUG=1 \
-  -DCMAKE_INCLUDE_PATH="/usr/local/include" \
   -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS-NO} \
   ..
 make -j2

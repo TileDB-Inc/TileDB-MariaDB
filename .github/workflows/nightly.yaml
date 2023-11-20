@@ -1,6 +1,5 @@
 name: nightly
 on:
-  pull_request:
   push:
     paths:
       - '.github/workflows/nightly.yaml'

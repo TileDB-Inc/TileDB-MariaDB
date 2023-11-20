@@ -7,28 +7,28 @@ trigger:
     - "*"
 
 stages:
-  - stage: CI
-    condition: not(or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), contains(variables['Build.SourceBranchName'], 'release-')))
-    jobs:
-    - job: Build
-      strategy:
-        matrix:
-          linux:
-            imageName: 'ubuntu-20.04'
-            CXX: g++
-          linux_superbuild:
-            imageName: 'ubuntu-20.04'
-            CXX: g++
-            SUPERBUILD: 'ON'
-            TILEDB_FORCE_ALL_DEPS: 'OFF'
-          macOS:
-            imageName: 'macOS-13'
-            CXX: clang++
-
-      pool:
-        vmImage: $(imageName)
-      steps:
-      - template: scripts/azure-linux_mac.yml
+#  - stage: CI
+#    condition: not(or(startsWith(variables['Build.SourceBranch'], 'refs/tags'), contains(variables['Build.SourceBranchName'], 'release-')))
+#    jobs:
+#    - job: Build
+#      strategy:
+#        matrix:
+#          linux:
+#            imageName: 'ubuntu-20.04'
+#            CXX: g++
+#          linux_superbuild:
+#            imageName: 'ubuntu-20.04'
+#            CXX: g++
+#            SUPERBUILD: 'ON'
+#            TILEDB_FORCE_ALL_DEPS: 'OFF'
+#          macOS:
+#            imageName: 'macOS-13'
+#            CXX: clang++
+#
+#      pool:
+#        vmImage: $(imageName)
+#      steps:
+#      - template: scripts/azure-linux_mac.yml
 
 
   - stage: Docker

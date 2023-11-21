@@ -14,10 +14,10 @@ stages:
       strategy:
         matrix:
           linux:
-            imageName: 'ubuntu-20.04'
+            imageName: 'ubuntu-22.04'
             CXX: g++
           linux_superbuild:
-            imageName: 'ubuntu-20.04'
+            imageName: 'ubuntu-22.04'
             CXX: g++
             SUPERBUILD: 'ON'
             TILEDB_FORCE_ALL_DEPS: 'OFF'

@@ -33,7 +33,7 @@ if [[ -z ${SUPERBUILD+x} || "${SUPERBUILD}" == "OFF" ]]; then
      && cd $original_dir
    fi
 else # set superbuild flags
-  export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations -Wno-error=missing-braces"
+  export SUPERBUILD_FLAGS_NEEDED="-Wno-error=deprecated-declarations -Wno-error=missing-braces -Wno-return-type"
   export CXXFLAGS="${CXXFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
   export CFLAGS="${CFLAGS} ${SUPERBUILD_FLAGS_NEEDED}"
 fi

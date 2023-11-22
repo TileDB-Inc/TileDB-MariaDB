@@ -60,6 +60,7 @@ explain select id, job from `bank` where id between 1 and 10 AND job in ('retire
 
 # Run join
 select id, job from `bank` where id between 1 and 10 AND job in ('retired', 'management');
+select * from bank;
 
 set mytile_delete_arrays=0;
 drop table `quickstart_dense`;

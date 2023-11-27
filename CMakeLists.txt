@@ -9,7 +9,7 @@ if (CMAKE_VERSION VERSION_LESS "3.1")
         set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17")
     endif ()
 else ()
-    set (CMAKE_CXX_STANDARD 17)
+    set (CMAKE_CXX_STANDARD 20)
 endif ()
 
 option(SUPERBUILD "Build missing dependencies" ON)
@@ -51,15 +51,15 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     include(ExternalProject)
 
     SET(TILEDB_VERSION_MAJOR "2")
-    SET(TILEDB_VERSION_MINOR "17")
-    SET(TILEDB_VERSION_PATCH "4")
+    SET(TILEDB_VERSION_MINOR "18")
+    SET(TILEDB_VERSION_PATCH "0")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor -Wno-error=missing-braces")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=a6a848cd3d3f19ed1dd6057e3f05fb7b54740016
+	    URL_HASH SHA1=e9b4db3ef4fbdd080e0524406ed8f5e9895965a8
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

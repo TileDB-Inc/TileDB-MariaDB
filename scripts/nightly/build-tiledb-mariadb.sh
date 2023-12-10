@@ -40,7 +40,7 @@ cmake \
   -DCMAKE_BUILD_TYPE=Debug \
   -DWITH_DEBUG=1 \
   -DCMAKE_INCLUDE_PATH="/usr/local/include" \
-  -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS-NO} \
+  -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS-OFF} \
   ..
 make -j2
 ./mysql-test/mysql-test-run.pl --suite=mytile --debug

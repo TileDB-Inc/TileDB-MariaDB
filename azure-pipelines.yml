@@ -23,7 +23,7 @@ stages:
             SUPERBUILD: 'ON'
             TILEDB_FORCE_ALL_DEPS: 'OFF'
           macOS:
-            imageName: 'macOS-14'
+            imageName: 'macOS-13'
             CXX: clang++
 
       pool:

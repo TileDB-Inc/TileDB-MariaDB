@@ -1,4 +1,4 @@
-name: ci
+name: nightly
 on:
   push:
     paths:
@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    name: ci-${{ matrix.os }}
+    name: nightly-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:

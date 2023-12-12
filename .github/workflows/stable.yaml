@@ -11,20 +11,20 @@ jobs:
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
       REF_MARIADB: mariadb-11.0.2
-      REF_LIBTILEDB: dev
+      REF_LIBTILEDB: 2.18
       REF_TILEDB_MARIADB: ${{ github.sha }}
       TILEDB_FORCE_ALL_DEPS: OFF
     steps:
       - uses: actions/checkout@v3
       - name: Clone and checkout repos
-        run: bash scripts/nightly/checkout.sh
+        run: bash scripts/ci/checkout.sh
       - name: Setup Ubuntu
         if: runner.os == 'Linux'
-        run: sudo bash scripts/nightly/setup-ubuntu.sh
+        run: sudo bash scripts/ci/setup-ubuntu.sh
       - name: Setup macOS
         if: runner.os == 'macOS'
-        run: bash scripts/nightly/setup-macos.sh
+        run: bash scripts/ci/setup-macos.sh
       - name: Build libtiledb
-        run: bash scripts/nightly/build-libtiledb.sh
+        run: bash scripts/ci/build-libtiledb.sh
       - name: Build TileDB-MariaDB
-        run: bash scripts/nightly/build-tiledb-mariadb.sh
+        run: bash scripts/ci/build-tiledb-mariadb.sh

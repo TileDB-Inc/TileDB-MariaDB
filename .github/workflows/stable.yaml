@@ -1,16 +1,9 @@
-name: nightly
-on:
-  push:
-    paths:
-      - '.github/workflows/nightly.yaml'
-      - 'scripts/nightly/**'
-  schedule:
-    - cron: "0 2 * * *" # Every night at 2 AM UTC (9 PM EST; 10 PM EDT)
-  workflow_dispatch:
+name: stable
+on: [push]
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    name: nightly-${{ matrix.os }}
+    name: stable-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -22,7 +15,6 @@ jobs:
       REF_TILEDB_MARIADB: ${{ github.sha }}
       TILEDB_FORCE_ALL_DEPS: OFF
     steps:
-      # This initial checkout is only to obtain the CI scripts
       - uses: actions/checkout@v3
       - name: Clone and checkout repos
         run: bash scripts/nightly/checkout.sh
@@ -36,19 +28,3 @@ jobs:
         run: bash scripts/nightly/build-libtiledb.sh
       - name: Build TileDB-MariaDB
         run: bash scripts/nightly/build-tiledb-mariadb.sh
-  issue:
-    permissions:
-      issues: write
-    runs-on: ubuntu-latest
-    needs: build
-    if: ( failure() || cancelled() ) && github.repository_owner == 'TileDB-Inc' && github.event_name == 'schedule'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Open Issue
-        uses: TileDB-Inc/github-actions/open-issue@main
-        with:
-          name: nightly build
-          label: nightly-failure
-          assignee: DimitrisStaratzis,ihnorton,Shelnutt2
-        env:
-          TZ: "America/New_York"

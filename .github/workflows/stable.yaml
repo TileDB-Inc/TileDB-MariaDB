@@ -1,16 +1,9 @@
-name: nightly
-on:
-  push:
-    paths:
-      - '.github/workflows/nightly.yaml'
-      - 'scripts/ci/**'
-  schedule:
-    - cron: "0 2 * * *" # Every night at 2 AM UTC (9 PM EST; 10 PM EDT)
-  workflow_dispatch:
+name: stable
+on: [push]
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    name: nightly-${{ matrix.os }}
+    name: stable-${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -18,7 +11,7 @@ jobs:
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
       REF_MARIADB: mariadb-11.0.2
-      REF_LIBTILEDB: dev
+      REF_LIBTILEDB: 2.18.0
       REF_TILEDB_MARIADB: ${{ github.sha }}
       TILEDB_FORCE_ALL_DEPS: OFF
     steps:

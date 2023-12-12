@@ -29,19 +29,22 @@ jobs:
         run: bash scripts/ci/build-libtiledb.sh
       - name: Build TileDB-MariaDB
         run: bash scripts/ci/build-tiledb-mariadb.sh
-  issue:
-    permissions:
-      issues: write
-    runs-on: ubuntu-latest
-    needs: build
-    if: ( failure() || cancelled() ) && github.repository_owner == 'TileDB-Inc' && github.event_name == 'schedule'
+
+  deploy:
+    # TODO: Only run for master
+    # TODO: Adds needs on build
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        dockerfile: ["Dockerfile", "Dockerfile-min", "Dockerfile-server", "Dockerfile-R"]
     steps:
       - uses: actions/checkout@v3
-      - name: Open Issue
-        uses: TileDB-Inc/github-actions/open-issue@main
+#      - uses: docker/login-action
+#        with:
+#          username: {{}}
+#          password: {{}}
+      - uses: docker/build-push-action
         with:
-          name: nightly build
-          label: nightly-failure
-          assignee: DimitrisStaratzis,ihnorton,Shelnutt2
-        env:
-          TZ: "America/New_York"
+          context: .
+          file: docker/${{ matrix.dockerfile }}
+          push: false

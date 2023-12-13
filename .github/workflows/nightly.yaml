@@ -1,4 +1,5 @@
 name: nightly
+
 on:
   push:
     paths:
@@ -7,6 +8,7 @@ on:
   schedule:
     - cron: "0 2 * * *" # Every night at 2 AM UTC (9 PM EST; 10 PM EDT)
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}

@@ -4,11 +4,9 @@ name: docker
 on:
   workflow_run:
     workflows: [ stable ]
-#    TODO: Uncomment me before merging to main
-#    branches: [ $default_branch ]
-#    tags: [ '**' ]
-    types:
-      - completed
+    types: [ completed ]
+    branches: [ $default_branch ]
+    tags: [ "**" ]
 
 jobs:
   deploy:

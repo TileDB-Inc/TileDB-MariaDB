@@ -5,13 +5,13 @@ on:
   workflow_run:
     workflows: [ stable ]
     types: [ completed ]
-    branches: [ $default_branch ]
+#    branches: [ $default_branch ]
 #    tags: [ "**" ]
   workflow_dispatch:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+#    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-22.04
     strategy:
       matrix:

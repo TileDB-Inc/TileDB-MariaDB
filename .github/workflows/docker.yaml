@@ -1,17 +1,11 @@
 name: docker
 
-# Make this workflow run only on default branch and tagged branches and after the 'stable' workflow has passed
+# TODO: In the future make this workflow_run, however, that one does not support tags only branches
 on:
-  workflow_run:
-    workflows: [ stable ]
-    types: [ completed ]
-    branches: [ db/sc-38189/gh ]
-  workflow_dispatch:
+  workflow_call:
 
 jobs:
   deploy:
-    # TODO: Also check if this event isn't dispatch
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-22.04
     strategy:
       matrix:

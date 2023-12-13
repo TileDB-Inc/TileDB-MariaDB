@@ -55,6 +55,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-11.0.2"
 
+ARG GITHUB_USER="TileDB-Inc"
 ARG MYTILE_VERSION="0.26.0"
 
 ARG TILEDB_VERSION="2.18.0"
@@ -62,7 +63,7 @@ ARG TILEDB_VERSION_SHORT_SHA="71ca8b4"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # Download mytile release
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
+RUN wget https://github.com/${GITHUB_USER}/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
   && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
   && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
 
@@ -77,7 +78,7 @@ RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
 # Install tiledb
-RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+RUN wget https://github.com/${GITHUB_USER}/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
  && rm ${TILEDB_PREBUILT_FILE} \
  && ldconfig

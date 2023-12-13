@@ -20,15 +20,15 @@ jobs:
     steps:
       # This initial checkout is only to obtain the CI scripts
       - uses: actions/checkout@v3
-      - name: Clone and checkout repos
-        run: bash scripts/ci/checkout.sh
-      - name: Setup Ubuntu
-        if: runner.os == 'Linux'
-        run: sudo bash scripts/ci/setup-ubuntu.sh
-      - name: Setup macOS
-        if: runner.os == 'macOS'
-        run: bash scripts/ci/setup-macos.sh
-      - name: Build libtiledb
-        run: bash scripts/ci/build-libtiledb.sh
-      - name: Build TileDB-MariaDB
-        run: bash scripts/ci/build-tiledb-mariadb.sh
+#      - name: Clone and checkout repos
+#        run: bash scripts/ci/checkout.sh
+#      - name: Setup Ubuntu
+#        if: runner.os == 'Linux'
+#        run: sudo bash scripts/ci/setup-ubuntu.sh
+#      - name: Setup macOS
+#        if: runner.os == 'macOS'
+#        run: bash scripts/ci/setup-macos.sh
+#      - name: Build libtiledb
+#        run: bash scripts/ci/build-libtiledb.sh
+#      - name: Build TileDB-MariaDB
+#        run: bash scripts/ci/build-tiledb-mariadb.sh

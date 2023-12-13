@@ -5,13 +5,15 @@ on:
   workflow_run:
     workflows: [ stable ]
     types: [ completed ]
-#    branches: [ $default_branch ]
-    tags: [ "**" ]
+    branches:
+      - ${{ github.event.repository.default_branch }}
+      - "refs/tags/*"
   workflow_dispatch:
 
 jobs:
   deploy:
-#    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # TODO: Also check if this event isn't dispatch
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-22.04
     strategy:
       matrix:

@@ -6,7 +6,7 @@ on:
     workflows: [ stable ]
     types: [ completed ]
 #    branches: [ $default_branch ]
-#    tags: [ "**" ]
+    tags: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -18,18 +18,18 @@ jobs:
         configuration:
           - dockerfile: "Dockerfile"
             repository: "tiledb/tiledb-maria"
-#          - dockerfile: "Dockerfile-min"
-#            repository: "tiledb/tiledb-maria-min"
-#          - dockerfile: "Dockerfile-server"
-#            repository: "tiledb/tiledb-maria-server"
-#          - dockerfile: "Dockerfile-R"
-#            repository: "tiledb/tiledb-maria-r"
+          - dockerfile: "Dockerfile-min"
+            repository: "tiledb/tiledb-maria-min"
+          - dockerfile: "Dockerfile-server"
+            repository: "tiledb/tiledb-maria-server"
+          - dockerfile: "Dockerfile-R"
+            repository: "tiledb/tiledb-maria-r"
     steps:
       - uses: actions/checkout@v3
-#      - uses: docker/login-action@v3
-#        with:
-#          username: ${{ secrets.DOCKER_USERNAME }}
-#          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
       - uses: docker/metadata-action@v5
         id: meta
         with:
@@ -43,4 +43,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             MYTILE_VERSION=${{ github.ref_name }}
-            GITHUB_USER=${{ github.actor }}

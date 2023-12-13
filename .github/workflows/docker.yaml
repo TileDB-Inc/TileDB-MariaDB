@@ -2,12 +2,12 @@ name: docker
 
 # Make this workflow run only on default branch and tagged branches and after the 'stable' workflow has passed
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: [ stable ]
     types: [ completed ]
-    branches: [ $default_branch ]
-    tags: [ "**" ]
+#    branches: [ $default_branch ]
+#    tags: [ "**" ]
+  workflow_dispatch:
 
 jobs:
   deploy:

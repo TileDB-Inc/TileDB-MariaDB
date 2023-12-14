@@ -1,0 +1,95 @@
+steps:
+- bash: |
+    echo "'uname -s' is:"
+    echo "uname: " $(uname)
+    echo "uname -m: " $(uname -m)
+    echo "uname -r:" $(uname -r)
+    echo "uname -s: " $(uname -s)
+    echo "uname -v: " $(uname -v)
+    printenv
+  displayName: 'Print env'
+
+- bash: |
+    set -e pipefail
+    open /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg
+    sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg -allowUntrusted -target /
+  condition: and(eq(variables['Agent.OS'], 'Darwin'), eq(variables['imageName'], 'macOS-10.14'))
+  displayName: 'Install system headers (OSX only)'
+
+- bash: |
+    set -v -e -x
+    # DELETEME work-around for https://github.com/microsoft/azure-pipelines-image-generation/issues/969
+    if [[ "$AGENT_OS" == "Linux" ]]; then
+      sudo chown root.root /
+    fi;
+
+    # Azure sets "SYSTEM=build" for unknown reasonas, which breaks the OpenSSL configure script
+    #   - openssl configure uses ENV{SYSTEM} if available:
+    #     https://github.com/openssl/openssl/blob/6d745d740d37d680ff696486218b650512bbbbc6/config#L56
+    #   - error description:
+    #     https://developercommunity.visualstudio.com/content/problem/602584/openssl-build-error-when-using-pipelines.htm
+    unset SYSTEM
+
+    # azure bash does not treat intermediate failure as error
+    # https://github.com/Microsoft/azure-pipelines-yaml/issues/135
+    set -e pipefail
+
+    git config --global user.name 'Azure Pipeline'
+    git config --global user.email 'no-reply@tiledb.io'
+
+    export CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations -Wno-error=missing-braces"
+    export CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations -Wno-error=missing-braces"
+    if [[ "$AGENT_OS" == "Linux" ]]; then
+      sudo apt update
+      sudo apt install -y libncurses5-dev bison gdb
+      export LD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:/usr/local/lib:$LD_LIBRARY_PATH
+    fi
+
+    if [[ "$AGENT_OS" == "Darwin" ]]; then
+      brew install cmake jemalloc openssl@1.1 boost gnutls m4 bison@2.7
+      export PATH="$(brew --prefix bison@2.7)/bin:$PATH"
+
+      export OSX_FLAGS_NEEDED="-Wno-overloaded-virtual -Wno-error=deprecated-non-prototype -Wno-error=inconsistent-missing-override -Wno-error=enum-conversion -Wno-error=deprecated-declarations -Wno-error=incompatible-pointer-types-discards-qualifiers -Wno-error=incompatible-function-pointer-types -Wno-error=writable-strings -Wno-writable-strings -Wno-write-strings -Wno-error -Wno-error=pointer-sign -Wno-error=all -Wno-error=unknown-warning-option -Wno-error=unused-but-set-variable -Wno-error=deprecated-copy-with-user-provided-copy"
+      export CXXFLAGS="${CXXFLAGS} ${OSX_FLAGS_NEEDED}"
+      export CFLAGS="${CFLAGS} ${OSX_FLAGS_NEEDED}"
+      export DYLD_LIBRARY_PATH=$BUILD_REPOSITORY_LOCALPATH/build_deps/TileDB/dist/lib:$DYLD_LIBRARY_PATH
+    fi
+    bash ./scripts/ci_install_tiledb_and_run_tests.sh
+
+  displayName: 'Build and test mytile'
+
+
+- bash: |
+    set -e pipefail
+    BUILDDIR=$BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/log/mysqld.1.err
+    # Display log files if the build failed
+    echo "Dumping log files for failed build"
+    echo "----------------------------------"
+    echo "$BUILD_REPOSITORY_LOCALPATH"
+    ls $BUILD_REPOSITORY_LOCALPATH/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/
+    ls $BUILD_REPOSITORY_LOCALPATH/mariadb-11.0.2/builddir/mysql-test/var/log
+    echo "$BUILDDIR"
+    echo "======"
+    cat $BUILDDIR
+  condition: failed() # only run this job if the build step failed
+  displayName: "Print log files (failed build only)"
+
+- task: ArchiveFiles@2
+  inputs:
+      rootFolderOrFile: '$(Build.Repository.LocalPath)'
+      includeRootFolder: false
+      archiveType: 'tar'
+      tarCompression: 'gz'
+      archiveFile: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+      replaceExistingArchive: true
+      verbose: true
+  condition: failed() # only run this job if the build step failed
+
+- task: PublishBuildArtifacts@1
+  inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)/$(Agent.OS)-build-dir.tar.gz'
+      artifactName: 'build-dirs'
+  condition: failed() # only run this job if the build step failed

@@ -16,4 +16,4 @@ git -C mariadb checkout "${REF_MARIADB}"
 
 git clone https://github.com/${OWNER_TILEDB_MARIADB}/TileDB-MariaDB.git mariadb/storage/mytile
 git -C mariadb/storage/mytile fetch origin "${REF_TILEDB_MARIADB}":local
-git switch local
+git -C mariadb/storage/mytile switch local

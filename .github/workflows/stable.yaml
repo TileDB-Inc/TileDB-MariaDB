@@ -1,7 +1,14 @@
 name: stable
 
-# This workflow should run always
-on: [push]
+# This workflow should run on every tag, master branch and pull requests. Also, can be triggered manually.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - '*'
+    branches:
+      - 'master'
+  pull_request:
 
 jobs:
   build:

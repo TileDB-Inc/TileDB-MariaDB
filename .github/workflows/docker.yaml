@@ -4,6 +4,11 @@ name: docker
 # TODO: Or make this take a list of tags... Sadly this cannot be done now, only string can be passed
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
 
 jobs:
   deploy:

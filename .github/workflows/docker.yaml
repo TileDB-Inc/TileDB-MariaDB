@@ -17,13 +17,13 @@ jobs:
       matrix:
         configuration:
           - dockerfile: "Dockerfile"
-            repository: "tiledb/tiledb-maria"
+            repository: "tiledb/tiledb-mariadb"
           - dockerfile: "Dockerfile-min"
-            repository: "tiledb/tiledb-maria-min"
+            repository: "tiledb/tiledb-mariadb-min"
           - dockerfile: "Dockerfile-server"
-            repository: "tiledb/tiledb-maria-server"
+            repository: "tiledb/tiledb-mariadb-server"
           - dockerfile: "Dockerfile-R"
-            repository: "tiledb/tiledb-maria-r"
+            repository: "tiledb/tiledb-mariadb-r"
     steps:
       - uses: actions/checkout@v3
       - uses: docker/login-action@v3

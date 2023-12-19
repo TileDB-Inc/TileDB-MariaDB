@@ -13,11 +13,15 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    name: stable-${{ matrix.os }}
+    name: stable-${{ matrix.os }}-${{ matrix.superbuild && 'superbuild' || 'default' }}
     strategy:
       fail-fast: false
       matrix:
         os: ["macos-13", "ubuntu-22.04"]
+        superbuild: [true, false]
+        exclude:
+          - os: "macos-13"
+            superbuild: true
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
       REF_MARIADB: mariadb-11.0.2
@@ -36,6 +40,7 @@ jobs:
         if: runner.os == 'macOS'
         run: bash scripts/ci/setup-macos.sh
       - name: Build libtiledb
+        if: ${{ ! matrix.superbuild }}
         run: bash scripts/ci/build-libtiledb.sh
       - name: Build TileDB-MariaDB
         run: bash scripts/ci/build-tiledb-mariadb.sh

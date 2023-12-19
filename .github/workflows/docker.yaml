@@ -36,7 +36,7 @@ jobs:
         with:
           context: .
           file: docker/${{ matrix.configuration.dockerfile }}
-          push: false
+          push: true
           tags: |
             ${{ matrix.configuration.repository }}:dev
           build-args: |
@@ -47,7 +47,7 @@ jobs:
         with:
           context: .
           file: docker/${{ matrix.configuration.dockerfile }}
-          push: false
+          push: true
           tags: |
             ${{ matrix.configuration.repository }}:latest
             ${{ matrix.configuration.repository }}:${{ github.ref_name }}

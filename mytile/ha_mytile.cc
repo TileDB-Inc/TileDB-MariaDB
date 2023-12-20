@@ -229,14 +229,15 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
             this->ctx, this->uri,
             encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
             encryption_key));
-    auto domain = this->array_schema->domain();
-    this->ndim = domain.ndim();
+    this->domain = std::make_unique<tiledb::Domain>(this->array_schema->domain());
+    this->ndim = domain->ndim();
 
     // Set ref length used for storing reference in position(), this is the size
     // of a subarray for querying
     this->ref_length = 0;
     bool any_var_length = false;
-    for (const auto &dim : domain.dimensions()) {
+    for (const auto &dim : domain->dimensions()) {
+      this->dimensionNames.push_back(dim.name());
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
         any_var_length = true;
         break;
@@ -255,7 +256,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
       open_array_for_reads(ha_thd());
 
-      auto dims = domain.dimensions();
+      auto dims = domain->dimensions();
 
       this->subarray =
           std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
@@ -263,7 +264,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       // For each dimension we calculate the non empty domain (equivalent to
       // `select * from ...`, and the result is used to add a range to the subarray)
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-        tiledb::Dimension dimension = domain.dimension(dim_idx);
+        tiledb::Dimension dimension = domain->dimension(dim_idx);
 
         if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
           const auto pair = this->array->non_empty_domain_var(dim_idx);
@@ -1085,7 +1086,6 @@ bool tile::mytile::query_complete() {
   // If we are complete and there is no more records we report EOF
   if (this->status == tiledb::Query::Status::COMPLETE &&
       this->record_index >= this->records) {
-    this->mrr_query = false;
     DBUG_RETURN(true);
   }
 
@@ -1781,7 +1781,7 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
   }
   std::string expected_cast = "GeometryFromWkb(" + geometry_column +")";
 
-  // X and Y dimension names, these may be adjustable via metadata in the future 
+  // X and Y dimension names, these may be adjustable via metadata in the future
   std::string x_name = "_X";
   std::string y_name = "_Y";
 
@@ -3081,7 +3081,6 @@ int tile::mytile::index_next(uchar *buf) {
 
 int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
                                          uint64_t index) {
-  auto domain = this->array_schema->domain();
   int key_position = 0;
 
   const KEY *key_info = table->key_info;
@@ -3090,10 +3089,9 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
        key_part_index < key_info->user_defined_key_parts; key_part_index++) {
 
     const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
-    tiledb::Dimension dimension = domain.dimension(key_part_index);
 
     for (auto &dim_buffer : this->buffers) {
-      if (dim_buffer == nullptr || dim_buffer->name != dimension.name()) {
+      if (dim_buffer == nullptr || dim_buffer->name != this->dimensionNames[key_part_index]) {
         continue;
       } else { // buffer for dimension was found
         uint8_t dim_comparison =
@@ -3252,167 +3250,155 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
       dbug_tmp_use_all_columns(table, &table->write_set);
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
-
-  bool restarted_scan = false;
+    bool restarted_scan = false;
 begin:
-  if (this->query_complete() && this->record_index >= this->records) {
+    if (!this->mrr_query
+        && this->records == this->records_examined
+        && status == tiledb::Query::Status::COMPLETE) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     if (reset)
       index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
-  }
-
-  try {
-    // If the cursor has passed the number of records from the previous query
-    // (or if this is the first time), (re)submit the query
-    if (this->record_index >= this->records) {
-      do {
-        this->status = query->submit();
-
-        // Compute the number of cells (records) that were returned by the query
-        auto buff = this->buffers[0];
-        if (buff->offset_buffer != nullptr) {
-          this->records = buff->offset_buffer_size / sizeof(uint64_t);
-        } else {
-          this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
-        }
-
-        // Increase the buffer allocation and resubmit if necessary.
-        if (this->status == tiledb::Query::Status::INCOMPLETE &&
-            this->records == 0) { // VERY IMPORTANT!!
-          this->read_buffer_size = this->read_buffer_size * 2;
-          dealloc_buffers();
-          alloc_read_buffers(read_buffer_size);
-        } else if (records > 0) {
-          this->record_index = 0;
-          // Break out of resubmit loop as we have some results.
-          break;
-          // Handle when the query doesn't return results by exiting early
-        } else if (this->records == 0 &&
-                   status == tiledb::Query::Status::COMPLETE) {
-          // Reset bitmap to original
-          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-          if (reset)
-            index_end();
-          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-        }
-      } while (status == tiledb::Query::Status::INCOMPLETE);
     }
 
-    do {
-      int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
-      // If the current index coordinates matches the key we are looking for we
-      // must set the fields
-      if ((key_cmp == 0 &&
-           (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
-          (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
-                           find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
-                           find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
-          (key_cmp < 0 &&
-           (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
-            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
-        tileToFields(record_index, false, table);
-        this->record_index++;
-        this->records_read++;
-        break;
-        // If we have passed the record we must start back at the top of the
-        // current incomplete batch
-      } else if (key_cmp < 0) {
+    try {
+        // If the cursor has examined all records
+        // (or if this is the first time), (re)submit the query
+        if (this->records_examined >= this->records) {
 
-        // First lets make sure the "start" record of this (potentially
-        // incomplete) query buffers is before what we are looking for If the
-        // key we are looking for is before the first record it means we've
-        // missed the key and the request can not be resolved
-        if (compare_key_to_dims(key, key_len, 0) < 0) {
+            do {
+                this->status = query->submit();
 
-          // If we are at the start of the query this means this key doesn't
-          // exist in the query
-          if (this->records_read == this->record_index) {
-            // Reset bitmap to original
-            dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-            if (reset)
-              index_end();
-            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-          }
+                // Compute the number of cells (records) that were returned by the query
+                auto buff = this->buffers[0];
+                if (buff->offset_buffer != nullptr) {
+                    this->records = buff->offset_buffer_size / sizeof(uint64_t);
+                } else {
+                    this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
+                }
 
-          // If we have already tried rerunning the query from the start then
-          // the request can not be satisifed we need to return key not found to
-          // prevent a infinit loop
-          if (restarted_scan) {
-            // Reset bitmap to original
-            dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-            if (reset)
-              index_end();
-            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-          }
-
-          // rerunning incomplete query from the beginning
-          rc = init_scan(this->ha_thd());
-          // Index scans are expected in row major order
-          this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
-          restarted_scan = true;
-          goto begin;
+                // Increase the buffer allocation and resubmit if necessary.
+                if (this->status == tiledb::Query::Status::INCOMPLETE &&
+                    this->records == 0) { // VERY IMPORTANT!!
+                    this->read_buffer_size = this->read_buffer_size * 2;
+                    dealloc_buffers();
+                    alloc_read_buffers(read_buffer_size);
+                } else if (records > 0) {
+                    this->record_index = 0;
+                    this->records_examined = 0;
+                    // Break out of resubmit loop as we have some results.
+                    break;
+                    // Handle when the query doesn't return results by exiting early
+                } else if (this->records == 0 &&
+                           status == tiledb::Query::Status::COMPLETE) {
+                    // Reset bitmap to original
+                    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+                    if (reset)
+                        index_end();
+                    DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+                }
+            } while (status == tiledb::Query::Status::INCOMPLETE);
         }
 
-        // As an optimization instead of going back to the top let's scan in
-        // reverse. Often MariaDB will call index_next to see if the next record
-        // is of the same key or not This causes use to move forward one and we
-        // end up past the key by the time we get to this function So instead of
-        // starting at the top let's just go in reverse and maybe we'll only
-        // have to reverse one position
-        this->records_read--;
-        this->record_index--;
+        bool found = false;
+        do {
+            if (this->record_index == this->records) {
+                // if we reached the end, go back to the beginning.
+                // This will ensure that we don't miss out on keys.
+                // Worst case is that the key is at position n-1 and we are at
+                // position n. If all keys are sorted as they are supposed to be
+                // since we are passing the mrr_sort_keys=on parameter, this
+                // algorithm should be optimal. Worst case is when the sort
+                // order is descending.
+                this->record_index = 0;
+            }
+            int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
+            // If the current index coordinates matches the key we are looking for we
+            // must set the fields. Key is found!
+            if ((key_cmp == 0 &&
+                 (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
+                  find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
+                  find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+                (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+                                 find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
+                                 find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
+                (key_cmp < 0 &&
+                 (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
+                  find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+                tileToFields(record_index, false, table);
+                found = true;
 
-        // Now that we have moved back one we need to do a quick check to make
-        // sure that the new position is not before the record. This covers the
-        // case where a key does not exist in the result set but we might get
-        // stuck in a loop bouncing between two coordinates which are before and
-        // after the non-existent key.
-        if (compare_key_to_dims(key, key_len, this->record_index) > 0) {
-          // Reset bitmap to original
-          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-          if (reset)
-            index_end();
-          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+                // set up next read in this batch
+                this->record_index++;
+                this->records_examined=0;
+                break;
+            } else if (key_cmp < 0) {
+
+                // First lets make sure the "start" record of this (potentially
+                // incomplete) query buffers is before what we are looking for
+                // If the key we are looking for is before the first record it
+                // means we've missed the key and the request can not be resolved
+                if (compare_key_to_dims(key, key_len, 0) < 0) {
+
+                    // If we have already tried rerunning the query from the
+                    // start then the request can not be satisfied we need to
+                    // return key not found to prevent an infinite loop
+                    if (restarted_scan) {
+                        // Reset bitmap to original
+                        dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+                        if (reset) index_end();
+                        DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+                    }
+
+                    // restart scan
+                    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+                    restarted_scan = true;
+                    goto begin;
+                }
+            }
+
+            // always increase record index. The records_examined refers to the
+            // records we have checked to see if our key matches.
+            // When the records_examined value equals to all records in this batch
+            // we can safely say that we have checked all keys
+            this->record_index++;
+            this->records_examined++;
+        } while (this->records_examined < this->records);
+
+        // if key not found
+        if (!found) {
+            // check for restart
+            if(!restarted_scan){
+                restarted_scan = true;
+                goto begin;
+            }
+            // Key not found even after restart, reset bitmap to original
+            dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+            if (reset)
+                index_end();
+            DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
         }
 
-        // If we are not yet to the record we must continue scanning.
-      } else if (key_cmp > 0) {
-        this->record_index++;
-        this->records_read++;
-      }
+    } catch (const tiledb::TileDBError &e) {
+        // Log errors
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "[index_read_scan] error for table %s : %s",
+                        ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+        rc = ERR_INDEX_READ_SCAN_TILEDB;
+    } catch (const std::exception &e) {
+        // Log errors
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "[index_read_scan] error for table %s : %s",
+                        ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+        rc = ERR_INDEX_READ_SCAN_OTHER;
+    }
 
-      // If we have run out of records but the index isn't found, move to the
-      // next incomplete batch We do this by going back to the start of the
-      // function so we trigger the next batch call We can't use recursion
-      // because DEBUG_ENTER has a limit to the depth in which it can be called
-      if (this->record_index >= this->records) {
-        goto begin;
-      }
-    } while (this->record_index < this->records);
-
-  } catch (const tiledb::TileDBError &e) {
-    // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "[index_read_scan] error for table %s : %s",
-                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = ERR_INDEX_READ_SCAN_TILEDB;
-  } catch (const std::exception &e) {
-    // Log errors
-    my_printf_error(ER_UNKNOWN_ERROR,
-                    "[index_read_scan] error for table %s : %s",
-                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-    rc = ERR_INDEX_READ_SCAN_OTHER;
-  }
-
-  // Reset bitmap to original
-  dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-  if (reset)
-    index_end();
-  DBUG_RETURN(rc);
+    // Reset bitmap to original
+    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+    if (reset)
+        index_end();
+    DBUG_RETURN(rc);
 }
 
 int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,
@@ -3721,10 +3707,11 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
   // if the next key is the same
   uint64_t record_index_before_check = this->record_index;
   uint64_t records_read_before_check = this->records_read;
+  uint64_t records_examined_before_check = this->records_examined;
   // Index needs to be reset to 0 due to incomplete query resubmission
   // If we don't reset it to zero we'll start at the previous index which will
   // be wrong since index_next runs the next query
-  const bool reset_to_zero_index = this->record_index >= this->records;
+  const bool reset_to_zero_index = this->records_examined >= this->records;
   if (!(error = index_next(buf))) {
     if (key_cmp_if_same(table, key, active_index, keylen)) {
       table->status = STATUS_NOT_FOUND;
@@ -3735,6 +3722,7 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
     if (this->mrr_query) {
       this->record_index = record_index_before_check;
       this->records_read = records_read_before_check;
+      this->records_examined = records_examined_before_check;
       if (reset_to_zero_index) {
         this->record_index = 0;
       }

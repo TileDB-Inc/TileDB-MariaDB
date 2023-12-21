@@ -1,0 +1,10 @@
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE var ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/var';
+
+SELECT var.ensembl_gene_name FROM var WHERE var.ensembl_gene_name = 'GAPDH';
+
+EXPLAIN SELECT * FROM var WHERE var.ensembl_gene_name = 'GAPDH';
+
+set mytile_delete_arrays=0;
+DROP TABLE `var`;
+set mytile_delete_arrays=1;

@@ -1,0 +1,10 @@
+CREATE TABLE var ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/var';;
+SELECT var.ensembl_gene_name FROM var WHERE var.ensembl_gene_name = 'GAPDH';
+ensembl_gene_name
+GAPDH
+EXPLAIN SELECT * FROM var WHERE var.ensembl_gene_name = 'GAPDH';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	var	ALL	NULL	NULL	NULL	NULL	100000	Using where with pushed condition
+set mytile_delete_arrays=0;
+DROP TABLE `var`;
+set mytile_delete_arrays=1;

@@ -510,6 +510,7 @@ int tile::set_range_from_item_consts(THD *thd, Item_basic_constant *lower_const,
     break;
   case tiledb_datatype_t::TILEDB_CHAR:
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
+  case tiledb_datatype_t::TILEDB_STRING_UTF8:
     tile::set_range_from_item_consts<char>(thd, lower_const, upper_const,
                                            cmp_type, range, datatype);
     break;

@@ -1994,7 +1994,8 @@ tile::mytile::cond_push_func(const Item_func *func_item,
 
     if (is_enum) DBUG_RETURN(func_item); //disable enum push down for now TODO
     if (!attr.variable_sized() ||
-        (attr.variable_sized() && datatype == TILEDB_STRING_ASCII)) {
+        (attr.variable_sized() &&
+         (datatype == TILEDB_STRING_ASCII || datatype == TILEDB_STRING_UTF8))) {
       use_query_condition = true;
     } else {
       // If we can't use query condition let MariaDB filter the attribute

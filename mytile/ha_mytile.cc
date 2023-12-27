@@ -3756,7 +3756,7 @@ mysql_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0260,                     /* version number (0.26.0) */
+    0x0270,                     /* version number (0.27.0) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
     NULL,                                      /* config options */
@@ -3773,9 +3773,9 @@ maria_declare_plugin(mytile){
     PLUGIN_LICENSE_PROPRIETARY, /* the plugin license (PLUGIN_LICENSE_XXX) */
     mytile_init_func,           /* Plugin Init */
     NULL,                       /* Plugin Deinit */
-    0x0260,                     /* version number (0.26.0) */
+    0x0270,                     /* version number (0.27.0) */
     tile::statusvars::mytile_status_variables, /* status variables */
     tile::sysvars::mytile_system_variables,    /* system variables */
-    "0.26.0",                                  /* string version */
+    "0.27.0",                                  /* string version */
     MariaDB_PLUGIN_MATURITY_BETA               /* maturity */
 } maria_declare_plugin_end;

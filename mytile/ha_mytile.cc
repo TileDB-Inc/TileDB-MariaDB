@@ -229,7 +229,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
             this->ctx, this->uri,
             encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
             encryption_key));
-    this->domain = std::make_unique<tiledb::Domain>(this->array_schema->domain());
+    this->domain =
+        std::make_unique<tiledb::Domain>(this->array_schema->domain());
     this->ndim = domain->ndim();
 
     // Set ref length used for storing reference in position(), this is the size
@@ -258,11 +259,11 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
       auto dims = domain->dimensions();
 
-      this->subarray =
-          std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-              this->ctx, *this->array));
+      this->subarray = std::unique_ptr<tiledb::Subarray>(
+          new tiledb::Subarray(this->ctx, *this->array));
       // For each dimension we calculate the non empty domain (equivalent to
-      // `select * from ...`, and the result is used to add a range to the subarray)
+      // `select * from ...`, and the result is used to add a range to the
+      // subarray)
       for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
         tiledb::Dimension dimension = domain->dimension(dim_idx);
 
@@ -284,8 +285,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
           // set range
           this->ctx.handle_error(tiledb_subarray_add_range(
-              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
-              upper, nullptr));
+              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
+              lower, upper, nullptr));
         }
       }
 
@@ -339,29 +340,31 @@ int tile::mytile::close(void) {
   DBUG_RETURN(0);
 }
 
-bool tile::mytile::fields_have_same_name(Field* a, Field* b) {
+bool tile::mytile::fields_have_same_name(Field *a, Field *b) {
   DBUG_ENTER("tile::mytile::fields_have_same_name");
-  DBUG_RETURN(strcmp(a->field_name.str, b->field_name.str) == 0); //success
+  DBUG_RETURN(strcmp(a->field_name.str, b->field_name.str) == 0); // success
 }
 
-void tile::mytile::find_columns_to_drop(TABLE* new_table, TABLE* orig_table,
-                                        std::vector<std::string>& columns_to_be_dropped) {
+void tile::mytile::find_columns_to_drop(
+    TABLE *new_table, TABLE *orig_table,
+    std::vector<std::string> &columns_to_be_dropped) {
   DBUG_ENTER("tile::mytile::find_columns_to_drop");
 
   uint new_index = 0;
-  // iterate the schema with the greater number of columns, in this case the original table
+  // iterate the schema with the greater number of columns, in this case the
+  // original table
   for (uint orig_index = 0; orig_index < orig_table->s->fields; orig_index++) {
     Field *curr_field_in_orig = orig_table->field[orig_index];
 
-    // if we have reached the end of the smaller new table, add the remaining columns
-    // to the columns_to_be_dropped vector
+    // if we have reached the end of the smaller new table, add the remaining
+    // columns to the columns_to_be_dropped vector
     if (new_index == new_table->s->fields) {
       columns_to_be_dropped.push_back(curr_field_in_orig->field_name.str);
       continue;
     }
 
-    // increase the index of the new table only when you find the column in the original
-    // array
+    // increase the index of the new table only when you find the column in the
+    // original array
     Field *curr_field_in_new = new_table->field[new_index];
     if (fields_have_same_name(curr_field_in_new, curr_field_in_orig)) {
       new_index++;
@@ -372,9 +375,9 @@ void tile::mytile::find_columns_to_drop(TABLE* new_table, TABLE* orig_table,
   DBUG_VOID_RETURN;
 }
 
-void tile::mytile::find_columns_to_add(TABLE *new_table, TABLE *orig_table,
-                                       tiledb::Context context,
-                                       std::vector<tiledb::Attribute>& columns_to_be_added) {
+void tile::mytile::find_columns_to_add(
+    TABLE *new_table, TABLE *orig_table, tiledb::Context context,
+    std::vector<tiledb::Attribute> &columns_to_be_added) {
   DBUG_ENTER("tile::mytile::find_columns_to_add");
 
   // create a set of the existing atts
@@ -384,7 +387,8 @@ void tile::mytile::find_columns_to_add(TABLE *new_table, TABLE *orig_table,
     orig_atts.insert(curr_field_in_orig->field_name.str);
   }
 
-  // loop over the atts of the new schema and add those who are not present in the set
+  // loop over the atts of the new schema and add those who are not present in
+  // the set
   for (uint new_index = 0; new_index < new_table->s->fields; new_index++) {
     Field *curr_field_in_new = new_table->field[new_index];
     auto it = orig_atts.find(curr_field_in_new->field_name.str);
@@ -394,8 +398,8 @@ void tile::mytile::find_columns_to_add(TABLE *new_table, TABLE *orig_table,
       // add filters
       tiledb::FilterList filter_list(context);
       if (curr_field_in_new->option_struct->filters != nullptr) {
-        filter_list =
-            tile::parse_filter_list(context, curr_field_in_new->option_struct->filters);
+        filter_list = tile::parse_filter_list(
+            context, curr_field_in_new->option_struct->filters);
       }
       tiledb::Attribute attr =
           tile::create_field_attribute(context, curr_field_in_new, filter_list);
@@ -408,7 +412,8 @@ void tile::mytile::find_columns_to_add(TABLE *new_table, TABLE *orig_table,
   DBUG_VOID_RETURN;
 }
 
-bool tile::mytile::inplace_alter_table(TABLE* altered_table, Alter_inplace_info* ha_alter_info){
+bool tile::mytile::inplace_alter_table(TABLE *altered_table,
+                                       Alter_inplace_info *ha_alter_info) {
   DBUG_ENTER("tile::mytile::inplace_alter_table");
 
   // create evolution object
@@ -420,13 +425,13 @@ bool tile::mytile::inplace_alter_table(TABLE* altered_table, Alter_inplace_info*
     find_columns_to_drop(altered_table, this->table, columns_to_be_dropped);
 
     // drop columns
-    for (const std::string& col : columns_to_be_dropped) {
+    for (const std::string &col : columns_to_be_dropped) {
       evolution.drop_attribute(col.c_str());
     }
     // evolve array
     evolution.array_evolve(this->uri);
 
-    DBUG_RETURN(false); //success
+    DBUG_RETURN(false); // success
 
     // if the evolution is an ADD column
   } else if (ha_alter_info->handler_flags & ALTER_ADD_COLUMN) {
@@ -435,16 +440,16 @@ bool tile::mytile::inplace_alter_table(TABLE* altered_table, Alter_inplace_info*
     find_columns_to_add(altered_table, this->table, this->ctx, atts);
 
     // adding attributes
-    for (const tiledb::Attribute& a : atts) {
+    for (const tiledb::Attribute &a : atts) {
       evolution.add_attribute(a);
     }
 
     // evolve array
     evolution.array_evolve(this->uri);
-    DBUG_RETURN(false); //success
+    DBUG_RETURN(false); // success
   }
 
-  DBUG_RETURN(true); //error
+  DBUG_RETURN(true); // error
 }
 
 enum_alter_inplace_result tile::mytile::check_if_supported_inplace_alter(
@@ -454,15 +459,14 @@ enum_alter_inplace_result tile::mytile::check_if_supported_inplace_alter(
   DBUG_ASSERT(ha_alter_info != nullptr);
 
   // checking if ALTER operation is supported
-  if (ha_alter_info->handler_flags &
-      (ALTER_ADD_COLUMN | ALTER_DROP_COLUMN )) {
-    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK); //todo check lock type
+  if (ha_alter_info->handler_flags & (ALTER_ADD_COLUMN | ALTER_DROP_COLUMN)) {
+    DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK); // todo check lock type
   }
 
-  my_printf_error(
-      ER_ALTER_OPERATION_NOT_SUPPORTED,
-    "[SchemaEvolution] ALTER operation not supported. TileDB supports only ADD and DROP.",
-    ME_ERROR_LOG | ME_FATAL);
+  my_printf_error(ER_ALTER_OPERATION_NOT_SUPPORTED,
+                  "[SchemaEvolution] ALTER operation not supported. TileDB "
+                  "supports only ADD and DROP.",
+                  ME_ERROR_LOG | ME_FATAL);
   DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 }
 
@@ -687,25 +691,27 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
         // we create a vector with the enum labels and we add it to the
         // corresponding attribute
-        if (field->real_type() == MYSQL_TYPE_ENUM){
+        if (field->real_type() == MYSQL_TYPE_ENUM) {
           std::vector<std::string> enum_values;
           // casting to field enum
-          Field_enum *field_enum= (Field_enum*) field;
+          Field_enum *field_enum = (Field_enum *)field;
           const TYPELIB *enum_typelib = field_enum->get_typelib();
           std::string enum_name = std::string(field->field_name.str) + "_enum";
 
           // getting all the enum labels to create the TileDB enum
           if (enum_typelib != nullptr) {
-            const tiledb::ArraySchema& const_schema = *schema;
+            const tiledb::ArraySchema &const_schema = *schema;
             for (uint i = 0; i < enum_typelib->count; ++i) {
               enum_values.push_back(enum_typelib->type_names[i]);
             }
             // setting the enum to the attribute
-            auto enmr = tiledb::Enumeration::create(ctx, enum_name, enum_values);
-            tiledb::ArraySchemaExperimental::add_enumeration(ctx, const_schema, enmr);
-            tiledb::AttributeExperimental::set_enumeration_name(ctx, attr, enum_name);
+            auto enmr =
+                tiledb::Enumeration::create(ctx, enum_name, enum_values);
+            tiledb::ArraySchemaExperimental::add_enumeration(ctx, const_schema,
+                                                             enmr);
+            tiledb::AttributeExperimental::set_enumeration_name(ctx, attr,
+                                                                enum_name);
           }
-
         }
         schema->add_attribute(attr);
       };
@@ -879,9 +885,8 @@ int tile::mytile::init_scan(THD *thd) {
       this->query->set_condition(*this->query_condition);
     }
 
-    this->subarray =
-        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-            this->ctx, *this->array));
+    this->subarray = std::unique_ptr<tiledb::Subarray>(
+        new tiledb::Subarray(this->ctx, *this->array));
 
     if (!this->valid_pushed_ranges() &&
         !this->valid_pushed_in_ranges()) { // No pushdown
@@ -904,8 +909,8 @@ int tile::mytile::init_scan(THD *thd) {
           void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
                         tiledb_datatype_size(dimension.type());
           this->ctx.handle_error(tiledb_subarray_add_range(
-              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
-              upper, nullptr));
+              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
+              lower, upper, nullptr));
         }
       }
 
@@ -972,7 +977,7 @@ int tile::mytile::init_scan(THD *thd) {
           } else { // If the range is empty we need to use the non-empty-domain
 
             this->subarray->add_range(dim_idx, non_empty_domain.first,
-                                   non_empty_domain.second);
+                                      non_empty_domain.second);
           }
         } else {
           // get start of non empty domain
@@ -1027,8 +1032,8 @@ int tile::mytile::init_scan(THD *thd) {
             void *upper = static_cast<char *>(lower) +
                           tiledb_datatype_size(dimension.type());
             this->ctx.handle_error(tiledb_subarray_add_range(
-                this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
-                upper, nullptr));
+                this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
+                lower, upper, nullptr));
           }
         }
       }
@@ -1333,9 +1338,8 @@ int tile::mytile::rnd_pos(uchar *buf, uchar *pos) {
 
     auto domain = this->array_schema->domain();
     int current_offset = 0;
-    this->subarray =
-        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-            this->ctx, *this->array));
+    this->subarray = std::unique_ptr<tiledb::Subarray>(
+        new tiledb::Subarray(this->ctx, *this->array));
     // Reads dimensions in the same order as we wrote them
     // to ref in tile::mytile::position
     for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
@@ -1766,9 +1770,9 @@ const COND *tile::mytile::cond_push_func_datetime(
   DBUG_RETURN(nullptr);
 }
 
-const COND *
-tile::mytile::cond_push_func_spatial(const Item_func *func_item,
-                                     std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
+const COND *tile::mytile::cond_push_func_spatial(
+    const Item_func *func_item,
+    std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func_spatial");
   Item **args = func_item->arguments();
 
@@ -1777,9 +1781,9 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
   this->load_metadata();
   auto sr = this->metadata_map.find("GEOMETRY_ATTRIBUTE_NAME");
   if (sr != this->metadata_map.end()) {
-      geometry_column = sr->second;
+    geometry_column = sr->second;
   }
-  std::string expected_cast = "GeometryFromWkb(" + geometry_column +")";
+  std::string expected_cast = "GeometryFromWkb(" + geometry_column + ")";
 
   // X and Y dimension names, these may be adjustable via metadata in the future
   std::string x_name = "_X";
@@ -1796,11 +1800,13 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
       Item_field *column_field = dynamic_cast<Item_field *>(args[i]);
       if (column_field != nullptr) {
         if (column_field->field_name.str == geometry_column) {
-          // If the user passes the column name of the blob-typed attribute, bail.
-          // The spatial functions use it despite the type mismatch and return garbage.
-          my_printf_error(ER_UNKNOWN_ERROR,
-                          "[cond_push_func_spatial] wkb must be cast, GeometryFromWkb",
-                          ME_ERROR_LOG | ME_FATAL);
+          // If the user passes the column name of the blob-typed attribute,
+          // bail. The spatial functions use it despite the type mismatch and
+          // return garbage.
+          my_printf_error(
+              ER_UNKNOWN_ERROR,
+              "[cond_push_func_spatial] wkb must be cast, GeometryFromWkb",
+              ME_ERROR_LOG | ME_FATAL);
           DBUG_RETURN(nullptr);
         }
       }
@@ -1818,9 +1824,10 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
     case Item::FUNC_ITEM: {
       Item_func *f = dynamic_cast<Item_func *>(args[i]);
       // Special case: Sentinel value used to signify the wkb attribute
-      // Has to match the literal cast string e.g. "GeometryFromWkb(wkb_geometry)"
+      // Has to match the literal cast string e.g.
+      // "GeometryFromWkb(wkb_geometry)"
       if (f->full_name() == expected_cast) {
-          wkb_arg = i;
+        wkb_arg = i;
       }
       break;
     }
@@ -1836,7 +1843,8 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
     auto find_y = this->metadata_map.find("PAD_Y");
     double pad_x;
     double pad_y;
-    if (find_x != this->metadata_map.end() && find_y != this->metadata_map.end()) {
+    if (find_x != this->metadata_map.end() &&
+        find_y != this->metadata_map.end()) {
       pad_x = std::stod(find_x->second);
       pad_y = std::stod(find_y->second);
     } else {
@@ -1910,16 +1918,20 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
 
       // X dimension
       {
-        std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
-            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-            Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
+        std::shared_ptr<range> range =
+            std::make_shared<tile::range>(tile::range{
+                std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                            &std::free),
+                std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                            &std::free),
+                Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
         Item_float *lower = new (thd->mem_root) Item_float(thd, x1, 0);
         Item_float *upper = new (thd->mem_root) Item_float(thd, x2, 0);
-        int ret = set_range_from_item_consts(thd, dynamic_cast<Item_basic_constant *>(lower),
-                                             dynamic_cast<Item_basic_constant *>(upper), cmp_type,
-                                             range, x_datatype);
+        int ret = set_range_from_item_consts(
+            thd, dynamic_cast<Item_basic_constant *>(lower),
+            dynamic_cast<Item_basic_constant *>(upper), cmp_type, range,
+            x_datatype);
         if (ret) {
           DBUG_RETURN(func_item);
         }
@@ -1929,16 +1941,20 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
 
       // Y dimension
       {
-        std::shared_ptr<range> range = std::make_shared<tile::range>(tile::range{
-            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-            std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
-            Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
+        std::shared_ptr<range> range =
+            std::make_shared<tile::range>(tile::range{
+                std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                            &std::free),
+                std::unique_ptr<void, decltype(&std::free)>(nullptr,
+                                                            &std::free),
+                Item_func::BETWEEN, tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
         Item_float *lower = new (thd->mem_root) Item_float(thd, y1, 0);
         Item_float *upper = new (thd->mem_root) Item_float(thd, y2, 0);
-        int ret = set_range_from_item_consts(thd, dynamic_cast<Item_basic_constant *>(lower),
-                                             dynamic_cast<Item_basic_constant *>(upper), cmp_type,
-                                             range, y_datatype);
+        int ret = set_range_from_item_consts(
+            thd, dynamic_cast<Item_basic_constant *>(lower),
+            dynamic_cast<Item_basic_constant *>(upper), cmp_type, range,
+            y_datatype);
         if (ret) {
           DBUG_RETURN(func_item);
         }
@@ -1946,7 +1962,7 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
         range_vec.push_back(std::move(range));
       }
     }
-  }  // else: not eligible for pushdown
+  } // else: not eligible for pushdown
 
   DBUG_RETURN(nullptr);
 }
@@ -1989,10 +2005,12 @@ tile::mytile::cond_push_func(const Item_func *func_item,
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
     nullable = attr.nullable();
-    auto enmr_name = tiledb::AttributeExperimental::get_enumeration_name(ctx, attr);
+    auto enmr_name =
+        tiledb::AttributeExperimental::get_enumeration_name(ctx, attr);
     is_enum = enmr_name.has_value();
 
-    if (is_enum) DBUG_RETURN(func_item); //disable enum push down for now TODO
+    if (is_enum)
+      DBUG_RETURN(func_item); // disable enum push down for now TODO
     if (!attr.variable_sized() ||
         (attr.variable_sized() &&
          (datatype == TILEDB_STRING_ASCII || datatype == TILEDB_STRING_UTF8))) {
@@ -2273,36 +2291,27 @@ tile::mytile::cond_push_local(const COND *cond,
 
       tiledb_datatype_t datatype = tiledb_datatype_t::TILEDB_ANY;
 
-      if (this->array_schema->has_attribute(column_field->name.str)){
+      if (this->array_schema->has_attribute(column_field->name.str)) {
         auto attr = this->array_schema->attribute(column_field->name.str);
         datatype = attr.type();
       } else {
-        auto dim = this->array_schema->domain().dimension(column_field->name.str);
+        auto dim =
+            this->array_schema->domain().dimension(column_field->name.str);
         datatype = dim.type();
       }
 
-      if (datatype == TILEDB_DATETIME_AS ||
-          datatype == TILEDB_DATETIME_FS ||
-          datatype == TILEDB_DATETIME_PS ||
-          datatype == TILEDB_DATETIME_NS ||
-          datatype == TILEDB_DATETIME_US ||
-          datatype == TILEDB_DATETIME_MS ||
-          datatype == TILEDB_DATETIME_SEC ||
-          datatype == TILEDB_DATETIME_MIN ||
-          datatype == TILEDB_DATETIME_HR ||
-          datatype == TILEDB_DATETIME_DAY ||
+      if (datatype == TILEDB_DATETIME_AS || datatype == TILEDB_DATETIME_FS ||
+          datatype == TILEDB_DATETIME_PS || datatype == TILEDB_DATETIME_NS ||
+          datatype == TILEDB_DATETIME_US || datatype == TILEDB_DATETIME_MS ||
+          datatype == TILEDB_DATETIME_SEC || datatype == TILEDB_DATETIME_MIN ||
+          datatype == TILEDB_DATETIME_HR || datatype == TILEDB_DATETIME_DAY ||
           datatype == TILEDB_DATETIME_WEEK ||
           datatype == TILEDB_DATETIME_MONTH ||
-          datatype == TILEDB_DATETIME_YEAR ||
-          datatype == TILEDB_TIME_AS ||
-          datatype == TILEDB_TIME_FS ||
-          datatype == TILEDB_TIME_PS ||
-          datatype == TILEDB_TIME_NS ||
-          datatype == TILEDB_TIME_US ||
-          datatype == TILEDB_TIME_MS ||
-          datatype == TILEDB_TIME_SEC ||
-          datatype == TILEDB_TIME_MIN ||
-          datatype == TILEDB_TIME_HR ) {
+          datatype == TILEDB_DATETIME_YEAR || datatype == TILEDB_TIME_AS ||
+          datatype == TILEDB_TIME_FS || datatype == TILEDB_TIME_PS ||
+          datatype == TILEDB_TIME_NS || datatype == TILEDB_TIME_US ||
+          datatype == TILEDB_TIME_MS || datatype == TILEDB_TIME_SEC ||
+          datatype == TILEDB_TIME_MIN || datatype == TILEDB_TIME_HR) {
         ret = cond_push_func_datetime(func_item, qcPtr);
         DBUG_RETURN(ret);
       }
@@ -3091,7 +3100,8 @@ int8_t tile::mytile::compare_key_to_dims(const uchar *key, uint key_len,
     const KEY_PART_INFO *key_part_info = &(key_info->key_part[key_part_index]);
 
     for (auto &dim_buffer : this->buffers) {
-      if (dim_buffer == nullptr || dim_buffer->name != this->dimensionNames[key_part_index]) {
+      if (dim_buffer == nullptr ||
+          dim_buffer->name != this->dimensionNames[key_part_index]) {
         continue;
       } else { // buffer for dimension was found
         uint8_t dim_comparison =
@@ -3125,26 +3135,36 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
   switch (buf->type) {
 
   case TILEDB_FLOAT32:
-    return compare_key_to_dim<float>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<float>(dim_idx, key, key_part_len,
+                                     fixed_buff_pointer);
   case TILEDB_FLOAT64:
-    return compare_key_to_dim<double>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<double>(dim_idx, key, key_part_len,
+                                      fixed_buff_pointer);
     //  case TILEDB_CHAR:
   case TILEDB_INT8:
-    return compare_key_to_dim<int8>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int8>(dim_idx, key, key_part_len,
+                                    fixed_buff_pointer);
   case TILEDB_UINT8:
-    return compare_key_to_dim<uint8>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint8>(dim_idx, key, key_part_len,
+                                     fixed_buff_pointer);
   case TILEDB_INT16:
-    return compare_key_to_dim<int16>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int16>(dim_idx, key, key_part_len,
+                                     fixed_buff_pointer);
   case TILEDB_UINT16:
-    return compare_key_to_dim<uint16>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint16>(dim_idx, key, key_part_len,
+                                      fixed_buff_pointer);
   case TILEDB_INT32:
-    return compare_key_to_dim<int32>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int32>(dim_idx, key, key_part_len,
+                                     fixed_buff_pointer);
   case TILEDB_UINT32:
-    return compare_key_to_dim<uint32>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint32>(dim_idx, key, key_part_len,
+                                      fixed_buff_pointer);
   case TILEDB_UINT64:
-    return compare_key_to_dim<uint64>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<uint64>(dim_idx, key, key_part_len,
+                                      fixed_buff_pointer);
   case TILEDB_INT64:
-    return compare_key_to_dim<int64>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<int64>(dim_idx, key, key_part_len,
+                                     fixed_buff_pointer);
   case TILEDB_DATETIME_YEAR: {
     // XXX: for some reason maria uses year offset from 1900 here
     MYSQL_TIME mysql_time = {1900U + *((uint8_t *)(key)), 0, 0, 0, 0, 0, 0, 0,
@@ -3214,12 +3234,15 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
 
     void *buff = (static_cast<char *>(buf->buffer) + start_position);
 
-    return compare_key_to_dim<char>(dim_idx, key + key_offset, char_length, buff, size);
+    return compare_key_to_dim<char>(dim_idx, key + key_offset, char_length,
+                                    buff, size);
   }
   case TILEDB_BLOB:
-    return compare_key_to_dim<std::byte>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<std::byte>(dim_idx, key, key_part_len,
+                                         fixed_buff_pointer);
   case TILEDB_BOOL:
-    return compare_key_to_dim<bool>(dim_idx, key, key_part_len, fixed_buff_pointer);
+    return compare_key_to_dim<bool>(dim_idx, key, key_part_len,
+                                    fixed_buff_pointer);
   default: {
     my_printf_error(ER_UNKNOWN_ERROR, "Unsupported datatype in key compare",
                     ME_ERROR_LOG | ME_FATAL);
@@ -3250,155 +3273,155 @@ int tile::mytile::index_read_scan(const uchar *key, uint key_len,
       dbug_tmp_use_all_columns(table, &table->write_set);
   tiledb_query_status_to_str(static_cast<tiledb_query_status_t>(status),
                              &query_status);
-    bool restarted_scan = false;
+  bool restarted_scan = false;
 begin:
-    if (!this->mrr_query
-        && this->records == this->records_examined
-        && status == tiledb::Query::Status::COMPLETE) {
+  if (!this->mrr_query && this->records == this->records_examined &&
+      status == tiledb::Query::Status::COMPLETE) {
     // Reset bitmap to original
     dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
     if (reset)
       index_end();
     DBUG_RETURN(HA_ERR_END_OF_FILE);
-    }
+  }
 
-    try {
-        // If the cursor has examined all records
-        // (or if this is the first time), (re)submit the query
-        if (this->records_examined >= this->records) {
+  try {
+    // If the cursor has examined all records
+    // (or if this is the first time), (re)submit the query
+    if (this->records_examined >= this->records) {
 
-            do {
-                this->status = query->submit();
+      do {
+        this->status = query->submit();
 
-                // Compute the number of cells (records) that were returned by the query
-                auto buff = this->buffers[0];
-                if (buff->offset_buffer != nullptr) {
-                    this->records = buff->offset_buffer_size / sizeof(uint64_t);
-                } else {
-                    this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
-                }
-
-                // Increase the buffer allocation and resubmit if necessary.
-                if (this->status == tiledb::Query::Status::INCOMPLETE &&
-                    this->records == 0) { // VERY IMPORTANT!!
-                    this->read_buffer_size = this->read_buffer_size * 2;
-                    dealloc_buffers();
-                    alloc_read_buffers(read_buffer_size);
-                } else if (records > 0) {
-                    this->record_index = 0;
-                    this->records_examined = 0;
-                    // Break out of resubmit loop as we have some results.
-                    break;
-                    // Handle when the query doesn't return results by exiting early
-                } else if (this->records == 0 &&
-                           status == tiledb::Query::Status::COMPLETE) {
-                    // Reset bitmap to original
-                    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-                    if (reset)
-                        index_end();
-                    DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-                }
-            } while (status == tiledb::Query::Status::INCOMPLETE);
+        // Compute the number of cells (records) that were returned by the query
+        auto buff = this->buffers[0];
+        if (buff->offset_buffer != nullptr) {
+          this->records = buff->offset_buffer_size / sizeof(uint64_t);
+        } else {
+          this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
         }
 
-        bool found = false;
-        do {
-            if (this->record_index == this->records) {
-                // if we reached the end, go back to the beginning.
-                // This will ensure that we don't miss out on keys.
-                // Worst case is that the key is at position n-1 and we are at
-                // position n. If all keys are sorted as they are supposed to be
-                // since we are passing the mrr_sort_keys=on parameter, this
-                // algorithm should be optimal. Worst case is when the sort
-                // order is descending.
-                this->record_index = 0;
-            }
-            int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
-            // If the current index coordinates matches the key we are looking for we
-            // must set the fields. Key is found!
-            if ((key_cmp == 0 &&
-                 (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
-                  find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
-                  find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
-                (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
-                                 find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
-                                 find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
-                (key_cmp < 0 &&
-                 (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
-                  find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
-                tileToFields(record_index, false, table);
-                found = true;
+        // Increase the buffer allocation and resubmit if necessary.
+        if (this->status == tiledb::Query::Status::INCOMPLETE &&
+            this->records == 0) { // VERY IMPORTANT!!
+          this->read_buffer_size = this->read_buffer_size * 2;
+          dealloc_buffers();
+          alloc_read_buffers(read_buffer_size);
+        } else if (records > 0) {
+          this->record_index = 0;
+          this->records_examined = 0;
+          // Break out of resubmit loop as we have some results.
+          break;
+          // Handle when the query doesn't return results by exiting early
+        } else if (this->records == 0 &&
+                   status == tiledb::Query::Status::COMPLETE) {
+          // Reset bitmap to original
+          dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+          if (reset)
+            index_end();
+          DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+        }
+      } while (status == tiledb::Query::Status::INCOMPLETE);
+    }
 
-                // set up next read in this batch
-                this->record_index++;
-                this->records_examined=0;
-                break;
-            } else if (key_cmp < 0) {
+    bool found = false;
+    do {
+      if (this->record_index == this->records) {
+        // if we reached the end, go back to the beginning.
+        // This will ensure that we don't miss out on keys.
+        // Worst case is that the key is at position n-1 and we are at
+        // position n. If all keys are sorted as they are supposed to be
+        // since we are passing the mrr_sort_keys=on parameter, this
+        // algorithm should be optimal. Worst case is when the sort
+        // order is descending.
+        this->record_index = 0;
+      }
+      int key_cmp = compare_key_to_dims(key, key_len, this->record_index);
+      // If the current index coordinates matches the key we are looking for we
+      // must set the fields. Key is found!
+      if ((key_cmp == 0 &&
+           (find_flag == ha_rkey_function::HA_READ_KEY_EXACT ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV)) ||
+          (key_cmp > 0 && (find_flag == ha_rkey_function::HA_READ_BEFORE_KEY ||
+                           find_flag == ha_rkey_function::HA_READ_KEY_OR_PREV ||
+                           find_flag == ha_rkey_function::HA_READ_AFTER_KEY)) ||
+          (key_cmp < 0 &&
+           (find_flag == ha_rkey_function::HA_READ_AFTER_KEY ||
+            find_flag == ha_rkey_function::HA_READ_KEY_OR_NEXT))) {
+        tileToFields(record_index, false, table);
+        found = true;
 
-                // First lets make sure the "start" record of this (potentially
-                // incomplete) query buffers is before what we are looking for
-                // If the key we are looking for is before the first record it
-                // means we've missed the key and the request can not be resolved
-                if (compare_key_to_dims(key, key_len, 0) < 0) {
+        // set up next read in this batch
+        this->record_index++;
+        this->records_examined = 0;
+        break;
+      } else if (key_cmp < 0) {
 
-                    // If we have already tried rerunning the query from the
-                    // start then the request can not be satisfied we need to
-                    // return key not found to prevent an infinite loop
-                    if (restarted_scan) {
-                        // Reset bitmap to original
-                        dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-                        if (reset) index_end();
-                        DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-                    }
+        // First lets make sure the "start" record of this (potentially
+        // incomplete) query buffers is before what we are looking for
+        // If the key we are looking for is before the first record it
+        // means we've missed the key and the request can not be resolved
+        if (compare_key_to_dims(key, key_len, 0) < 0) {
 
-                    // restart scan
-                    this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
-                    restarted_scan = true;
-                    goto begin;
-                }
-            }
-
-            // always increase record index. The records_examined refers to the
-            // records we have checked to see if our key matches.
-            // When the records_examined value equals to all records in this batch
-            // we can safely say that we have checked all keys
-            this->record_index++;
-            this->records_examined++;
-        } while (this->records_examined < this->records);
-
-        // if key not found
-        if (!found) {
-            // check for restart
-            if(!restarted_scan){
-                restarted_scan = true;
-                goto begin;
-            }
-            // Key not found even after restart, reset bitmap to original
+          // If we have already tried rerunning the query from the
+          // start then the request can not be satisfied we need to
+          // return key not found to prevent an infinite loop
+          if (restarted_scan) {
+            // Reset bitmap to original
             dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
             if (reset)
-                index_end();
+              index_end();
             DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
-        }
+          }
 
-    } catch (const tiledb::TileDBError &e) {
-        // Log errors
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "[index_read_scan] error for table %s : %s",
-                        ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-        rc = ERR_INDEX_READ_SCAN_TILEDB;
-    } catch (const std::exception &e) {
-        // Log errors
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "[index_read_scan] error for table %s : %s",
-                        ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
-        rc = ERR_INDEX_READ_SCAN_OTHER;
+          // restart scan
+          this->query->set_layout(tiledb_layout_t::TILEDB_ROW_MAJOR);
+          restarted_scan = true;
+          goto begin;
+        }
+      }
+
+      // always increase record index. The records_examined refers to the
+      // records we have checked to see if our key matches.
+      // When the records_examined value equals to all records in this batch
+      // we can safely say that we have checked all keys
+      this->record_index++;
+      this->records_examined++;
+    } while (this->records_examined < this->records);
+
+    // if key not found
+    if (!found) {
+      // check for restart
+      if (!restarted_scan) {
+        restarted_scan = true;
+        goto begin;
+      }
+      // Key not found even after restart, reset bitmap to original
+      dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+      if (reset)
+        index_end();
+      DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
     }
 
-    // Reset bitmap to original
-    dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
-    if (reset)
-        index_end();
-    DBUG_RETURN(rc);
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[index_read_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = ERR_INDEX_READ_SCAN_TILEDB;
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "[index_read_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->uri.c_str(), e.what());
+    rc = ERR_INDEX_READ_SCAN_OTHER;
+  }
+
+  // Reset bitmap to original
+  dbug_tmp_restore_column_map(&table->write_set, original_bitmap);
+  if (reset)
+    index_end();
+  DBUG_RETURN(rc);
 }
 
 int tile::mytile::index_read_idx_map(uchar *buf, uint idx, const uchar *key,

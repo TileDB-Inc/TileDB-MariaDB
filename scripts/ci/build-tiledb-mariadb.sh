@@ -37,10 +37,9 @@ cmake \
   -DPLUGIN_FEDERATED=NO \
   -DPLUGIN_FEDERATEDX=NO \
   -DPLUGIN_CONNECT=NO \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DWITH_DEBUG=1 \
+  -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INCLUDE_PATH="/usr/local/include" \
   -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS-OFF} \
   ..
 make -j2
-./mysql-test/mysql-test-run.pl --suite=mytile --debug
+./mysql-test/mysql-test-run.pl --suite=mytile

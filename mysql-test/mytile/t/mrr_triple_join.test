@@ -1,6 +1,8 @@
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE obs ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/obs';
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE var ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/var';
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE data ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/data';
 
 SET mytile_mrr_support=1;

@@ -1,6 +1,6 @@
 CREATE TABLE obs ENGINE=mytile uri='MTR_SUITE_DIR/test_data/obs';;
-CREATE TABLE var ENGINE=mytile uri='/Users/dimitrisstaratzis/Dev/server/storage/mytile/mysql-test/mytile/test_data/var';;
-CREATE TABLE data ENGINE=mytile uri='/Users/dimitrisstaratzis/Dev/server/storage/mytile/mysql-test/mytile/test_data/data';;
+CREATE TABLE var ENGINE=mytile uri='MTR_SUITE_DIR/test_data/var';;
+CREATE TABLE data ENGINE=mytile uri='MTR_SUITE_DIR/test_data/data';;
 SET mytile_mrr_support=1;
 set optimizer_switch='mrr=on,mrr_sort_keys=on';
 set join_cache_level= 6;

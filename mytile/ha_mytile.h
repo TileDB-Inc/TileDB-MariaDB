@@ -175,8 +175,7 @@ public:
    * @param ha_alter_info
    * @return
    */
-  bool inplace_alter_table(TABLE *altered_table,
-                           Alter_inplace_info *ha_alter_info) override;
+  bool inplace_alter_table(TABLE* altered_table, Alter_inplace_info* ha_alter_info) override;
 
   /**
    * Check if alter operation is supported
@@ -184,9 +183,7 @@ public:
    * @param ha_alter_info
    * @return
    */
-  enum_alter_inplace_result
-  check_if_supported_inplace_alter(TABLE *altered_table,
-                                   Alter_inplace_info *ha_alter_info) override;
+  enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info) override;
 
   /**
    * Initialize table scanning
@@ -295,9 +292,8 @@ public:
    * @param qcPtr
    * @return
    */
-  const COND *
-  cond_push_func_spatial(const Item_func *func_item,
-                         std::shared_ptr<tiledb::QueryCondition> &qcPtr);
+  const COND *cond_push_func_spatial(const Item_func *func_item,
+                             std::shared_ptr<tiledb::QueryCondition> &qcPtr);
 
   /**
    * Handle datetiem function pushdowns
@@ -597,8 +593,8 @@ public:
   int multi_range_read_next(range_id_t *range_info) override;
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param, uint n_ranges,
-                                      uint *bufsz, uint *mrr_mode,
-                                      ha_rows limit, Cost_estimate *cost);
+                                      uint *bufsz, uint *mrr_mode, ha_rows limit,
+                                      Cost_estimate *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz, uint *flags,
                                 Cost_estimate *cost) override;
@@ -698,7 +694,7 @@ private:
    * @param b field b
    * @return true if yes
    */
-  bool fields_have_same_name(Field *a, Field *b);
+  bool fields_have_same_name(Field* a, Field* b);
 
   /**
    * Finds which columns to add by comparing the new with the old schema
@@ -706,23 +702,21 @@ private:
    * @param new_table the new table schema
    * @param orig_table the original table schema
    * @param context The context
-   * @param columns_to_be_added a vector with the attributes that need to be
-   * added
+   * @param columns_to_be_added a vector with the attributes that need to be added
    */
   void find_columns_to_add(TABLE *new_table, TABLE *orig_table,
                            tiledb::Context context,
-                           std::vector<tiledb::Attribute> &columns_to_be_added);
+                           std::vector<tiledb::Attribute>& columns_to_be_added);
 
   /**
-   * Finds which columns have been dropped by comparing the new with the old
-   * schema
+   * Finds which columns have been dropped by comparing the new with the old schema
    *
    * @param new_table the new table schema
    * @param orig_table the original table schema
    * @param columns_to_be_dropped a vector of strings with the col names to drop
    */
   void find_columns_to_drop(TABLE *new_table, TABLE *orig_table,
-                            std::vector<std::string> &columns_to_be_dropped);
+                            std::vector<std::string>& columns_to_be_dropped);
 
   /**
    * Helper to setup writes

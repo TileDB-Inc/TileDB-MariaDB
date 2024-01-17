@@ -1,0 +1,28 @@
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+select * from dense;
+select SUM(a) from dense;
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+
+
+
+
+
+#
+#CREATE TABLE `test_filter` (
+#  `id` int dimension=1 `lower_bound`="-10000" `upper_bound`="100000000" tile_extent="1",
+#  `a1` int not null,
+#  `a2` int default null,
+#  `a3` varchar(255) default null,
+#  `a4` varchar(255) not null,
+#  PRIMARY KEY(id)
+#) ENGINE=MyTile;
+#
+#INSERT INTO test_filter VALUES (1, 1, 1, "1", "1"), (2, 2, NULL, NULL, "2"), (3, 300, 300, "abc", "def");
+#INSERT INTO test_filter VALUES (1, 1, 10, "beef", "stew"), (2, 100, NULL, "test", "orange"), (3, 300, 400, "def", "beef");
+#SELECT SUM(a1) from test_filter;
+#
+#DROP TABLE test_filter;
+

@@ -1062,6 +1062,97 @@ int tile::mytile::init_scan(THD *thd) {
   DBUG_RETURN(rc);
 }
 
+int tile::mytile::aggregate_pushdown(THD *thd) {
+  DBUG_ENTER("tile::mytile::aggregate_pushdown");
+  int rc = 0;
+
+  // Get the current SELECT statement
+  SELECT_LEX *select_lex = thd->lex->current_select;
+
+  if (select_lex->with_sum_func) {
+    std::cout << "Aggregate!" << std::endl;
+
+    // Iterate through the item list to find TileDB compatible aggregates
+    Item *item;
+    List_iterator_fast<Item> fi(select_lex->item_list);
+
+    while ((item = fi++)) {
+      Item_sum *isp = dynamic_cast<Item_sum *>(item);
+      if (isp) {
+        std::string column_with_aggregate;
+        if (!get_content_inside_parentheses(isp->name.str, column_with_aggregate)) continue;
+        tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*query);
+        std::cout << ">> " << column_with_aggregate << std::endl;
+
+        if (isp->sum_func() == Item_sum::SUM_FUNC) {
+          std::cout << "Sum Aggregate start" << std::endl;
+          tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*query, column_with_aggregate);
+          default_channel.apply_aggregate(column_with_aggregate, operation);
+          std::cout << "Sum Aggregate done" << std::endl;
+        }
+      }
+    }
+  } else {
+    std::cout << "No Aggregate" << std::endl;
+  }
+
+  DBUG_RETURN(rc);
+}
+
+bool tile::mytile::apply_aggregate(THD *thd, const std::string& field, std::string& aggregate_str) {
+  tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*this->query);
+  tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*this->query, field);
+  default_channel.apply_aggregate(field, operation);
+  std::cout << "aggregation applied" << std::endl;
+}
+
+bool tile::mytile::has_aggregate(THD *thd, const std::string& field, std::string& aggregate_str) {
+  // Get the current SELECT statement
+  SELECT_LEX *select_lex = thd->lex->current_select;
+
+  if (select_lex->with_sum_func) {
+    std::cout << "Aggregate!" << std::endl;
+
+    // Iterate through the item list to find TileDB compatible aggregates
+    Item *item;
+    List_iterator_fast<Item> fi(select_lex->item_list);
+
+    while ((item = fi++)) {
+      Item_sum *isp = dynamic_cast<Item_sum *>(item);
+      if (isp) {
+        std::string column_with_aggregate;
+        if (!get_content_inside_parentheses(isp->name.str, column_with_aggregate)) continue;
+        if (field == column_with_aggregate){
+          if (isp->sum_func() == Item_sum::SUM_FUNC) {
+            std::cout << ">> " << column_with_aggregate << std::endl;
+            std::cout << "Sum Aggregate" << std::endl;
+            aggregate_str = "SUM";
+            return true;
+          }
+        }
+      }
+    }
+  } else {
+    return false;
+  }
+
+  return false;
+}
+
+bool tile::mytile::get_content_inside_parentheses(const std::string& aggregate_name, std::string& result) {
+  DBUG_ENTER("tile::mytile::get_content_inside_parentheses");
+  size_t start_pos = aggregate_name.find('(');
+  size_t end_pos = aggregate_name.find(')');
+
+  if (start_pos != std::string::npos && end_pos != std::string::npos && start_pos < end_pos) {
+    result = aggregate_name.substr(start_pos + 1, end_pos - start_pos - 1);
+    DBUG_RETURN(true);
+  }
+
+  DBUG_RETURN(false);
+
+}
+
 int tile::mytile::load_metadata() {
   DBUG_ENTER("tile::mytile::load_metadata");
   int rc = 0;
@@ -1147,6 +1238,7 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
           dealloc_buffers();
           alloc_read_buffers(read_buffer_size);
         } else if (records > 0) {
+          std::cout << "records: " << records << std::endl;
           this->record_index = 0;
           // Break out of resubmit loop as we have some results.
           break;
@@ -1456,6 +1548,7 @@ void tile::mytile::dealloc_buffers() {
 const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
   DBUG_ENTER("tile::mytile::cond_push_cond");
   tiledb_query_condition_combination_op_t op;
+  std::cout<< "cond push cond" << std::endl;
 
   switch (cond_item->functype()) {
   case Item_func::COND_AND_FUNC:
@@ -1517,7 +1610,7 @@ const COND *tile::mytile::cond_push_func_datetime(
     const Item_func *func_item,
     std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_func_datetime");
-
+  std::cout << "datetime " << std::endl;
   Item **args = func_item->arguments();
   bool neg = FALSE;
 
@@ -1962,6 +2055,7 @@ tile::mytile::cond_push_func_spatial(const Item_func *func_item,
 const COND *
 tile::mytile::cond_push_func(const Item_func *func_item,
                              std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
+  std::cout << "cont push func" << std::endl;
   DBUG_ENTER("tile::mytile::cond_push_func");
   Item **args = func_item->arguments();
   bool neg = FALSE;
@@ -2223,6 +2317,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
 
 const COND *tile::mytile::cond_push(const COND *cond) {
   DBUG_ENTER("tile::mytile::cond_push");
+  std::cout << "cond_push" <<std::endl;
   // NOTE: This is called one or more times by handle interface. Once for each
   // condition
 
@@ -2237,6 +2332,7 @@ const COND *
 tile::mytile::cond_push_local(const COND *cond,
                               std::shared_ptr<tiledb::QueryCondition> &qcPtr) {
   DBUG_ENTER("tile::mytile::cond_push_local");
+  std::cout << "cond push local " << std::endl;
   // Make sure pushdown ranges is not empty
   if (this->pushdown_ranges.empty()) {
     this->pushdown_ranges.resize(this->ndim);
@@ -2250,12 +2346,14 @@ tile::mytile::cond_push_local(const COND *cond,
   const COND *ret;
   switch (cond->type()) {
   case Item::COND_ITEM: {
+    std::cout << "cond item" << std::endl;
     Item_cond *cond_item = dynamic_cast<Item_cond *>(const_cast<COND *>(cond));
     ret = cond_push_cond(cond_item);
     DBUG_RETURN(ret);
     break;
   }
   case Item::FUNC_ITEM: {
+    std::cout << "func item" << std::endl;
     const Item_func *func_item = dynamic_cast<const Item_func *>(cond);
 
     // We don't support these predicates yet:
@@ -2320,10 +2418,48 @@ tile::mytile::cond_push_local(const COND *cond,
     DBUG_RETURN(ret);
     break;
   }
+  case Item::SUM_FUNC_ITEM: {
+    std::cout << "sum func " << std::endl;
+//    Item_sum* isp = (Item_sum*)item;
+//    char* item_name = item->name;
+//    if (!item_name)
+//    {
+//      item_name = "<NULL>";
+//    }
+//    switch (isp->sum_func())
+//    {
+//    case Item_sum::SUM_FUNC:
+//      cout << "SUM_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::SUM_DISTINCT_FUNC:
+//      cout << "SUM_DISTINCT_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::AVG_FUNC:
+//      cout << "AVG_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::COUNT_FUNC:
+//      cout << "COUNT_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::COUNT_DISTINCT_FUNC:
+//      cout << "COUNT_DISTINCT_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::MIN_FUNC:
+//      cout << "MIN_FUNC: " << item_name << endl;
+//      break;
+//    case Item_sum::MAX_FUNC:
+//      cout << "MAX_FUNC: " << item_name << endl;
+//      break;
+//    default:
+//      cout << "SUM_FUNC_ITEM type=" << isp->sum_func() << endl;
+//      break;
+//    }
+//    break;
+  }
   // not supported currently
   // Field items are when two have two fields of a table, i.e. a join.
   case Item::FIELD_ITEM:
     // fall through
+    std::cout << "field item" << std::endl;
   default: {
     DBUG_RETURN(cond);
   }
@@ -2339,6 +2475,7 @@ void tile::mytile::cond_pop() {
 
 Item *tile::mytile::idx_cond_push(uint keyno, Item *idx_cond) {
   DBUG_ENTER("tile::mytile::idx_cond_push");
+  std::cout << "idx cond push" << std::endl;
   std::shared_ptr<tiledb::QueryCondition> null;
   auto ret = cond_push_local(static_cast<Item_cond *>(idx_cond), null);
   DBUG_RETURN(const_cast<Item *>(ret));
@@ -2480,6 +2617,15 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
     buff->buffer_offset = 0;
     buff->fixed_size_elements = 1;
 
+    std::string aggregate;
+    if (has_aggregate(ha_thd(), field_name, aggregate)) {
+      std::cout << "STARA: " << field_name << " -- " << aggregate <<  std::endl;
+
+      apply_aggregate(ha_thd(), field_name, aggregate);
+
+      continue;
+    }
+
     if (this->array_schema->domain().has_dimension(field_name)) {
       auto dim = this->array_schema->domain().dimension(field_name);
       datatype = dim.type();
@@ -2546,6 +2692,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 }
 
 void tile::mytile::alloc_read_buffers(uint64_t memory_budget) {
+  // pushdown aggregates if present in the query
   alloc_buffers(memory_budget);
   auto domain = this->array_schema->domain();
 

@@ -51,7 +51,7 @@ static int show_tiledb_version(MYSQL_THD thd, struct st_mysql_show_var *var,
 
 struct st_mysql_show_var mytile_status_variables[] = {
     {"mytile_tiledb_version", (char *)show_tiledb_version, SHOW_SIMPLE_FUNC},
-    {NullS, NullS, SHOW_LONG} 
+    {NullS, NullS, SHOW_LONG}
 };
 } // namespace statusvars
 } // namespace tile

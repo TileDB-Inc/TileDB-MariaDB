@@ -264,14 +264,43 @@ public:
   int flush_write();
 
   /**
-   * Responsible for pushing down aggregates to TileDB
+   *
    * @param thd
+   * @param field
+   * @param aggregate_str
+   * @return
    */
-  int aggregate_pushdown(THD *thd);
+  bool has_aggregate(THD *thd, const std::string &field,
+                     std::string &aggregate_str);
 
-  bool has_aggregate(THD *thd, const std::string& field, std::string& aggregate_str);
+  /**
+   *
+   * @param attribute
+   * @param aggregate_str
+   * @param data_size
+   * @param datatype
+   * @return
+   */
+  int set_up_aggregate_buffer(tiledb::Attribute &attribute,
+                              std::string &aggregate_str, uint64_t &data_size,
+                              tiledb_datatype_t &datatype);
 
-  bool apply_aggregate(THD *thd, const std::string& field, std::string& aggregate_str);
+  /**
+   *
+   * @param table
+   * @return
+   */
+  bool has_aggregate(TABLE *table);
+
+  /**
+   *
+   * @param thd
+   * @param field
+   * @param aggregate_str
+   * @return
+   */
+  int apply_aggregate(THD *thd, const std::string &field,
+                       std::string &aggregate_str);
 
   /**
    * Convert a mysql row to attribute/coordinate buffers (columns)
@@ -755,6 +784,11 @@ private:
    */
   bool valid_pushed_ranges();
 
+  /**
+   * Checks if the given field is aggregation compatible. It is not if it is a dim or is multi valued
+   * @return
+   */
+  bool field_is_aggregation_compatible(const std::string &field);
   /**
    * Checks if there are any in ranges pushed
    * @return

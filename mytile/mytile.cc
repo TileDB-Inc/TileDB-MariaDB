@@ -3,6 +3,7 @@
 */
 #include "mytile.h"
 #include "utils.h"
+#include "mytile-sysvars.h"
 #include <log.h>
 #include <my_global.h>
 #include <mysqld_error.h>
@@ -165,9 +166,21 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num) {
-  if (val_num > 1 && val_num != TILEDB_VAR_NUM){
+int tile::TileDBTypeToMysqlType(THD *thd, tiledb_datatype_t type, bool multi_value,
+                                uint32 val_num) {
+  if (val_num > 1 && val_num != TILEDB_VAR_NUM) {
     return MYSQL_TYPE_BLOB;
+  }
+
+  bool promote_numeric_types_to_float64 = false;
+
+  // If the user requests to pushdown the AVG() or SUM() aggregate we need to promote all TABLE numeric fields to a
+  // higher type. Otherwise, the result coming from TileDB will cause a truncation or overflow because it will be stored
+  // in a field with a lower type.
+  if (tile::sysvars::enable_aggregate_pushdown(thd)){
+      if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
+          promote_numeric_types_to_float64 = true;
+      }
   }
 
   switch (type) {
@@ -177,6 +190,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32
   }
 
   case tiledb_datatype_t::TILEDB_FLOAT32: {
+    if (promote_numeric_types_to_float64) return MYSQL_TYPE_DOUBLE;
     return MYSQL_TYPE_FLOAT;
   }
 
@@ -197,15 +211,18 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32
 
   case tiledb_datatype_t::TILEDB_INT16:
   case tiledb_datatype_t::TILEDB_UINT16: {
+    if (promote_numeric_types_to_float64) return MYSQL_TYPE_DOUBLE;
     return MYSQL_TYPE_SHORT;
   }
   case tiledb_datatype_t::TILEDB_INT32:
   case tiledb_datatype_t::TILEDB_UINT32: {
+    if (promote_numeric_types_to_float64) return MYSQL_TYPE_DOUBLE;
     return MYSQL_TYPE_LONG;
   }
 
   case tiledb_datatype_t::TILEDB_INT64:
   case tiledb_datatype_t::TILEDB_UINT64: {
+    if (promote_numeric_types_to_float64) return MYSQL_TYPE_DOUBLE;
     return MYSQL_TYPE_LONGLONG;
   }
 

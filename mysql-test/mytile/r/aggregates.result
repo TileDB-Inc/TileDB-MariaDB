@@ -1,0 +1,74 @@
+CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
+DESCRIBE dense;
+Field	Type	Null	Key	Default	Extra
+rows	int(11)	NO	PRI	NULL	
+cols	int(11)	NO	PRI	NULL	
+a	int(11)	NO		-2147483648	
+SELECT AVG(a) from dense;
+AVG(a)
+8.5000
+select SUM(a) from dense;
+SUM(a)
+136
+select MAX(a) from dense;
+MAX(a)
+16
+select MIN(a) from dense;
+MIN(a)
+1
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+set mytile_enable_avg_and_sum_aggregate_pushdown=1;
+CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
+DESCRIBE dense;
+Field	Type	Null	Key	Default	Extra
+rows	double	NO	PRI	NULL	
+cols	double	NO	PRI	NULL	
+a	double	NO		-2147483648	
+SELECT AVG(a) from dense;
+AVG(a)
+8.5
+SELECT SUM(a) from dense;
+SUM(a)
+136
+set mytile_enable_avg_and_sum_aggregate_pushdown=0;
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+CREATE TABLE nulls (
+dim0 int dimension=1 tile_extent="10",
+attr0 bigint NULL,
+attr1 float
+) ENGINE=mytile;
+INSERT INTO nulls VALUES (0, 0, 1.2), (1, null, 1.3), (2, 2, 1.4), (3, null, 1.5), (4, 2147483641, 1.6), (5, null, 1.7), (6, 2147483642, 1.8);
+SELECT * FROM nulls;
+dim0	attr0	attr1
+0	0	1.2
+1	NULL	1.3
+2	2	1.4
+3	NULL	1.5
+4	2147483641	1.6
+5	NULL	1.7
+6	2147483642	1.8
+select SUM(attr0) from nulls;
+SUM(attr0)
+4294967285
+select MAX(attr0) from nulls;
+MAX(attr0)
+2147483642
+select MIN(attr0) from nulls;
+MIN(attr0)
+0
+SELECT AVG(attr0) from nulls;
+AVG(attr0)
+1073741821.2500
+set mytile_enable_avg_and_sum_aggregate_pushdown=1;
+SELECT AVG(attr1) from nulls;
+AVG(attr1)
+1.5
+select SUM(attr1) from nulls;
+SUM(attr1)
+10.5
+set mytile_enable_avg_and_sum_aggregate_pushdown=0;
+DROP TABLE nulls;

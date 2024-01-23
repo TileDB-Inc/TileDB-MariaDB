@@ -1127,42 +1127,52 @@ bool tile::mytile::has_aggregate(THD *thd, const std::string &field,
 
 
     if (select_lex->with_sum_func) {
-    // Iterate through the item list to find TileDB compatible aggregates
-    Item *item;
-    List_iterator_fast<Item> fi(select_lex->item_list);
+      // Iterate through the item list to find TileDB compatible aggregates
+      Item *item;
+      List_iterator_fast<Item> it1(select_lex->item_list);
 
-    while ((item = fi++)) {
-      Item_sum *isp = dynamic_cast<Item_sum *>(item);
-      if (isp) {
-        std::string column_with_aggregate;
-        if (!get_content_inside_parentheses(isp->name.str,
-                                            column_with_aggregate)) {
-          continue;
-        }
-        if (field == column_with_aggregate) {
-          switch (isp->sum_func()) {
-          case Item_sum::SUM_FUNC:
-            aggregate_str = "SUM";
-            DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
-
-          case Item_sum::AVG_FUNC:
-            aggregate_str = "AVG";
-            DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
-
-          case Item_sum::MIN_FUNC:
-            aggregate_str = "MIN";
-            DBUG_RETURN(true);
-
-          case Item_sum::MAX_FUNC:
-            aggregate_str = "MAX";
-            DBUG_RETURN(true);
-
-          default:
+      // return false if there are multiple aggregates on one attribute.
+      // Not currently supported. User needs to select them in separate queries.
+      int counter = 0;
+      while ((item = it1++)) {
+          Item_sum *isp = dynamic_cast<Item_sum *>(item);
+          if (isp) {
+            counter++;
+          }
+          if (counter > 1){
             DBUG_RETURN(false);
+          }
+      }
+
+      List_iterator_fast<Item> it2(select_lex->item_list);
+      while ((item = it2++)) {
+        Item_sum *isp = dynamic_cast<Item_sum *>(item);
+        if (isp) {
+          std::string column_with_aggregate = isp->get_arg(0)->name.str;
+          if (field == column_with_aggregate) {
+            switch (isp->sum_func()) {
+            case Item_sum::SUM_FUNC:
+              aggregate_str = "SUM";
+              DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
+
+            case Item_sum::AVG_FUNC:
+              aggregate_str = "AVG";
+              DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
+
+            case Item_sum::MIN_FUNC:
+              aggregate_str = "MIN";
+              DBUG_RETURN(true);
+
+            case Item_sum::MAX_FUNC:
+              aggregate_str = "MAX";
+              DBUG_RETURN(true);
+
+            default:
+              DBUG_RETURN(false);
+            }
           }
         }
       }
-    }
   }
   DBUG_RETURN(false);
 }
@@ -1213,22 +1223,6 @@ int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
     DBUG_RETURN(0);
 }
 
-bool tile::mytile::get_content_inside_parentheses(
-    const std::string &aggregate_name, std::string &result) {
-  DBUG_ENTER("tile::mytile::get_content_inside_parentheses");
-  size_t start_pos = aggregate_name.find('(');
-  size_t end_pos = aggregate_name.find(')');
-
-  if (start_pos != std::string::npos && end_pos != std::string::npos &&
-      start_pos < end_pos) {
-    result = aggregate_name.substr(start_pos + 1, end_pos - start_pos - 1);
-    DBUG_RETURN(true);
-  }
-
-  DBUG_RETURN(false);
-
-}
-
 int tile::mytile::load_metadata() {
   DBUG_ENTER("tile::mytile::load_metadata");
   int rc = 0;
@@ -1269,8 +1263,7 @@ bool tile::mytile::query_complete() {
 
 int tile::mytile::scan_rnd_row(TABLE *table) {
   DBUG_ENTER("tile::mytile::scan_rnd_row");
-
-    int rc = 0;
+  int rc = 0;
   const char *query_status;
 
   // If the query is empty, we should abort early
@@ -1299,10 +1292,15 @@ int tile::mytile::scan_rnd_row(TABLE *table) {
     if (this->record_index >= this->records) {
       do {
         this->status = query->submit();
-
         // Compute the number of cells (records) that were returned by the query
         if (has_aggregate(table)) {
-          this->records = 1;
+            if (status == tiledb::Query::Status::COMPLETE) {
+              this->records = 1;
+            } else {
+              // Incomplete aggregate query. Keep submitting. When the query
+              // is complete and only then we can get the result.
+              continue;
+            }
         } else {
           auto buff = this->buffers[0];
           if (buff->offset_buffer != nullptr) {
@@ -2619,6 +2617,8 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   // Set Attribute Buffers
   auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
+  bool at_least_one_aggregate = false;
+
 
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
@@ -2631,6 +2631,15 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 
   tile::BufferSizeByType bufferSizesByType =
       tile::compute_buffer_sizes(field_details, memory_budget);
+
+  for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
+    Field *field = table->field[fieldIndex];
+    std::string field_name = field->field_name.str;
+    std::string aggr;
+    if (has_aggregate(ha_thd(), field_name, aggr)){
+      at_least_one_aggregate = true;
+    }
+  }
 
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
@@ -2678,6 +2687,11 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 
         // Override buffer size as this is var length
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
+      }
+      if (at_least_one_aggregate){
+        // if this is an aggregate query we only need one element from
+        // the dim buffers
+        data_size = tiledb_datatype_size(datatype);
       }
     } else if (!is_aggregate) { // attribute with no aggr
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
@@ -2736,7 +2750,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       apply_aggregate(ha_thd(), field_name, aggregate);
       set_up_aggregate_buffer(attr, aggregate, data_size, datatype);
       buff->validity_buffer = validity_buffer;
-      }
+    }
 
     buff->buffer = alloc_buffer(datatype, data_size);
     buff->type = datatype;
@@ -3487,7 +3501,13 @@ begin:
 
         // Compute the number of cells (records) that were returned by the query
         if (has_aggregate(table)) {
-          this->records = 1;
+          if (status == tiledb::Query::Status::COMPLETE) {
+            this->records = 1;
+          } else {
+            // Incomplete aggregate query. Keep submitting. When the query
+            // is complete and only then we can get the result.
+            continue;
+          }
         } else {
           auto buff = this->buffers[0];
           if (buff->offset_buffer != nullptr) {
@@ -3498,8 +3518,7 @@ begin:
           }
         }
 
-
-          // Increase the buffer allocation and resubmit if necessary.
+        // Increase the buffer allocation and resubmit if necessary.
         if (this->status == tiledb::Query::Status::INCOMPLETE &&
             this->records == 0) { // VERY IMPORTANT!!
           this->read_buffer_size = this->read_buffer_size * 2;

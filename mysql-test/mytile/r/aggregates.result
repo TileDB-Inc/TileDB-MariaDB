@@ -1,3 +1,7 @@
+#
+# The purpose of this test is to test aggregates
+#
+set mytile_enable_aggregate_pushdown=1;
 CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
 DESCRIBE dense;
 Field	Type	Null	Key	Default	Extra
@@ -26,13 +30,15 @@ Field	Type	Null	Key	Default	Extra
 rows	double	NO	PRI	NULL	
 cols	double	NO	PRI	NULL	
 a	double	NO		-2147483648	
+SELECT cols, MAX(a) FROM dense;
+cols	MAX(a)
+4	16
 SELECT AVG(a) from dense;
 AVG(a)
 8.5
 SELECT SUM(a) from dense;
 SUM(a)
 136
-set mytile_enable_avg_and_sum_aggregate_pushdown=0;
 set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
@@ -62,13 +68,132 @@ MIN(attr0)
 0
 SELECT AVG(attr0) from nulls;
 AVG(attr0)
-1073741821.2500
-set mytile_enable_avg_and_sum_aggregate_pushdown=1;
+1073741821.0000
 SELECT AVG(attr1) from nulls;
 AVG(attr1)
 1.5
 select SUM(attr1) from nulls;
 SUM(attr1)
 10.5
-set mytile_enable_avg_and_sum_aggregate_pushdown=0;
 DROP TABLE nulls;
+CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
+select * from dense;
+rows	cols	a
+1	1	1
+1	2	2
+1	3	3
+1	4	4
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+4	1	13
+4	2	14
+4	3	15
+4	4	16
+SELECT AVG(a) as AVERAGE1 from dense;
+AVERAGE1
+8.5
+SELECT AVG(a) as AVERAGE2 from dense where cols=4;
+AVERAGE2
+10
+SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
+AVERAGE3
+13.5
+SELECT SUM(a) as SUMMATION1 from dense;
+SUMMATION1
+136
+SELECT SUM(a) as SUMMATION2 from dense where cols=4;
+SUMMATION2
+40
+SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
+SUMMATION3
+81
+SELECT MIN(a) as MINIMUM1 from dense;
+MINIMUM1
+1
+SELECT MIN(a) as MINIMUM2 from dense where cols=4;
+MINIMUM2
+4
+SELECT MIN(a) as MINIMUM3 from dense where `a` > 10;
+MINIMUM3
+11
+SELECT MAX(a) as MAXIMUM1 from dense;
+MAXIMUM1
+16
+SELECT MAX(a) as MAXIMUM2 from dense where cols=3;
+MAXIMUM2
+15
+SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
+MAXIMUM3
+16
+SELECT `rows`, `cols`, MAX(a) FROM dense;
+rows	cols	MAX(a)
+4	4	16
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+set mytile_read_buffer_size=32;
+CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
+select * from dense;
+rows	cols	a
+1	1	1
+1	2	2
+1	3	3
+1	4	4
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+4	1	13
+4	2	14
+4	3	15
+4	4	16
+SELECT AVG(a) as AVERAGE1 from dense;
+AVERAGE1
+8.5
+SELECT AVG(a) as AVERAGE2 from dense where cols=4;
+AVERAGE2
+10
+SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
+AVERAGE3
+13.5
+SELECT SUM(a) as SUMMATION1 from dense;
+SUMMATION1
+136
+SELECT SUM(a) as SUMMATION2 from dense where cols=4;
+SUMMATION2
+40
+SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
+SUMMATION3
+81
+SELECT MIN(a) as MINIMUM1 from dense;
+MINIMUM1
+1
+SELECT MIN(a) as MINIMUM2 from dense where cols=4;
+MINIMUM2
+4
+SELECT MIN(a) as MINIMUM3 from dense where `a` > 10;
+MINIMUM3
+11
+SELECT MAX(a) as MAXIMUM4 from dense;
+MAXIMUM4
+16
+SELECT MAX(a) as MAXIMUM5 from dense where cols=3;
+MAXIMUM5
+15
+SELECT MAX(a) as MAXIMUM from dense where `a` > 10;
+MAXIMUM
+16
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+set mytile_enable_aggregate_pushdown=1;

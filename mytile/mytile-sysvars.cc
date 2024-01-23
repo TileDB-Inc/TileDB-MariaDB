@@ -101,7 +101,7 @@ static MYSQL_THDVAR_BOOL(enable_pushdown,
 static MYSQL_THDVAR_BOOL(enable_aggregate_pushdown,
                          PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
                          "Pushdown aggregates where possible", NULL, NULL,
-                         true);
+                         false);
 
 // Should AV and SUM aggregates be pushdown where possible
 static MYSQL_THDVAR_BOOL(enable_avg_and_sum_aggregate_pushdown,

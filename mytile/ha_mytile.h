@@ -852,14 +852,5 @@ private:
    * @return int status
    */
   int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
-
-  /**
-   * Given a full aggregate, e.g. AVG(column1), SUM(column1), we return the
-   * name of the column
-   * @param aggregate_name
-   * @param result
-   * @return
-   */
-  bool get_content_inside_parentheses(const std::string& aggregate_name, std::string& result);
 };
 } // namespace tile

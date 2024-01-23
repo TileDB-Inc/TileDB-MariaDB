@@ -1,3 +1,10 @@
+--echo #
+--echo # The purpose of this test is to test aggregates
+--echo #
+
+set mytile_enable_aggregate_pushdown=1;
+##################################################################################
+# Basic
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 DESCRIBE dense;
@@ -10,13 +17,13 @@ set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
 
-set mytile_enable_avg_and_sum_aggregate_pushdown=1;
+set mytile_enable_avg_and_sum_aggregate_pushdown=1; # important
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 DESCRIBE dense;
+SELECT cols, MAX(a) FROM dense;
 SELECT AVG(a) from dense;
 SELECT SUM(a) from dense;
-set mytile_enable_avg_and_sum_aggregate_pushdown=0;
 
 set mytile_delete_arrays=0;
 DROP TABLE dense;
@@ -38,11 +45,65 @@ select MAX(attr0) from nulls;
 select MIN(attr0) from nulls;
 SELECT AVG(attr0) from nulls;
 
-set mytile_enable_avg_and_sum_aggregate_pushdown=1;
 SELECT AVG(attr1) from nulls;
 select SUM(attr1) from nulls;
-set mytile_enable_avg_and_sum_aggregate_pushdown=0;
 
 DROP TABLE nulls;
 
+#################################################################################
+## Test aggregations with dim/attr filtering
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+select * from dense;
 
+SELECT AVG(a) as AVERAGE1 from dense;
+SELECT AVG(a) as AVERAGE2 from dense where cols=4;
+SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
+
+SELECT SUM(a) as SUMMATION1 from dense;
+SELECT SUM(a) as SUMMATION2 from dense where cols=4;
+SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
+
+SELECT MIN(a) as MINIMUM1 from dense;
+SELECT MIN(a) as MINIMUM2 from dense where cols=4;
+SELECT MIN(a) as MINIMUM3 from dense where `a` > 10;
+
+SELECT MAX(a) as MAXIMUM1 from dense;
+SELECT MAX(a) as MAXIMUM2 from dense where cols=3;
+SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
+
+SELECT `rows`, `cols`, MAX(a) FROM dense; # test parallel fields correctness
+
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+
+
+#################################################################################
+## Test incomplete queries
+set mytile_read_buffer_size=32;
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+select * from dense;
+
+SELECT AVG(a) as AVERAGE1 from dense;
+SELECT AVG(a) as AVERAGE2 from dense where cols=4;
+SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
+
+SELECT SUM(a) as SUMMATION1 from dense;
+SELECT SUM(a) as SUMMATION2 from dense where cols=4;
+SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
+
+SELECT MIN(a) as MINIMUM1 from dense;
+SELECT MIN(a) as MINIMUM2 from dense where cols=4;
+SELECT MIN(a) as MINIMUM3 from dense where `a` > 10;
+
+SELECT MAX(a) as MAXIMUM4 from dense;
+SELECT MAX(a) as MAXIMUM5 from dense where cols=3;
+SELECT MAX(a) as MAXIMUM from dense where `a` > 10;
+
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+
+set mytile_enable_aggregate_pushdown=1;

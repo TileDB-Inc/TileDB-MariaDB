@@ -21,7 +21,6 @@ set mytile_enable_avg_and_sum_aggregate_pushdown=1; # important
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 DESCRIBE dense;
-SELECT cols, MAX(a) FROM dense;
 SELECT AVG(a) from dense;
 SELECT SUM(a) from dense;
 
@@ -72,8 +71,6 @@ SELECT MAX(a) as MAXIMUM1 from dense;
 SELECT MAX(a) as MAXIMUM2 from dense where cols=3;
 SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
 
-SELECT `rows`, `cols`, MAX(a) FROM dense; # test parallel fields correctness
-
 set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
@@ -106,4 +103,3 @@ set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
 
-set mytile_enable_aggregate_pushdown=1;

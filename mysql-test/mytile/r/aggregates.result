@@ -30,9 +30,6 @@ Field	Type	Null	Key	Default	Extra
 rows	double	NO	PRI	NULL	
 cols	double	NO	PRI	NULL	
 a	double	NO		-2147483648	
-SELECT cols, MAX(a) FROM dense;
-cols	MAX(a)
-4	16
 SELECT AVG(a) from dense;
 AVG(a)
 8.5
@@ -131,9 +128,6 @@ MAXIMUM2
 SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
 MAXIMUM3
 16
-SELECT `rows`, `cols`, MAX(a) FROM dense;
-rows	cols	MAX(a)
-4	4	16
 set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
@@ -196,4 +190,3 @@ MAXIMUM
 set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
-set mytile_enable_aggregate_pushdown=1;

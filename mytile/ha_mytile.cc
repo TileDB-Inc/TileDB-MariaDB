@@ -2618,7 +2618,11 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
   bool at_least_one_aggregate = false;
+  bool valid_ranges_in_dims =false;
 
+  if (this->valid_pushed_ranges() || this->valid_pushed_in_ranges()){
+      valid_ranges_in_dims = true;
+  }
 
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
@@ -2655,8 +2659,8 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
     // Only set buffers for fields that are asked for except always set
     // dimension We check the read_set because the read_set is set to ALL column
     // for writes and set to the subset of columns for reads
-    if (!bitmap_is_set(this->table->read_set, fieldIndex) &&
-        !this->array_schema->domain().has_dimension(field_name)) {
+    if ((!bitmap_is_set(this->table->read_set, fieldIndex) && !this->array_schema->domain().has_dimension(field_name)) ||
+            (this->array_schema->domain().has_dimension(field_name) && at_least_one_aggregate && !valid_ranges_in_dims)) {
         continue;
     }
 
@@ -2687,11 +2691,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 
         // Override buffer size as this is var length
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
-      }
-      if (at_least_one_aggregate){
-        // if this is an aggregate query we only need one element from
-        // the dim buffers
-        data_size = tiledb_datatype_size(datatype);
       }
     } else if (!is_aggregate) { // attribute with no aggr
       tiledb::Attribute attr = this->array_schema->attribute(field_name);

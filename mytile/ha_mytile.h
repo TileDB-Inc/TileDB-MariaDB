@@ -49,6 +49,7 @@
 #include "my_base.h"   /* ha_rows */
 #include "my_global.h" /* ulonglong */
 #include "thr_lock.h"  /* THR_LOCK, THR_LOCK_DATA */
+#include "item_sum.h" /* item_sum */
 
 #define MYSQL_SERVER 1 // required for THD class
 
@@ -270,8 +271,7 @@ public:
    * @param aggregate_str
    * @return
    */
-  bool has_aggregate(THD *thd, const std::string &field,
-                     std::string &aggregate_str);
+  std::optional<Item_sum::Sumfunctype> has_aggregate(THD *thd, const std::string &field);
 
   /**
    *
@@ -282,7 +282,7 @@ public:
    * @return
    */
   int set_up_aggregate_buffer(tiledb::Attribute &attribute,
-                              std::string &aggregate_str, uint64_t &data_size,
+                              Item_sum::Sumfunctype &aggregate, uint64_t &data_size,
                               tiledb_datatype_t &datatype);
 
   /**
@@ -300,7 +300,7 @@ public:
    * @return
    */
   int apply_aggregate(THD *thd, const std::string &field,
-                       std::string &aggregate_str);
+                      Item_sum::Sumfunctype &aggregate);
 
   /**
    * Convert a mysql row to attribute/coordinate buffers (columns)

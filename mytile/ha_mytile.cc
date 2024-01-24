@@ -1065,61 +1065,63 @@ int tile::mytile::init_scan(THD *thd) {
 bool tile::mytile::has_aggregate(TABLE *table) {
   DBUG_ENTER("tile::mytile::has_aggregate");
 
-  std::string aggregate;
   if (!tile::sysvars::enable_aggregate_pushdown(ha_thd())) {
       DBUG_RETURN(false);
   }
+
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
       Field *field = table->field[fieldIndex];
       std::string field_name = field->field_name.str;
-      if (has_aggregate(ha_thd(), field_name, aggregate)) DBUG_RETURN(true);
+      auto result = has_aggregate(ha_thd(), field_name);
+      if (result.has_value()) DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
 }
 
 int tile::mytile::apply_aggregate(THD *thd, const std::string &field,
-                                   std::string &aggregate_str) {
+                                  Item_sum::Sumfunctype &aggregate) {
   DBUG_ENTER("tile::mytile::apply_aggregate");
   tiledb::QueryChannel default_channel =
       tiledb::QueryExperimental::get_default_channel(*this->query);
   tiledb::ChannelOperation operation;
 
-  if (aggregate_str == "SUM") {
-    operation =
-        tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(
-            *this->query, field);
-
-  } else if (aggregate_str == "AVG") {
-    operation =
-        tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(
-            *this->query, field);
-
-  } else if (aggregate_str == "MAX") {
-    operation =
-        tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(
-            *this->query, field);
-
-  } else if (aggregate_str == "MIN") {
-    operation =
-        tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(
-            *this->query, field);
-  } else {
-      DBUG_RETURN(1);
+  switch (aggregate) {
+    case Item_sum::SUM_FUNC:
+        operation =
+                tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(
+                        *this->query, field);
+        break;
+    case Item_sum::AVG_FUNC:
+          operation =
+              tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(
+                      *this->query, field);
+        break;
+    case Item_sum::MIN_FUNC:
+          operation =
+                  tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(
+                          *this->query, field);
+        break;
+    case Item_sum::MAX_FUNC:
+          operation =
+                  tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(
+                          *this->query, field);
+        break;
+    default:
+        DBUG_RETURN(1);
   }
   default_channel.apply_aggregate(field, operation);
-  log_debug(thd, "Applied aggregate %s for attribute %s", aggregate_str.c_str(), field.c_str());
+  log_debug(thd, "Applied TileDB aggregate for attribute %s", field.c_str());
   DBUG_RETURN(0);
 }
 
-bool tile::mytile::has_aggregate(THD *thd, const std::string &field,
-                                 std::string &aggregate_str) {
+std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const std::string &field) {
     DBUG_ENTER("tile::mytile::has_aggregate");
     if (!tile::sysvars::enable_aggregate_pushdown(ha_thd())) {
-        DBUG_RETURN(false);
+        DBUG_RETURN(std::nullopt);
     }
 
     if (!field_is_aggregation_compatible(field)){
-        DBUG_RETURN(false);
+        DBUG_RETURN(std::nullopt);
     }
 
     // Get the current SELECT statement
@@ -1140,7 +1142,7 @@ bool tile::mytile::has_aggregate(THD *thd, const std::string &field,
             counter++;
           }
           if (counter > 1){
-            DBUG_RETURN(false);
+            DBUG_RETURN(std::nullopt);
           }
       }
 
@@ -1151,30 +1153,30 @@ bool tile::mytile::has_aggregate(THD *thd, const std::string &field,
           std::string column_with_aggregate = isp->get_arg(0)->name.str;
           if (field == column_with_aggregate) {
             switch (isp->sum_func()) {
-            case Item_sum::SUM_FUNC:
-              aggregate_str = "SUM";
-              DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
-
-            case Item_sum::AVG_FUNC:
-              aggregate_str = "AVG";
-              DBUG_RETURN(tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd));
-
-            case Item_sum::MIN_FUNC:
-              aggregate_str = "MIN";
-              DBUG_RETURN(true);
-
-            case Item_sum::MAX_FUNC:
-              aggregate_str = "MAX";
-              DBUG_RETURN(true);
-
-            default:
-              DBUG_RETURN(false);
+                case Item_sum::SUM_FUNC:
+                  if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
+                      DBUG_RETURN(Item_sum::SUM_FUNC);
+                  }
+                  break;
+                case Item_sum::AVG_FUNC:
+                  if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
+                    DBUG_RETURN(Item_sum::AVG_FUNC);
+                  }
+                  break;
+                case Item_sum::MIN_FUNC:
+                  DBUG_RETURN(Item_sum::MIN_FUNC);
+                  break;
+                case Item_sum::MAX_FUNC:
+                  DBUG_RETURN(Item_sum::MAX_FUNC);
+                  break;
+                default:
+                  DBUG_RETURN(std::nullopt);
             }
           }
         }
       }
   }
-  DBUG_RETURN(false);
+  DBUG_RETURN(std::nullopt);
 }
 
 bool tile::mytile::field_is_aggregation_compatible(const std::string &field) {
@@ -1187,38 +1189,45 @@ bool tile::mytile::field_is_aggregation_compatible(const std::string &field) {
 }
 
 int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
-                                          std::string &aggregate_str,
+                                          Item_sum::Sumfunctype &aggregate,
                                           uint64_t &data_size,
                                           tiledb_datatype_t &datatype) {
     DBUG_ENTER("tile::mytile::set_up_aggregate_buffer");
     // promote type to maximum possible. If the aggregate is SUM or AVG and we have
     // reched this part of the code it means that the user has enabled AVG and SUM pushdown so
     // it's ok to promote the type.
-    if (aggregate_str == "AVG") {
-        data_size = 8;
-        datatype = TILEDB_FLOAT64;
-    } else if (aggregate_str == "SUM") {
-        data_size = 8;
-        if (attribute.type() == TILEDB_FLOAT32
-        || attribute.type() == TILEDB_FLOAT64) {
-            datatype = TILEDB_FLOAT64;
-        }
-        if (attribute.type() == TILEDB_UINT8
-            || attribute.type() == TILEDB_UINT16
-            || attribute.type() == TILEDB_UINT32
-            || attribute.type() == TILEDB_UINT64) {
-            datatype = TILEDB_UINT64;
-        }
-        if (attribute.type() == TILEDB_INT8
-            || attribute.type() == TILEDB_INT16
-            || attribute.type() == TILEDB_INT32
-            || attribute.type() == TILEDB_INT64) {
-            datatype = TILEDB_INT64;
-        }
 
-    } else if (aggregate_str == "MIN" || aggregate_str == "MAX") {
-        datatype = attribute.type();
-        data_size = tiledb_datatype_size(datatype);
+    switch (aggregate) {
+        case Item_sum::SUM_FUNC:
+            data_size = 8;
+            if (attribute.type() == TILEDB_FLOAT32
+                || attribute.type() == TILEDB_FLOAT64) {
+                datatype = TILEDB_FLOAT64;
+            }
+            if (attribute.type() == TILEDB_UINT8
+                || attribute.type() == TILEDB_UINT16
+                || attribute.type() == TILEDB_UINT32
+                || attribute.type() == TILEDB_UINT64) {
+                datatype = TILEDB_UINT64;
+            }
+            if (attribute.type() == TILEDB_INT8
+                || attribute.type() == TILEDB_INT16
+                || attribute.type() == TILEDB_INT32
+                || attribute.type() == TILEDB_INT64) {
+                datatype = TILEDB_INT64;
+            }
+            break;
+        case Item_sum::AVG_FUNC:
+            data_size = 8;
+            datatype = TILEDB_FLOAT64;
+            break;
+        case Item_sum::MIN_FUNC:
+        case Item_sum::MAX_FUNC:
+            datatype = attribute.type();
+            data_size = tiledb_datatype_size(datatype);
+            break;
+        default:
+            DBUG_RETURN(1);
     }
     DBUG_RETURN(0);
 }
@@ -2636,12 +2645,14 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   tile::BufferSizeByType bufferSizesByType =
       tile::compute_buffer_sizes(field_details, memory_budget);
 
+  // check if there is at least one aggregate in the query
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
     std::string field_name = field->field_name.str;
-    std::string aggr;
-    if (has_aggregate(ha_thd(), field_name, aggr)){
+    auto has = has_aggregate(ha_thd(), field_name);
+    if (has.has_value()){
       at_least_one_aggregate = true;
+      break;
     }
   }
 
@@ -2650,15 +2661,16 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
     std::string field_name = field->field_name.str;
 
     // check if field has aggregate
-    std::string aggregate;
     bool is_aggregate = false;
-    if (has_aggregate(ha_thd(), field_name, aggregate)) {
+    auto is = has_aggregate(ha_thd(), field_name);
+    if (is.has_value()) {
       is_aggregate = true;
     }
 
     // Only set buffers for fields that are asked for except always set
-    // dimension We check the read_set because the read_set is set to ALL column
-    // for writes and set to the subset of columns for reads
+    // dimensions. We check the read_set because the read_set is set to ALL column
+    // for writes and set to the subset of columns for reads. The only case in which we skip dimensions is when
+    // the query has an aggregate on an attribute. If that same query does not also slice a dim, we skip it.
     if ((!bitmap_is_set(this->table->read_set, fieldIndex) && !this->array_schema->domain().has_dimension(field_name)) ||
             (this->array_schema->domain().has_dimension(field_name) && at_least_one_aggregate && !valid_ranges_in_dims)) {
         continue;
@@ -2746,8 +2758,8 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
           buff->allocated_validity_buffer_size = sizeof(uint8_t);
       }
 
-      apply_aggregate(ha_thd(), field_name, aggregate);
-      set_up_aggregate_buffer(attr, aggregate, data_size, datatype);
+      apply_aggregate(ha_thd(), field_name, is.value());
+      set_up_aggregate_buffer(attr, is.value(), data_size, datatype);
       buff->validity_buffer = validity_buffer;
     }
 

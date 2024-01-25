@@ -50,7 +50,7 @@
 #include "my_global.h" /* ulonglong */
 #include "thr_lock.h"  /* THR_LOCK, THR_LOCK_DATA */
 #include "item_sum.h" /* item_sum */
-#include "util.h"     /* utuil */
+#include "utils.h"     /* utils */
 
 #define MYSQL_SERVER 1 // required for THD class
 

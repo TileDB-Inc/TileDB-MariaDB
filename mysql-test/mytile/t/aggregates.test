@@ -103,3 +103,17 @@ set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
 
+#################################################################################
+## Test queries on String attributes
+CREATE TABLE strings (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 varchar(20)
+) ENGINE=mytile;
+
+INSERT INTO strings VALUES (1, "Dimitris"), (2, "Myrto"), (3, "Kostas"), (4, "Sissy");
+
+select MAX(column2) FROM strings;
+select MIN(column2) FROM strings;
+
+DROP TABLE strings;
+

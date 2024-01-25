@@ -73,6 +73,19 @@ static inline void trim(std::string &s) {
 }
 
 /**
+ * Checks if the input type is numeric
+ * @param datatype
+ * @return
+ */
+bool is_numeric_type(const tiledb_datatype_t &datatype);
+
+/**
+ * Checks if the input type is numeric
+ * @param datatype
+ * @return
+ */
+bool is_string_type(const tiledb_datatype_t &datatype);
+/**
  *
  * Split a string by delimeter
  *

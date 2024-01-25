@@ -1120,10 +1120,6 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
         DBUG_RETURN(std::nullopt);
     }
 
-    if (!field_is_aggregation_compatible(field)){
-        DBUG_RETURN(std::nullopt);
-    }
-
     // Get the current SELECT statement
     SELECT_LEX *select_lex = thd->lex->current_select;
 
@@ -1152,7 +1148,10 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
         if (isp) {
           std::string column_with_aggregate = isp->get_arg(0)->name.str;
           if (field == column_with_aggregate) {
-            switch (isp->sum_func()) {
+              if (!field_is_aggregation_compatible(field, isp->sum_func())){
+                  DBUG_RETURN(std::nullopt);
+              }
+              switch (isp->sum_func()) {
                 case Item_sum::SUM_FUNC:
                   if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
                       DBUG_RETURN(Item_sum::SUM_FUNC);
@@ -1171,21 +1170,38 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
                   break;
                 default:
                   DBUG_RETURN(std::nullopt);
-            }
-          }
+                }
+              }
         }
       }
   }
   DBUG_RETURN(std::nullopt);
 }
 
-bool tile::mytile::field_is_aggregation_compatible(const std::string &field) {
+bool tile::mytile::field_is_aggregation_compatible(const std::string &field, const Item_sum::Sumfunctype &aggregate) {
     DBUG_ENTER("tile::mytile::field_is_aggregation_compatible");
-    if (this->array_schema->has_attribute(field)){
-        auto attr = this->array_schema->attribute(field);
-        DBUG_RETURN(attr.cell_val_num() == 1);
+    // if it not an attribute, no TileDB aggregation can be applied
+    if (!this->array_schema->has_attribute(field)){
+        DBUG_RETURN(false);
     }
-    DBUG_RETURN(false);
+
+    auto attr = this->array_schema->attribute(field);
+    tiledb_datatype_t type = attr.type();
+
+    if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
+
+    // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
+    switch (aggregate) {
+        case Item_sum::SUM_FUNC:
+        case Item_sum::AVG_FUNC:
+            DBUG_RETURN(tile::is_numeric_type(type));
+        case Item_sum::MIN_FUNC:
+        case Item_sum::MAX_FUNC:
+            DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
+        default:
+            // counts not supported
+            DBUG_RETURN(false);
+    }
 }
 
 int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
@@ -1193,8 +1209,8 @@ int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
                                           uint64_t &data_size,
                                           tiledb_datatype_t &datatype) {
     DBUG_ENTER("tile::mytile::set_up_aggregate_buffer");
-    // promote type to maximum possible. If the aggregate is SUM or AVG and we have
-    // reched this part of the code it means that the user has enabled AVG and SUM pushdown so
+    // Promote type to maximum possible. If the aggregate is SUM or AVG and we have
+    // reached this part of the code it means that the user has enabled AVG and SUM pushdown so
     // it's ok to promote the type.
 
     switch (aggregate) {
@@ -1224,7 +1240,14 @@ int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
         case Item_sum::MIN_FUNC:
         case Item_sum::MAX_FUNC:
             datatype = attribute.type();
-            data_size = tiledb_datatype_size(datatype);
+            if (tile::is_string_type(attribute.type())){
+                data_size = 128; // We need to allocate a buffer size for one string value. Contrary to fixed length
+                // types we don't know at this point the size of the result string because we are in the process of just
+                // allocating the buffers in advance. 128 should be enough. We could possibly add an option for this. to
+                // enable users increase the number.
+            } else {
+                data_size = tiledb_datatype_size(datatype);
+            }
             break;
         default:
             DBUG_RETURN(1);
@@ -2745,6 +2768,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
       uint8_t *validity_buffer = nullptr;
+      uint64_t *offset_buffer = nullptr;
 
       uint8_t nullable = 0;
       tiledb_attribute_get_nullable(ctx.ptr().get(), attr.ptr().get(),
@@ -2758,9 +2782,18 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
           buff->allocated_validity_buffer_size = sizeof(uint8_t);
       }
 
+      if (attr.variable_sized()) {
+        offset_buffer = static_cast<uint64_t *>(
+                alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
+                             sizeof(uint64_t)));
+        buff->offset_buffer_size = sizeof(uint64_t);
+        buff->allocated_offset_buffer_size = sizeof(uint64_t);
+      }
+
       apply_aggregate(ha_thd(), field_name, is.value());
       set_up_aggregate_buffer(attr, is.value(), data_size, datatype);
       buff->validity_buffer = validity_buffer;
+      buff->offset_buffer = offset_buffer;
     }
 
     buff->buffer = alloc_buffer(datatype, data_size);

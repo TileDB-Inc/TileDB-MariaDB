@@ -50,6 +50,7 @@
 #include "my_global.h" /* ulonglong */
 #include "thr_lock.h"  /* THR_LOCK, THR_LOCK_DATA */
 #include "item_sum.h" /* item_sum */
+#include "util.h"     /* utuil */
 
 #define MYSQL_SERVER 1 // required for THD class
 
@@ -785,10 +786,10 @@ private:
   bool valid_pushed_ranges();
 
   /**
-   * Checks if the given field is aggregation compatible. It is not if it is a dim or is multi valued
+   * Checks if the given field is TileDB aggregation compatible.
    * @return
    */
-  bool field_is_aggregation_compatible(const std::string &field);
+  bool field_is_aggregation_compatible(const std::string &field, const Item_sum::Sumfunctype &aggregate);
   /**
    * Checks if there are any in ranges pushed
    * @return

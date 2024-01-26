@@ -187,7 +187,9 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32
       return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY;
   }
-  case TILEDB_BLOB: {
+  case TILEDB_BLOB:
+  case TILEDB_GEOM_WKB:
+  case TILEDB_GEOM_WKT:{
     if (multi_value)
       return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY_BLOB;
@@ -351,7 +353,9 @@ std::string tile::TileDBTypeValueToString(tiledb_datatype_t type,
   case TILEDB_STRING_UCS2:
   case TILEDB_STRING_UCS4:
   case TILEDB_ANY:
-  case TILEDB_BLOB: {
+  case TILEDB_BLOB:
+  case TILEDB_GEOM_WKB:
+  case TILEDB_GEOM_WKT: {
     auto v = reinterpret_cast<const char *>(value);
     std::string s(v, value_size);
     // If the string is the null character we have to us the escaped version
@@ -751,6 +755,8 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
     return alloc_buffer<int64_t>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_BLOB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKT:
     return alloc_buffer<std::byte>(rounded_size);
 
   case tiledb_datatype_t::TILEDB_BOOL:
@@ -1062,6 +1068,8 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case TILEDB_BLOB:
+  case TILEDB_GEOM_WKB:
+  case TILEDB_GEOM_WKT:
     return set_string_field<std::byte>(field, buff, i, &my_charset_latin1);
   case TILEDB_BOOL:
     return set_field<bool>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
@@ -1245,7 +1253,9 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
     int64_t xs = MysqlTimeToTileDBTimeVal(thd, mysql_time, buff->type);
     return set_buffer_from_field<int64_t>(xs, field_null, buff, i);
   }
-  case TILEDB_BLOB: {
+  case TILEDB_BLOB:
+  case TILEDB_GEOM_WKB:
+  case TILEDB_GEOM_WKT:{
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<std::byte>(field, field_null, buff,
                                                      i);
@@ -1473,6 +1483,8 @@ const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_ANY:
     return &constants::empty_any;
   case tiledb_datatype_t::TILEDB_BLOB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKT:
     return &constants::empty_blob;
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
     return &constants::empty_ascii;
@@ -1541,6 +1553,8 @@ bool tile::is_string_datatype(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
   case tiledb_datatype_t::TILEDB_ANY:
   case tiledb_datatype_t::TILEDB_BLOB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKB:
+  case tiledb_datatype_t::TILEDB_GEOM_WKT:
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK:
@@ -1676,6 +1690,8 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
         num_int64_buffers += 1;
         break;
       case TILEDB_BLOB:
+      case TILEDB_GEOM_WKB:
+      case TILEDB_GEOM_WKT:
         num_blob_buffers += 1;
         break;
       case TILEDB_BOOL:

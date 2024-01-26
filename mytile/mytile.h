@@ -127,6 +127,8 @@ struct BufferSizeByType {
     case TILEDB_TIME_AS:
       return int64_buffer_size;
     case TILEDB_BLOB:
+    case TILEDB_GEOM_WKB:
+    case TILEDB_GEOM_WKT:
       return blob_buffer_size;
     case TILEDB_BOOL:
       return bool_buffer_size;

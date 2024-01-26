@@ -3226,6 +3226,8 @@ int8_t tile::mytile::compare_key_to_dim(const uint64_t dim_idx,
     return compare_key_to_dim<char>(dim_idx, key + key_offset, char_length, buff, size);
   }
   case TILEDB_BLOB:
+  case TILEDB_GEOM_WKB:
+  case TILEDB_GEOM_WKT:
     return compare_key_to_dim<std::byte>(dim_idx, key, key_part_len, fixed_buff_pointer);
   case TILEDB_BOOL:
     return compare_key_to_dim<bool>(dim_idx, key, key_part_len, fixed_buff_pointer);

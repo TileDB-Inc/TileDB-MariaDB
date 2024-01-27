@@ -295,6 +295,14 @@ public:
 
   /**
    *
+   * @param field
+   * @param select_lex
+   * @return
+   */
+  bool attribute_has_multiple_aggregates(const std::string &field, SELECT_LEX *select_lex);
+
+  /**
+   *
    * @param thd
    * @param field
    * @param aggregate_str

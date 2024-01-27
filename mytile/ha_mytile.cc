@@ -1123,27 +1123,27 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
     // Get the current SELECT statement
     SELECT_LEX *select_lex = thd->lex->current_select;
 
+    // don't allow this pushdown in JOINs
+    if (select_lex->join != nullptr &&
+        select_lex->join->table_count > 1) {
+        DBUG_RETURN(std::nullopt);
+    }
+
+    // don't allow this pushdown in GROUP BYs
+    SQL_I_List<ORDER> group_by = select_lex->group_list;
+    if (group_by.elements != 0) {
+        DBUG_RETURN(std::nullopt);
+    }
 
     if (select_lex->with_sum_func) {
+      // Queries with multiple aggregates on the same field are not supported by the pushdown
+      // . E.g. SELECT SUM(a), AVG(a) from dense;
+      if (attribute_has_multiple_aggregates(field, select_lex)) DBUG_RETURN(std::nullopt);
+
       // Iterate through the item list to find TileDB compatible aggregates
       Item *item;
-      List_iterator_fast<Item> it1(select_lex->item_list);
-
-      // return false if there are multiple aggregates on one attribute.
-      // Not currently supported. User needs to select them in separate queries.
-      int counter = 0;
-      while ((item = it1++)) {
-          Item_sum *isp = dynamic_cast<Item_sum *>(item);
-          if (isp) {
-            counter++;
-          }
-          if (counter > 1){
-            DBUG_RETURN(std::nullopt);
-          }
-      }
-
-      List_iterator_fast<Item> it2(select_lex->item_list);
-      while ((item = it2++)) {
+      List_iterator_fast<Item> it(select_lex->item_list);
+      while ((item = it++)) {
         Item_sum *isp = dynamic_cast<Item_sum *>(item);
         if (isp) {
           std::string column_with_aggregate = isp->get_arg(0)->name.str;
@@ -1176,6 +1176,30 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
       }
   }
   DBUG_RETURN(std::nullopt);
+}
+
+bool tile::mytile::attribute_has_multiple_aggregates(const std::string &field, SELECT_LEX *select_lex){
+    DBUG_ENTER("tile::mytile::attribute_has_multiple_aggregates");
+
+    Item *item;
+    List_iterator_fast<Item> it(select_lex->item_list);
+
+    // return false if there are multiple aggregates on one attribute.
+    // Not currently supported. User needs to select them in separate queries.
+    int counter = 0;
+    while ((item = it++)) {
+        Item_sum *isp = dynamic_cast<Item_sum *>(item);
+        if (isp) {
+            std::string column_with_aggregate = isp->get_arg(0)->name.str;
+            if (field == column_with_aggregate) {
+                counter++;
+            }
+        }
+        if (counter > 1){
+            DBUG_RETURN(true);
+        }
+    }
+    DBUG_RETURN(false);
 }
 
 bool tile::mytile::field_is_aggregation_compatible(const std::string &field, const Item_sum::Sumfunctype &aggregate) {
@@ -2737,9 +2761,8 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       datatype = attr.type();
       data_size = bufferSizesByType.SizeByType(datatype);
 
-      uint8_t nullable = 0;
-      tiledb_attribute_get_nullable(ctx.ptr().get(), attr.ptr().get(),
-                                    &nullable);
+      bool nullable;
+      nullable = attr.nullable();
       if (nullable) {
         validity_buffer = static_cast<uint8_t *>(
             alloc_buffer(tiledb_datatype_t::TILEDB_UINT8,
@@ -2770,9 +2793,8 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       uint8_t *validity_buffer = nullptr;
       uint64_t *offset_buffer = nullptr;
 
-      uint8_t nullable = 0;
-      tiledb_attribute_get_nullable(ctx.ptr().get(), attr.ptr().get(),
-                                    &nullable);
+      bool nullable;
+      nullable = attr.nullable();
       if (nullable) {
           // only allocate for 1 element
           validity_buffer = static_cast<uint8_t *>(

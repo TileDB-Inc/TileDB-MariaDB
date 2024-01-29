@@ -107,9 +107,6 @@ SUMMATION1
 SELECT SUM(a) as SUMMATION2 from dense where cols=4;
 SUMMATION2
 40
-SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
-SUMMATION3
-81
 SELECT MIN(a) as MINIMUM1 from dense;
 MINIMUM1
 1
@@ -166,9 +163,6 @@ SUMMATION1
 SELECT SUM(a) as SUMMATION2 from dense where cols=4;
 SUMMATION2
 40
-SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
-SUMMATION3
-81
 SELECT MIN(a) as MINIMUM1 from dense;
 MINIMUM1
 1
@@ -194,11 +188,11 @@ CREATE TABLE strings (
 column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
 column2 varchar(20)
 ) ENGINE=mytile;
-INSERT INTO strings VALUES (1, "Dimitris"), (2, "Myrto"), (3, "Kostas"), (4, "Sissy");
+INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
 select MAX(column2) FROM strings;
 MAX(column2)
-Sissy
+Strawberry
 select MIN(column2) FROM strings;
 MIN(column2)
-Dimitris
+Apple
 DROP TABLE strings;

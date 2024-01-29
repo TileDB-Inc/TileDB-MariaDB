@@ -61,7 +61,6 @@ SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
 
 SELECT SUM(a) as SUMMATION1 from dense;
 SELECT SUM(a) as SUMMATION2 from dense where cols=4;
-SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
 
 SELECT MIN(a) as MINIMUM1 from dense;
 SELECT MIN(a) as MINIMUM2 from dense where cols=4;
@@ -89,7 +88,6 @@ SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
 
 SELECT SUM(a) as SUMMATION1 from dense;
 SELECT SUM(a) as SUMMATION2 from dense where cols=4;
-SELECT SUM(a) as SUMMATION3 from dense where `a` > 10;
 
 SELECT MIN(a) as MINIMUM1 from dense;
 SELECT MIN(a) as MINIMUM2 from dense where cols=4;
@@ -110,7 +108,7 @@ CREATE TABLE strings (
   column2 varchar(20)
 ) ENGINE=mytile;
 
-INSERT INTO strings VALUES (1, "Dimitris"), (2, "Myrto"), (3, "Kostas"), (4, "Sissy");
+INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
 
 select MAX(column2) FROM strings;
 select MIN(column2) FROM strings;

@@ -98,8 +98,16 @@ std::string tile::build_metadata_value_string(THD *thd, const void *data,
     return tile::build_metadata_time_value_string(thd, data, num, type);
   case TILEDB_BOOL:
     return tile::build_metadata_numeric_value_string<bool>(data, num);
+
+  default : {
+    my_printf_error(
+        ER_UNKNOWN_ERROR,
+        "Unknown or unsupported datatype in build_metadata_value_string",
+        ME_ERROR_LOG | ME_FATAL);
+    return "";
   }
-  return "";
+  }
+
 }
 
 std::string tile::build_metadata_datetime_value_string(THD *thd,

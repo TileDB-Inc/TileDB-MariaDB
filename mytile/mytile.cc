@@ -1511,9 +1511,9 @@ const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {
     return &constants::empty_int64;
   case tiledb_datatype_t::TILEDB_BOOL:
     return &constants::empty_bool;
+  default :
+    return nullptr;
   }
-
-  return nullptr;
 }
 
 bool tile::is_fill_value_default(const tiledb_datatype_t &type,
@@ -1573,9 +1573,9 @@ bool tile::is_string_datatype(const tiledb_datatype_t &type) {
   case tiledb_datatype_t::TILEDB_STRING_UCS2:
   case tiledb_datatype_t::TILEDB_STRING_UCS4:
     return true;
+  default:
+    return true;
   }
-
-  return true;
 }
 
 tile::BufferSizeByType tile::compute_buffer_sizes(

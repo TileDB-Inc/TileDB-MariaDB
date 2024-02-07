@@ -7,6 +7,10 @@ OS=$(uname)
 if [[ "$OS" == "Linux" ]]
 then
   FLAGS_NEEDED="-Wno-error=deprecated-declarations -Wno-error=missing-braces"
+
+  if [[ "${REF_LIBTILEDB}" == "dev" ]]; then
+      FLAGS_NEEDED+=" -Wno-error=switch"
+  fi
   export LD_LIBRARY_PATH=$(pwd)/libtiledb/build_deps/TileDB/dist/lib:/usr/local/lib:${LD_LIBRARY_PATH-}
   echo $LD_LIBRARY_PATH
 elif [[ "$OS" == "Darwin" ]]

@@ -86,8 +86,17 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
     FILE(GLOB TILEDB_INSTALL_LIBRARIES "${TILEDB_LIBRARIES}")
 else()
-    # TODO: Update TileDB::tiledb_shared to TileDB::tiledb when updating to 2.20.
-    set(TILEDB_LIBRARIES TileDB::tiledb_shared)
+    # This whole block could be simplified to set(TILEDB_LIBRARIES TileDB::tiledb_shared),
+    # but requires passing GLOBAL to find_package(TileDB) which was introduced in CMake 3.24.
+    # First check for release lib details
+    GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_RELEASE)
+    GET_TARGET_PROPERTY(TILEDB_INCLUDE_DIRECTORIES TileDB::tiledb_shared INTERFACE_INCLUDE_DIRECTORIES)
+    # If no release lib try debug lib
+    if(${TILEDB_LIBRARIES} MATCHES "NOTFOUND")
+        GET_TARGET_PROPERTY(TILEDB_LIBRARIES TileDB::tiledb_shared IMPORTED_LOCATION_DEBUG)
+    endif()
+    message(STATUS "TILEDB_LIBRARIES: ${TILEDB_LIBRARIES}")
+    message(STATUS "TILEDB_INCLUDE_DIRECTORIES: ${TILEDB_INCLUDE_DIRECTORIES}")
 endif()
 
 file(GLOB SOURCE_FILES mytile/*.cc)

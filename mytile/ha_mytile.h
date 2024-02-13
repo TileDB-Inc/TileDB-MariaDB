@@ -640,6 +640,9 @@ private:
   // Current record row
   uint64_t record_index = 0;
 
+  // Number of records examined
+  uint64_t records_examined = 0;
+
   // Vector of buffers in field index order
   std::vector<std::shared_ptr<buffer>> buffers;
 
@@ -648,6 +651,12 @@ private:
 
   // Array Schema
   std::unique_ptr<tiledb::ArraySchema> array_schema;
+
+  // Domain
+  std::unique_ptr<tiledb::Domain> domain;
+
+  // Dimension names
+  std::vector<std::string> dimensionNames;
 
   // Subarray
   std::unique_ptr<tiledb::Subarray> subarray;

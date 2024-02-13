@@ -1,0 +1,24 @@
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE obs ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/obs';
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE var ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/var';
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE data ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/data';
+
+SET mytile_mrr_support=1;
+set optimizer_switch='mrr=on,mrr_sort_keys=on';
+set join_cache_level= 6;
+set join_buffer_size = 41943040;
+set join_buffer_space_limit = 104857600;
+
+SELECT count(*)
+FROM obs JOIN data ON data.soma_dim_0 = obs.soma_joinid
+JOIN var ON data.soma_dim_1 = var.soma_joinid
+WHERE obs.cell_type = 'T-cells'
+AND var.ensembl_gene_name = 'GAPDH';
+
+SET mytile_delete_arrays=0;
+DROP TABLE var;
+DROP TABLE data;
+DROP TABLE obs;
+SET mytile_delete_arrays=1;

@@ -4,14 +4,14 @@
 
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 bigint filters='GZIP=6',
-  attr2 bigint filters='GZIP=-1',
-  attr3 bigint filters='GZIP=-1,ZSTD=6',
-  attr4 bigint filters='BIT_WIDTH_REDUCTION=128',
-  attr5 bigint filters='POSITIVE_DELTA=128',
-  attr6 bigint filters='BIT_WIDTH_REDUCTION=138,ZSTD=1,GZIP=1',
-  attr7 bigint filters='RLE'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
+  attr1 bigint NULL filters='GZIP=6',
+  attr2 bigint NULL filters='GZIP=-1',
+  attr3 bigint NULL filters='GZIP=-1,ZSTD=6',
+  attr4 bigint NULL filters='BIT_WIDTH_REDUCTION=128',
+  attr5 bigint NULL filters='POSITIVE_DELTA=128',
+  attr6 bigint NULL filters='BIT_WIDTH_REDUCTION=138,ZSTD=1,GZIP=1',
+  attr7 bigint NULL filters='RLE'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
 INSERT INTO t1 VALUES (1,0,100,200,300,400,500,600), (2,100,200,300,400,500,600,700), (3,200,300,400,500,600,700,800), (4,300,400,500,600,700,800,900);
 SELECT * FROM t1;
 
@@ -21,9 +21,9 @@ DROP TABLE t1;
 --echo # Double Delta
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 bigint filters='DOUBLE_DELTA'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
-INSERT INTO t1 VALUES (1,0);
+  attr1 bigint NULL filters='DOUBLE_DELTA'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,0), (1,null);
 SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;
@@ -32,9 +32,9 @@ DROP TABLE t1;
 --echo # Bit Shuffle
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 bigint filters='BITSHUFFLE'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
-INSERT INTO t1 VALUES (1,0);
+  attr1 bigint NULL filters='BITSHUFFLE'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,0), (1,null);
 SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;
@@ -43,9 +43,9 @@ DROP TABLE t1;
 --echo # Byte Shuffle
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 bigint filters='BYTESHUFFLE'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
-INSERT INTO t1 VALUES (1,0);
+  attr1 bigint NULL filters='BYTESHUFFLE'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,0), (1,null);
 SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;
@@ -54,9 +54,9 @@ DROP TABLE t1;
 --echo # Float Scaling
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 float filters='SCALE_FLOAT=(8-1.0-0.0)'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
-INSERT INTO t1 VALUES (1,1.1);
+  attr1 float NULL filters='SCALE_FLOAT=(8-1.0-0.0)'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1,1.1), (1,null);
 SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;
@@ -65,9 +65,9 @@ DROP TABLE t1;
 --echo # Dictionary
 CREATE TABLE t1 (
   dim1 bigint dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  attr1 varchar(255) filters='DICTIONARY_ENCODING'
-) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3';
-INSERT INTO t1 VALUES (1, "abc");
+  attr1 varchar(255) NULL filters='DICTIONARY_ENCODING'
+) ENGINE=mytile coordinate_filters='LZ4=-1' offset_filters='BZIP2=3' validity_filters='BZIP2=3';
+INSERT INTO t1 VALUES (1, "abc"), (1, null);
 SELECT * FROM t1;
 
 SHOW CREATE TABLE t1;

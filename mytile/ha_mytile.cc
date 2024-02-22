@@ -75,6 +75,7 @@ ha_create_table_option mytile_table_option_list[] = {
     HA_TOPTION_STRING("encryption_key", encryption_key),
     HA_TOPTION_STRING("coordinate_filters", coordinate_filters),
     HA_TOPTION_STRING("offset_filters", offset_filters),
+    HA_TOPTION_STRING("validity_filters", validity_filters),
     HA_TOPTION_END};
 
 // Structure for specific field options
@@ -722,6 +723,12 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
       tiledb::FilterList filter_list = tile::parse_filter_list(
           context, create_info->option_struct->offset_filters);
       schema->set_offsets_filter_list(filter_list);
+    }
+
+    if (create_info->option_struct->validity_filters != nullptr) {
+      tiledb::FilterList filter_list = tile::parse_filter_list(
+          context, create_info->option_struct->validity_filters);
+      schema->set_validity_filter_list(filter_list);
     }
 
     schema->set_domain(domain);

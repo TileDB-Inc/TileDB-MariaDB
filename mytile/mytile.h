@@ -23,6 +23,7 @@ struct ha_table_option_struct {
   const char *encryption_key;
   const char *coordinate_filters;
   const char *offset_filters;
+  const char *validity_filters;
 };
 
 /** Field options */

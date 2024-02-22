@@ -245,6 +245,13 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                     << "'";
     }
 
+    // Check for validity filters
+    tiledb::FilterList validity_filters = schema->validity_filter_list();
+    if (validity_filters.nfilters() > 0) {
+      table_options << " validity_filters='" << filter_list_to_str(validity_filters)
+                    << "'";
+    }
+
     for (const auto &dim : schema->domain().dimensions()) {
       int mysql_type = TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num());
 
@@ -496,6 +503,13 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
     tiledb::FilterList offset_filters = schema->offsets_filter_list();
     if (offset_filters.nfilters() > 0) {
       table_options << " offset_filters='" << filter_list_to_str(offset_filters)
+                    << "'";
+    }
+
+    // Check for validity filters
+    tiledb::FilterList validity_filters = schema->validity_filter_list();
+    if (validity_filters.nfilters() > 0) {
+      table_options << " validity_filters='" << filter_list_to_str(validity_filters)
                     << "'";
     }
 

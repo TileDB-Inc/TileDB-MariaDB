@@ -132,6 +132,165 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
   return ctx;
 }
 
+/*****************************************************************************
+This implementation supports SUM(), COUNT(), and AVG() pushdown to TileDB
+*****************************************************************************/
+
+class ha_tiledb_group_by_handler: public group_by_handler
+{
+  bool first_row;
+  handlerton * ha_m;
+
+public:
+  ha_tiledb_group_by_handler(THD *thd_arg, handlerton *hlt) : group_by_handler(thd_arg, mytile_hton), ha_m(hlt) {}
+  ~ha_tiledb_group_by_handler() = default;
+  int init_scan() { first_row= 1 ; return 0; }
+  int next_row();
+  int end_scan()  { return 0; }
+};
+
+int ha_tiledb_group_by_handler::next_row()
+{
+  // Get the current SELECT statement
+  SELECT_LEX *select_lex = thd->lex->current_select;
+  Item *item;
+  List_iterator_fast<Item> it(select_lex->item_list);
+
+  //  List_iterator_fast<Item> it(*fields);
+  Item_sum *item_sum;
+  DBUG_ENTER("ha_tiledb_group_by_handler::next_row");
+
+  std::cout << "next row from handler" << std::endl;
+
+
+  /*
+    Check if this is the first call to the function. If not, we have already
+    returned all data.
+  */
+  if (!first_row){
+    std::cout << "end of file" << std::endl;
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
+
+  first_row= 0;
+
+  /* Pointer to first field in temporary table where we should store summary*/
+  Field **field_ptr= table->field;
+
+  while ((item_sum= (Item_sum*) it++))
+  {
+    std::cout << "loop  " << std::endl;
+    Field *field= *(field_ptr++);
+    switch (item_sum->sum_func()) {
+    case Item_sum::SUM_FUNC:
+    {
+      std::cout << "sum func " << std::endl;
+      std::cout << field->field_name.str << std::endl;
+      std::string column_with_aggregate = ((Item_sum*) item_sum)->get_arg(0)->name.str;
+      std::cout << column_with_aggregate << " :column " << std::endl;
+
+      tile::mytile* dimi = reinterpret_cast<tile::mytile *>(ha_m->create);
+
+      const std::shared_ptr<tiledb::Query> &qr = dimi->get_query();
+
+      if (qr) {
+        //            if (qr->query_type() == TILEDB_READ){
+        //              std::cout << "nai re si " << std::endl;
+        //            }
+        std::cout << "query is not nullptr" <<std::endl;
+        qr->submit();
+      } else {
+        // 'query' is nullptr, handle appropriately
+        std::cout << "query is nullptr" <<std::endl;
+      }
+
+
+
+      //          const tiledb::Query* constQueryRef = *ha_mytile->get_query().get();
+
+      //          tiledb::Query* queryPtr = ha_m->get_query().get();
+      //          std::cout << queryPtr->fragment_num() << "nae"<< std::endl;
+      //
+      //          const tiledb::Query* constQueryRef = queryPtr;
+      //
+      //          std::cout << constQueryRef->fragment_num() << "nai mwreeeeee"<< std::endl;
+
+      //          tiledb::QueryChannel default_channel =
+      //              tiledb::QueryExperimental::get_default_channel(ha_mytile->get_query().get());
+      //          tiledb::ChannelOperation operation;
+      //
+      //          operation =
+      //              tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(
+      //                  *ha_mytile->get_query(), column_with_aggregate);
+      //        Item *arg0= ((Item_sum*) item_sum)->get_arg(0);
+      //        if (arg0->basic_const_item() && arg0->is_null())
+      //          field->store(0LL, 1);
+      //        else
+      //          field->store((longlong) elements, 1);
+      //        break;
+    }
+    case Item_sum::AVG_FUNC:
+    {
+      //        /* Calculate SUM(f, f+step, f+step*2 ... to) */
+      //        ulonglong sum;
+      //        sum= seqs->from * elements + seqs->step * (elements*elements-elements)/2;
+      //        field->store((longlong) sum, 1);
+      //        break;
+    }
+    default:
+      DBUG_ASSERT(0);
+    }
+    field->set_notnull();
+  }
+  DBUG_RETURN(0);
+}
+
+static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
+{
+  std::cout << "creating group by handler" << std::endl;
+  ha_tiledb_group_by_handler *handler;
+  //  Item *item;
+  //  List_iterator_fast<Item> it(*query->select);
+  DBUG_ENTER("tile::mytile::create_group_by_handler");
+  if (!tile::sysvars::enable_aggregate_pushdown(thd)) {
+    DBUG_RETURN(0);
+  }
+
+  // Get the current SELECT statement
+  SELECT_LEX *select_lex = thd->lex->current_select;
+
+
+  if (select_lex->with_sum_func) { //todo agg_func_used
+    // Iterate through the item list to find TileDB compatible aggregates
+    Item *item;
+    List_iterator_fast<Item> it2(select_lex->item_list);
+    while ((item = it2++)) {
+      Item_sum *isp = dynamic_cast<Item_sum *>(item);
+      if (isp) {
+        switch (isp->sum_func()) {
+        case Item_sum::SUM_FUNC:
+          break;
+        case Item_sum::AVG_FUNC:
+          break;
+        case Item_sum::MIN_FUNC:
+          break;
+        case Item_sum::MAX_FUNC:
+          break;
+        default:
+          DBUG_RETURN(0);
+        }
+      }
+    }
+    std::cout << "returning handler" << std::endl;
+
+    /* Create handler and return it */
+    handler= new ha_tiledb_group_by_handler(thd, mytile_hton);
+    return handler;
+  }
+  DBUG_RETURN(0);
+}
+
+
 // Create mytile object
 static handler *mytile_create_handler(handlerton *hton, TABLE_SHARE *table,
                                       MEM_ROOT *mem_root) {
@@ -156,6 +315,7 @@ static int mytile_init_func(void *p) {
   // Set table discovery functions
   mytile_hton->discover_table_structure = tile::mytile_discover_table_structure;
   mytile_hton->discover_table = tile::mytile_discover_table;
+  mytile_hton->create_group_by = mytile_create_group_by_handler;
 
   DBUG_RETURN(0);
 }
@@ -4038,6 +4198,11 @@ int tile::mytile::index_next_same(uchar *buf, const uchar *key, uint keylen) {
 
   DBUG_PRINT("return", ("%i", error));
   DBUG_RETURN(error);
+}
+
+const std::shared_ptr<tiledb::Query> &tile::mytile::get_query() const {
+  std::cout << "getting query " <<std::endl;
+  return this->query;
 }
 
 mysql_declare_plugin(mytile){

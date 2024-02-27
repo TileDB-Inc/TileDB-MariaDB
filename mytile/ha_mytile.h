@@ -861,5 +861,8 @@ private:
    * @return int status
    */
   int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
+
+  public:
+    const std::shared_ptr<tiledb::Query> &get_query() const;
 };
 } // namespace tile

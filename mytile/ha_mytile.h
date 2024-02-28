@@ -863,6 +863,10 @@ private:
   int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
 
   public:
-    const std::shared_ptr<tiledb::Query> &get_query() const;
+    std::shared_ptr<tiledb::Query> &get_query();
+
+    std::shared_ptr<tiledb::Array> &get_array();
+
+    std::shared_ptr<tiledb::QueryCondition> &get_qc();
 };
 } // namespace tile

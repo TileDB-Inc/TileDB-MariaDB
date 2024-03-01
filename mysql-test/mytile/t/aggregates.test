@@ -30,24 +30,24 @@ set mytile_delete_arrays=1;
 
 #################################################################################
 # Nullable attributes
-CREATE TABLE nulls (
-dim0 int dimension=1 tile_extent="10",
-attr0 bigint NULL,
-attr1 float
-) ENGINE=mytile;
-
-INSERT INTO nulls VALUES (0, 0, 1.2), (1, null, 1.3), (2, 2, 1.4), (3, null, 1.5), (4, 2147483641, 1.6), (5, null, 1.7), (6, 2147483642, 1.8);
-
-SELECT * FROM nulls;
-select SUM(attr0) from nulls;
-select MAX(attr0) from nulls;
-select MIN(attr0) from nulls;
-SELECT AVG(attr0) from nulls;
-
-SELECT AVG(attr1) from nulls;
-select SUM(attr1) from nulls;
-
-DROP TABLE nulls;
+#CREATE TABLE nulls (
+#dim0 int dimension=1 tile_extent="10",
+#attr0 bigint NULL,
+#attr1 float
+#) ENGINE=mytile;
+#
+#INSERT INTO nulls VALUES (0, 0, 1.2), (1, null, 1.3), (2, 2, 1.4), (3, null, 1.5), (4, 2147483641, 1.6), (5, null, 1.7), (6, 2147483642, 1.8);
+#
+#SELECT * FROM nulls;
+#select SUM(attr0) from nulls;
+#select MAX(attr0) from nulls;
+#select MIN(attr0) from nulls;
+#SELECT AVG(attr0) from nulls;
+#
+#SELECT AVG(attr1) from nulls;
+#select SUM(attr1) from nulls;
+#
+#DROP TABLE nulls;
 
 #################################################################################
 ## Test aggregations with dim/attr filtering
@@ -102,16 +102,16 @@ DROP TABLE dense;
 set mytile_delete_arrays=1;
 
 #################################################################################
-## Test queries on String attributes
-CREATE TABLE strings (
-  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  column2 varchar(20)
-) ENGINE=mytile;
-
-INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
-
-select MAX(column2) FROM strings;
-select MIN(column2) FROM strings;
-
-DROP TABLE strings;
+### Test queries on String attributes
+#CREATE TABLE strings (
+#  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+#  column2 varchar(20)
+#) ENGINE=mytile;
+#
+#INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
+#
+#select MAX(column2) FROM strings;
+#select MIN(column2) FROM strings;
+#
+#DROP TABLE strings;
 

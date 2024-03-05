@@ -198,6 +198,7 @@ int tile::mytile_group_by_handler::init_scan()
   }
 
   // if no ranges to add
+  // todo massive code repetition here, will create a method
   if (!valid_ranges && !valid_in_ranges) {
     // No pushdown
     for (uint64_t dim_idx = 0; dim_idx < domain.ndim();
@@ -415,14 +416,13 @@ int tile::mytile_group_by_handler::next_row()
     bool nullable = false;
     tiledb_datatype_t type;
     if (schema.has_attribute(column_with_aggregate)){
-      std::cout << "it is attribute2" << std::endl;
+      std::cout << "it is attribute" << std::endl;
       auto attr = schema.attribute(column_with_aggregate);
       if (attr.nullable()) nullable = true;
       type = attr.type();
     } else {
       std::cout << "it is dim" << std::endl;
       auto dim = domain.dimension(column_with_aggregate);
-      std::cout << dim.name() << " ole" << std::endl;
       type = dim.type();
     }
     Field **field_ptr= table->field;
@@ -712,12 +712,6 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 
   tile::mytile* mytile_ptr = dynamic_cast<tile::mytile*>(query->from->table->file);
 
-  if (mytile_ptr){
-    std::cout << "cast ok " << mytile_ptr << std::endl;
-  } else {
-    std::cout << "cast not ok " <<std::endl;
-  }
-
   // take everything we need from the mytile handler.
   std::string encryption_key;
   if (mytile_ptr->get_table()->s->option_struct->encryption_key != nullptr) {
@@ -807,7 +801,6 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
                                              open_at);
     DBUG_RETURN(handler);
   }
-  std::cout << "exiting " << std::endl;
   DBUG_RETURN(0);
 }
 

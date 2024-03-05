@@ -724,9 +724,8 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
   if (!tile::sysvars::enable_aggregate_pushdown(thd)) {
     DBUG_RETURN(0);
   }
-  /* check that only one table is used in FROM clause and no sub queries */
-  if (query->from->next_local != 0) DBUG_RETURN(0);
-  /* check that there is no where clause and no group_by */
+
+  /* check that there is no group_by. Not currently supported by TileDB*/
   if (query->group_by != 0) DBUG_RETURN(0);
 
   TABLE_LIST* table_ptr = query->from;
@@ -832,6 +831,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
                                              open_at);
     DBUG_RETURN(handler);
   }
+  std::cout << "exiting " << std::endl;
   DBUG_RETURN(0);
 }
 
@@ -3019,6 +3019,7 @@ tile::mytile::cond_push_func(const Item_func *func_item,
     if (use_query_condition) {
       qcPtr = std::make_shared<tiledb::QueryCondition>(
           range->QueryCondition(ctx, column_field->field_name.str));
+      std::cout << "adding to qc" << std::endl;
     } else {
       // Add the range to the pushdown in ranges
       auto &range_vec = this->pushdown_ranges[dim_idx];

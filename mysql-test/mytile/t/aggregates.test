@@ -14,6 +14,8 @@ select MAX(a) from dense;
 select MIN(a) from dense;
 select COUNT(a) from dense;
 
+select AVG(`cols`) from dense; # is not pushed down because `cols` is a dimension
+
 set mytile_delete_arrays=0;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
@@ -42,6 +44,19 @@ select AVG(attr1) from types;
 select COUNT(attr1) from types;
 DROP TABLE types;
 
+################################################################################
+## Test queries on String attributes
+CREATE TABLE strings (
+  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
+  column2 varchar(20)
+) ENGINE=mytile;
+
+INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
+
+select MAX(column2) FROM strings;
+select MIN(column2) FROM strings;
+
+DROP TABLE strings;
 
 #################################################################################
 # Nullable attributes
@@ -65,7 +80,7 @@ select SUM(attr1) from nulls;
 DROP TABLE nulls;
 
 #################################################################################
-## Test aggregations with dim/attr filtering
+## Test aggregations with dim/attr filtering on dense/sparse arrays
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
 select * from dense;
@@ -85,50 +100,22 @@ SELECT MAX(a) as MAXIMUM1 from dense;
 SELECT MAX(a) as MAXIMUM2 from dense where cols=3;
 SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
 
-set mytile_delete_arrays=0;
-DROP TABLE dense;
-set mytile_delete_arrays=1;
+SELECT AVG(a), SUM(a), COUNT(a), MIN(a), MAX(a) from dense where a > 3;
+SELECT SUM(a) from dense where a > 3 and `cols` > 3;
+SELECT AVG(a), `cols` ,MAX(a) from dense where a > 3;
 
-
-#################################################################################
-## Test incomplete queries
-set mytile_read_buffer_size=32;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
---eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
-select * from dense;
+--eval CREATE TABLE sparse ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_sparse';
+select * from sparse;
 
-SELECT AVG(a) as AVERAGE1 from dense;
-SELECT AVG(a) as AVERAGE2 from dense where cols=4;
-SELECT AVG(a) as AVERAGE3 from dense where `a` > 10;
-
-SELECT SUM(a) as SUMMATION1 from dense;
-SELECT SUM(a) as SUMMATION2 from dense where cols=4;
-
-SELECT MIN(a) as MINIMUM1 from dense;
-SELECT MIN(a) as MINIMUM2 from dense where cols=4;
-SELECT MIN(a) as MINIMUM3 from dense where `a` > 10;
-
-SELECT MAX(a) as MAXIMUM4 from dense;
-SELECT MAX(a) as MAXIMUM5 from dense where cols=3;
-SELECT MAX(a) as MAXIMUM from dense where `a` > 10;
+SELECT AVG(a), SUM(a), COUNT(a), MIN(a), MAX(a) from sparse where a > 1;
+SELECT SUM(a) from sparse where a = 2 and `rows` > 1;
+SELECT AVG(a), `cols` ,MAX(a) from sparse where a > 1;
 
 set mytile_delete_arrays=0;
+DROP TABLE sparse;
 DROP TABLE dense;
 set mytile_delete_arrays=1;
-
-################################################################################
-## Test queries on String attributes
-CREATE TABLE strings (
-  column1 int dimension=1 lower_bound="0" upper_bound="100" tile_extent="10",
-  column2 varchar(20)
-) ENGINE=mytile;
-
-INSERT INTO strings VALUES (1, "Apple"), (2, "Orange"), (3, "Melon"), (4, "Strawberry");
-
-select MAX(column2) FROM strings;
-select MIN(column2) FROM strings;
-
-DROP TABLE strings;
 
 ###############################################################################
 ## Test with encryption
@@ -139,4 +126,22 @@ CREATE TABLE encr (
 INSERT INTO encr VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 select SUM(attr1) FROM encr;
 DROP TABLE encr;
+
+##############################################################################
+## Test joins
+#joins
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE dense ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';
+select * from dense one JOIN dense two USING(a);
+select * from dense one JOIN dense two USING(a) where one.a > 10;
+select SUM(a) from dense one JOIN dense two USING(a) where one.a > 10;
+select AVG(a) from dense one JOIN dense two USING(a) where one.a > 10;
+select COUNT(a) from dense one JOIN dense two USING(a) where one.a > 10;
+select MIN(a) from dense one JOIN dense two USING(a) where one.a > 10;
+select MIN(a), MAX(a) from dense one JOIN dense two USING(a) where one.a > 10;
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;
+
+
 

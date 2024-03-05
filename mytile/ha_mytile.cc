@@ -240,22 +240,6 @@ int ha_tiledb_group_by_handler::init_scan()
 
   std::cout << "array is created" << std::endl;
 
-  this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
-  std::cout << "query is created" << std::endl;
-
-  // add query condition
-  if (this->tiledb_qc != nullptr) {
-    aggr_query->set_condition(*this->tiledb_qc);
-    std::cout << "setting new condition " << this->tiledb_qc << std::endl;
-  }
-
-  // set layout todo check correctness
-  if (aggr_array->schema().array_type() == TILEDB_SPARSE){
-    aggr_query->set_layout(TILEDB_UNORDERED);
-  } else {
-    aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
-  }
-
   // set subarray
   this->tiledb_sub =
       std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
@@ -436,10 +420,6 @@ int ha_tiledb_group_by_handler::init_scan()
       }
     }
   }
-
-  std::cout << "subarray is set" << std::endl;
-  aggr_query->set_subarray(*this->tiledb_sub);
-
   DBUG_RETURN(0);
 }
 
@@ -469,12 +449,32 @@ int ha_tiledb_group_by_handler::next_row()
   first_row= 0;
 
   Field **field_ptr= table->field;
-  tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
-  std::cout << "got channel " << std::endl;
   std::vector<uint8_t> validity(1);
 
   while ((item_sum= (Item_sum*) it++))
   {
+    this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
+    std::cout << "query is created" << std::endl;
+
+    // set layout todo check correctness
+    if (aggr_array->schema().array_type() == TILEDB_SPARSE){
+      aggr_query->set_layout(TILEDB_UNORDERED);
+    } else {
+      aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
+    }
+
+    tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
+    std::cout << "got channel " << std::endl;
+
+    // add query condition
+    if (this->tiledb_qc != nullptr) {
+      aggr_query->set_condition(*this->tiledb_qc);
+      std::cout << "setting new condition " << this->tiledb_qc << std::endl;
+    }
+
+    std::cout << "subarray is set" << std::endl;
+    aggr_query->set_subarray(*this->tiledb_sub);
+
     std::cout << "loop  " << std::endl;
     Field *field= *(field_ptr++);
     std::cout << "field ok " << std::endl;

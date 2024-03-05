@@ -449,11 +449,19 @@ int ha_tiledb_group_by_handler::next_row()
     std::cout << "field ok " << std::endl;
     std::cout << "sum func " << std::endl;
     std::cout << field->field_name.str << std::endl;
-    auto attr = aggr_array->schema().attribute(column_with_aggregate);
-    if (attr.nullable()){
-      std::cout << "nullable" << std::endl;
+
+    bool nullable = false;
+    tiledb_datatype_t type;
+    if (aggr_array->schema().has_attribute(column_with_aggregate)){
+      std::cout << "it is attribute2" << std::endl;
+      auto attr = aggr_array->schema().attribute(column_with_aggregate);
+      if (attr.nullable()) nullable = true;
+      type = attr.type();
     } else {
-      std::cout << "not nullable" << std::endl;
+      std::cout << "it is dim" << std::endl;
+      auto dim = aggr_array->schema().domain().dimension(column_with_aggregate);
+      std::cout << dim.name() << " ole" << std::endl;
+      type = dim.type();
     }
     Field **field_ptr= table->field;
     switch (item_sum->sum_func()) {
@@ -461,10 +469,10 @@ int ha_tiledb_group_by_handler::next_row()
     {
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
       default_channel.apply_aggregate("Sum", operation);
-      if (attr.nullable()) aggr_query->set_validity_buffer("Sum", validity);
+      if (nullable) aggr_query->set_validity_buffer("Sum", validity);
 
-      if (attr.type() == TILEDB_FLOAT32
-          || attr.type() == TILEDB_FLOAT64) {
+      if (type == TILEDB_FLOAT32
+          || type == TILEDB_FLOAT64) {
         std::cout << "double" << std::endl;
 
         std::vector<double> sum(1);
@@ -472,20 +480,20 @@ int ha_tiledb_group_by_handler::next_row()
         aggr_query->submit();
         field->store(sum[0]);
         std::cout << "Sum = " << sum[0] << std::endl;
-      } else if (attr.type() == TILEDB_UINT8
-          || attr.type() == TILEDB_UINT16
-          || attr.type() == TILEDB_UINT32
-          || attr.type() == TILEDB_UINT64) {
+      } else if (type == TILEDB_UINT8
+          || type == TILEDB_UINT16
+          || type == TILEDB_UINT32
+          || type == TILEDB_UINT64) {
         std::cout << "uint64" << std::endl;
         std::vector<uint64_t> sum(1);
         aggr_query->set_data_buffer("Sum", sum);
         aggr_query->submit();
         field->store(sum[0], 0);
         std::cout << "Sum = " << sum[0] << std::endl;
-      } else if (attr.type() == TILEDB_INT8
-          || attr.type() == TILEDB_INT16
-          || attr.type() == TILEDB_INT32
-          || attr.type() == TILEDB_INT64) {
+      } else if (type == TILEDB_INT8
+          || type == TILEDB_INT16
+          || type == TILEDB_INT32
+          || type == TILEDB_INT64) {
         std::cout << "int64" << std::endl;
 
         std::vector<int64_t> sum(1);
@@ -499,7 +507,7 @@ int ha_tiledb_group_by_handler::next_row()
     case Item_sum::COUNT_FUNC:
     {
       default_channel.apply_aggregate("Count", tiledb::CountOperation());
-      if (attr.nullable()) aggr_query->set_validity_buffer("Count", validity);
+      if (nullable) aggr_query->set_validity_buffer("Count", validity);
 
       std::vector<uint64_t> count(1);
       aggr_query->set_data_buffer("Count", count);
@@ -514,7 +522,7 @@ int ha_tiledb_group_by_handler::next_row()
     {
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
       default_channel.apply_aggregate("Avg", operation);
-      if (attr.nullable()) aggr_query->set_validity_buffer("Avg", validity);
+      if (nullable) aggr_query->set_validity_buffer("Avg", validity);
       std::vector<double> avg(1);
       aggr_query->set_data_buffer("Avg", avg);
 
@@ -534,9 +542,9 @@ int ha_tiledb_group_by_handler::next_row()
         operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
       }
       default_channel.apply_aggregate("minmax", *operation);
-      if (attr.nullable()) aggr_query->set_validity_buffer("minmax", validity);
+      if (nullable) aggr_query->set_validity_buffer("minmax", validity);
 
-      switch (attr.type()) {
+      switch (type) {
         case TILEDB_FLOAT32:{
           std::vector<float> minmax(1);
           aggr_query->set_data_buffer("minmax", minmax);
@@ -681,21 +689,19 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
   DBUG_ENTER("tile::field_is_aggregation_compatible");
   // if it not an attribute, no TileDB aggregation can be applied
 
-  if (!array_for_comp->schema().has_attribute(field)){
-    DBUG_RETURN(false);
+  tiledb_datatype_t type;
+  if (array_for_comp->schema().has_attribute(field)){
+    std::cout << "it is attribute" << std::endl;
+    auto attr = array_for_comp->schema().attribute(field);
+    if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
+    type = attr.type();
+  } else {
+    DBUG_RETURN(false); // todo temporarily disable dim aggr pushdown shortcut-42339. Just remove after testing
+    if (array_for_comp->schema().array_type() == TILEDB_DENSE) DBUG_RETURN(false); // disable on dense array dims
+    std::cout << "it is dim" << std::endl;
+    auto dim = array_for_comp->schema().domain().dimension(field);
+    type = dim.type();
   }
-
-  std::cout << "it is attribute" << std::endl;
-
-  auto attr = array_for_comp->schema().attribute(field);
-
-  std::cout << "got attribute" << std::endl;
-  tiledb_datatype_t type = attr.type();
-  std::cout << "got type" << std::endl;
-
-  if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
-
-  std::cout << "no multi" << std::endl;
 
   // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
   switch (aggregate) {

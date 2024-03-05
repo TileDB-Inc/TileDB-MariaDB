@@ -103,12 +103,6 @@ static MYSQL_THDVAR_BOOL(enable_aggregate_pushdown,
                          "Pushdown aggregates where possible", NULL, NULL,
                          false);
 
-// Should AV and SUM aggregates be pushdown where possible
-static MYSQL_THDVAR_BOOL(enable_avg_and_sum_aggregate_pushdown,
-                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
-                         "Pushdown the AVG() and SUM() aggregate where possible", NULL, NULL,
-                         false);
-
 // Computing records in array can be intensive, but sometimes the trade off is
 // worth it for smarter optimizer should we compute the record upper bound on
 // array open?
@@ -156,7 +150,6 @@ struct st_mysql_sys_var *mytile_system_variables[] = {
     MYSQL_SYSVAR(create_allow_subset_existing_array),
     MYSQL_SYSVAR(mrr_support),
     MYSQL_SYSVAR(enable_aggregate_pushdown),
-    MYSQL_SYSVAR(enable_avg_and_sum_aggregate_pushdown),
     NULL};
 
 ulonglong read_buffer_size(THD *thd) { return THDVAR(thd, read_buffer_size); }
@@ -187,8 +180,6 @@ my_bool dimensions_are_keys(THD *thd) {
 my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
 
 my_bool enable_aggregate_pushdown(THD *thd) { return THDVAR(thd, enable_aggregate_pushdown); }
-
-my_bool enable_avg_and_sum_aggregate_pushdown(THD *thd) { return THDVAR(thd, enable_avg_and_sum_aggregate_pushdown); }
 
 my_bool compute_table_records(THD *thd) {
   return THDVAR(thd, compute_table_records);

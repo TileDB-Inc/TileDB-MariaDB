@@ -72,12 +72,22 @@ static inline void trim(std::string &s) {
   rtrim(s);
 }
 
+
+
+
 /**
  * Checks if the input type is numeric
  * @param datatype
  * @return
  */
 bool is_numeric_type(const tiledb_datatype_t &datatype);
+
+/**
+ * Checks if the input type is numeric & signed
+ * @param datatype
+ * @return
+ */
+bool is_signed_type(const tiledb_datatype_t &datatype);
 
 /**
  * Checks if the input type is numeric

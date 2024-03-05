@@ -95,6 +95,20 @@ bool tile::is_numeric_type(const tiledb_datatype_t &datatype) {
     }
 }
 
+bool tile::is_signed_type(const tiledb_datatype_t &datatype) {
+    switch (datatype) {
+    case TILEDB_INT8:
+    case TILEDB_INT16:
+    case TILEDB_INT32:
+    case TILEDB_INT64:
+    case TILEDB_FLOAT32:
+    case TILEDB_FLOAT64:
+            return true;
+    default:
+            return false;
+    }
+}
+
 bool tile::is_string_type(const tiledb_datatype_t &datatype) {
     switch (datatype) {
         case TILEDB_STRING_UTF8:

@@ -140,30 +140,306 @@ pushdown to TileDB
 
 class ha_tiledb_group_by_handler: public group_by_handler
 {
-public:
+private:
   bool first_row;
-  std::shared_ptr<tiledb::Query> tiledb_query; //todo probably you only need the context
-  std::shared_ptr<tiledb::Query> tiledb_query2; //todo change name
-  std::shared_ptr<tiledb::Array> tiledb_array;
-  std::shared_ptr<tiledb::QueryCondition> tiledb_qc;
+  bool valid_ranges;
+  bool valid_in_ranges;
+  const std::string uri;
+  const std::string encryption_key;
+  const uint64_t open_at;
 
+  tiledb::Array *aggr_array;
+  std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
+  std::shared_ptr<tiledb::Query> aggr_query;
   std::shared_ptr<tiledb::Subarray> tiledb_sub;
+  std::shared_ptr<tiledb::Config> cfg;
+  std::shared_ptr<tiledb::Context> ctx;
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
 
 public:
-  ha_tiledb_group_by_handler(THD *thd_arg, std::shared_ptr<tiledb::Query> qr, std::shared_ptr<tiledb::Array> ar, std::shared_ptr<tiledb::QueryCondition> qc) : group_by_handler(thd_arg, mytile_hton), tiledb_query(qr), tiledb_array(ar), tiledb_qc(qc) {}
+  ha_tiledb_group_by_handler(THD *thd_arg,
+                             const std::string uri,
+                             std::shared_ptr<tiledb::QueryCondition> &qc,
+                             bool val_ranges,
+                             bool val_in_ranges,
+                             std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
+                             std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
+                             const std::string encryption_key,
+                             const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), uri(uri), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {}
   ~ha_tiledb_group_by_handler() = default;
   int init_scan();
   int next_row();
-  int end_scan() {
-    return 0;
-  }
+  int end_scan();
 };
+
+int ha_tiledb_group_by_handler::end_scan() {
+  DBUG_ENTER("ha_tiledb_group_by_handler::end_scan");
+  // reset qc and ranges
+  if (this->aggr_query != nullptr){
+    this->aggr_query = nullptr;
+  }
+
+  if (this->tiledb_qc != nullptr){
+    this->tiledb_qc = nullptr;
+  }
+
+  if (this->aggr_array != nullptr && this->aggr_array->is_open()){
+     this->aggr_array->close();
+  }
+
+  this->pushdown_ranges.clear();
+  this->pushdown_in_ranges.clear();
+  delete this->aggr_array;
+  DBUG_RETURN(0);
+}
 
 int ha_tiledb_group_by_handler::init_scan()
 {
   DBUG_ENTER("ha_tiledb_group_by_handler::init_scan");
   std::cout << "init scan in new" << std::endl;
   first_row = 1 ;
+  this->cfg = std::make_unique<tiledb::Config>(tile::build_config(thd));
+
+  this->ctx = std::make_unique<tiledb::Context>(tile::build_context(*cfg));
+  std::cout << "context ready" << std::endl;
+
+  if (this->open_at != UINT64_MAX) {
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    this->aggr_array = new tiledb::Array(
+        *this->ctx, this->uri, TILEDB_READ,
+        tiledb::TemporalPolicy(tiledb::TimeTravel,
+                               this->open_at),
+        tiledb::EncryptionAlgorithm(
+            this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                   : TILEDB_AES_256_GCM, this->encryption_key.c_str()));
+#else
+    this->aggr_array = new tiledb::Array(
+        *this->ctx, this->uri, TILEDB_READ,
+        this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        this->encryption_key, this->open_at);
+#endif
+
+  } else {
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    std::cout << "trying to create array  " << std::endl;
+    this->aggr_array = new tiledb::Array(
+        *this->ctx, this->uri, TILEDB_READ, tiledb::TemporalPolicy(),
+        tiledb::EncryptionAlgorithm(
+            this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                   : TILEDB_AES_256_GCM, this->encryption_key.c_str()));
+#else
+    this->aggr_array = new tiledb::Array(
+        *this->ctx, this->uri, TILEDB_READ,
+        this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        this->encryption_key);
+#endif
+  }
+
+
+  std::cout << "array is created" << std::endl;
+
+  this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
+  std::cout << "query is created" << std::endl;
+
+  // add query condition
+  if (this->tiledb_qc != nullptr) {
+    aggr_query->set_condition(*this->tiledb_qc);
+    std::cout << "setting new condition " << this->tiledb_qc << std::endl;
+  }
+
+  // set layout todo check correctness
+  if (aggr_array->schema().array_type() == TILEDB_SPARSE){
+    aggr_query->set_layout(TILEDB_UNORDERED);
+  } else {
+    aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
+  }
+
+  // set subarray
+  this->tiledb_sub =
+      std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+          *this->ctx, *aggr_array));
+
+
+  // Get domain and dimensions
+  auto domain = aggr_array->schema().domain();
+  auto dims = domain.dimensions();
+  int ndim = domain.ndim();
+
+  std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
+  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
+    nonEmptyDomains.emplace_back(
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  }
+
+  std::vector<std::pair<std::string, std::string>> nonEmptyDomainVars(ndim);
+  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+    if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+      nonEmptyDomainVars[dim_idx] =
+          aggr_array->non_empty_domain_var(dim_idx);
+    } else {
+      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(size), &std::free);
+      int empty_read;
+      this->ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
+          this->ctx->ptr().get(), aggr_array->ptr().get(), dim_idx,
+          nonEmptyDomain.get(), &empty_read));
+
+      nonEmptyDomains[dim_idx] = (std::move(nonEmptyDomain));
+    }
+  }
+
+  // if no ranges to add
+  if (!valid_ranges && !valid_in_ranges) {
+    // No pushdown
+    for (uint64_t dim_idx = 0; dim_idx < aggr_array->schema().domain().ndim();
+         dim_idx++) {
+      tiledb::Dimension dimension =
+          aggr_array->schema().domain().dimension(dim_idx);
+
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        const auto pair = aggr_array->non_empty_domain_var(dim_idx);
+        this->tiledb_sub->add_range(dim_idx, pair.first, pair.second);
+      } else {
+        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+            std::malloc(size), &std::free);
+
+        int empty = 0;
+        this->ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
+            this->ctx->ptr().get(), aggr_array->ptr().get(), dim_idx,
+            nonEmptyDomain.get(), &empty));
+
+        void *lower = static_cast<char *>(nonEmptyDomain.get());
+        void *upper = static_cast<char *>(nonEmptyDomain.get()) +
+                      tiledb_datatype_size(dimension.type());
+
+        // set range
+        this->ctx->handle_error(tiledb_subarray_add_range(
+            this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx, lower,
+            upper, nullptr));
+      }
+    }
+  } else {
+    std::cout << "VALID RANGES" << std::endl;
+    // Loop over dimensions and build ranges for that dimension
+    for (uint64_t dim_idx = 0; dim_idx < aggr_array->schema().domain().ndim(); dim_idx++) {
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+      // This ranges vector and the ranges it contains will be manipulated in
+      // merge ranges
+      const auto &ranges = this->pushdown_ranges[dim_idx];
+
+      // If there is valid ranges from IN clause, first we must see if they
+      // are contained inside the merged super range we have
+      const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
+
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        auto &non_empty_domain = nonEmptyDomainVars[dim_idx];
+        // If the ranges for this dimension are not empty, we'll push it down
+        // else non empty domain is used
+        if (!ranges.empty() || !in_ranges.empty()) {
+          std::shared_ptr<tile::range> range = nullptr;
+          if (!ranges.empty()) {
+            // Merge multiple ranges into single super range
+            range = merge_ranges(ranges, dims[dim_idx].type());
+
+            if (range != nullptr) {
+              // Setup the range by filling in missing values with non empty
+              // domain
+              setup_range(thd, range, non_empty_domain, dims[dim_idx]);
+
+              // set range
+              this->ctx->handle_error(tiledb_subarray_add_range_var(
+                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
+                  range->lower_value.get(), range->lower_value_size,
+                  range->upper_value.get(), range->upper_value_size));
+            }
+          }
+
+          // If there are ranges from in conditions let's build proper ranges
+          // for them
+          if (!in_ranges.empty()) {
+            // First make the in ranges unique and remove any which are
+            // contained by the main range (if it is non null)
+            auto unique_in_ranges =
+                get_unique_non_contained_in_ranges(in_ranges, range);
+
+            for (auto &in_range : unique_in_ranges) {
+              // setup range so values are set to correct datatypes
+              setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
+              // set range
+              this->ctx->handle_error(tiledb_subarray_add_range_var(
+                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
+                  in_range->lower_value.get(), in_range->lower_value_size,
+                  in_range->upper_value.get(), in_range->upper_value_size));
+            }
+          }
+        } else { // If the range is empty we need to use the non-empty-domain
+
+          this->tiledb_sub->add_range(dim_idx, non_empty_domain.first,
+                                      non_empty_domain.second);
+        }
+      } else {
+        // get start of non empty domain
+        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+        // If the ranges for this dimension are not empty, we'll push it down
+        // else non empty domain is used
+        if (!ranges.empty() || !in_ranges.empty()) {
+          std::shared_ptr<tile::range> range = nullptr;
+          if (!ranges.empty()) {
+            // Merge multiple ranges into single super range
+            range = merge_ranges(ranges, dims[dim_idx].type());
+
+            if (range != nullptr) {
+              // Setup the range by filling in missing values with non empty
+              // domain
+              setup_range(thd, range, lower, dims[dim_idx]);
+
+              // set range
+              this->ctx->handle_error(tiledb_subarray_add_range(
+                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
+                  range->lower_value.get(), range->upper_value.get(),
+                  nullptr));
+            }
+          }
+
+          // If there are ranges from in conditions let's build proper ranges
+          // for them
+          if (!in_ranges.empty()) {
+            // First make the in ranges unique and remove any which are
+            // contained by the main range (if it is non null)
+            auto unique_in_ranges =
+                get_unique_non_contained_in_ranges(in_ranges, range);
+
+            for (auto &in_range : unique_in_ranges) {
+              // setup range so values are set to correct datatypes
+              setup_range(thd, in_range, lower, dims[dim_idx]);
+              // set range
+              this->ctx->handle_error(tiledb_subarray_add_range(
+                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
+                  in_range->lower_value.get(), in_range->upper_value.get(),
+                  nullptr));
+            }
+          }
+        } else { // If the range is empty we need to use the non-empty-domain
+          void *upper = static_cast<char *>(lower) +
+                        tiledb_datatype_size(dimension.type());
+          this->ctx->handle_error(tiledb_subarray_add_range(
+              this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx, lower,
+              upper, nullptr));
+        }
+      }
+    }
+  }
+
+  std::cout << "subarray is set" << std::endl;
+  aggr_query->set_subarray(*this->tiledb_sub);
+
   DBUG_RETURN(0);
 }
 
@@ -193,61 +469,11 @@ int ha_tiledb_group_by_handler::next_row()
   first_row= 0;
 
   Field **field_ptr= table->field;
-  tiledb::Context ctx; //todo build context from given configs
-  std::shared_ptr<tiledb::Array> aggr_array = std::make_unique<tiledb::Array>(ctx, this->tiledb_array->uri(), TILEDB_READ); //todo this array needs to take "open at" into account
-  std::shared_ptr<tiledb::Query> aggr_query = std::make_unique<tiledb::Query>(ctx, *aggr_array, TILEDB_READ); //todo check layout
-  std::cout << "query is created" << std::endl;
-
-  // add query condition
-  if (this->tiledb_qc != nullptr) {
-    aggr_query->set_condition(*this->tiledb_qc);
-    std::cout << "setting new condition " << this->tiledb_qc << std::endl;
-  }
-
-  // set subarray
-  this->tiledb_sub =
-      std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-          ctx, *aggr_array));
-
-  // if no ranges to add
-  for (uint64_t dim_idx = 0; dim_idx < aggr_array->schema().domain().ndim(); dim_idx++) {
-    tiledb::Dimension dimension = aggr_array->schema().domain().dimension(dim_idx);
-
-    if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-      const auto pair = aggr_array->non_empty_domain_var(dim_idx);
-      this->tiledb_sub->add_range(dim_idx, pair.first, pair.second);
-    } else {
-      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(size), &std::free);
-
-      int empty = 0;
-      ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
-          ctx.ptr().get(), aggr_array->ptr().get(), dim_idx,
-          nonEmptyDomain.get(), &empty));
-
-      void *lower = static_cast<char *>(nonEmptyDomain.get());
-      void *upper = static_cast<char *>(nonEmptyDomain.get()) +
-                    tiledb_datatype_size(dimension.type());
-
-      // set range
-      ctx.handle_error(tiledb_subarray_add_range(
-          ctx.ptr().get(), this->tiledb_sub->ptr().get(), dim_idx, lower,
-          upper, nullptr));
-
-      std::cout << "4" << std::endl;
-    }
-  }
-
-  //todo with ranges
-
-  std::cout << "subarray is set" << std::endl;
-  aggr_query->set_subarray(*this->tiledb_sub);
-
   tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
   std::cout << "got channel " << std::endl;
+  std::vector<uint8_t> validity(1);
 
-  while ((item_sum= (Item_sum*) it++)) //todo types consideration
+  while ((item_sum= (Item_sum*) it++))
   {
     std::cout << "loop  " << std::endl;
     Field *field= *(field_ptr++);
@@ -256,82 +482,223 @@ int ha_tiledb_group_by_handler::next_row()
     std::cout << field->field_name.str << std::endl;
     std::string column_with_aggregate = ((Item_sum*) item_sum)->get_arg(0)->name.str;
     std::cout << column_with_aggregate << " :column " << std::endl;
+    auto attr = aggr_array->schema().attribute(column_with_aggregate);
+    if (attr.nullable()){
+      std::cout << "nullable" << std::endl;
+    } else {
+      std::cout << "not nullable" << std::endl;
+    }
+    Field **field_ptr= table->field;
     switch (item_sum->sum_func()) {
     case Item_sum::SUM_FUNC:
     {
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
       default_channel.apply_aggregate("Sum", operation);
-      std::vector<int64_t> sum(1);
-      aggr_query->set_data_buffer("Sum", sum);
+      if (attr.nullable()) aggr_query->set_validity_buffer("Sum", validity);
 
-      aggr_query->submit();
+      if (attr.type() == TILEDB_FLOAT32
+          || attr.type() == TILEDB_FLOAT64) {
+        std::cout << "double" << std::endl;
 
-      Field **field_ptr= table->field;
-      std::cout << "Sum = " << sum[0] << std::endl;
-      field->store(sum[0], 1);
+        std::vector<double> sum(1);
+        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->submit();
+        field->store(sum[0]);
+        std::cout << "Sum = " << sum[0] << std::endl;
+      } else if (attr.type() == TILEDB_UINT8
+          || attr.type() == TILEDB_UINT16
+          || attr.type() == TILEDB_UINT32
+          || attr.type() == TILEDB_UINT64) {
+        std::cout << "uint64" << std::endl;
+        std::vector<uint64_t> sum(1);
+        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->submit();
+        field->store(sum[0], 0);
+        std::cout << "Sum = " << sum[0] << std::endl;
+      } else if (attr.type() == TILEDB_INT8
+          || attr.type() == TILEDB_INT16
+          || attr.type() == TILEDB_INT32
+          || attr.type() == TILEDB_INT64) {
+        std::cout << "int64" << std::endl;
+
+        std::vector<int64_t> sum(1);
+        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->submit();
+        field->store(sum[0], 1);
+        std::cout << "Sum = " << sum[0] << std::endl;
+      }
       break;
     }
     case Item_sum::COUNT_FUNC:
     {
-      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
-
       default_channel.apply_aggregate("Count", tiledb::CountOperation());
+      if (attr.nullable()) aggr_query->set_validity_buffer("Count", validity);
+
       std::vector<uint64_t> count(1);
       aggr_query->set_data_buffer("Count", count);
 
       aggr_query->submit();
 
-      Field **field_ptr= table->field;
       std::cout << "count = " << count[0] << std::endl;
-      field->store(count[0], 1);
+      field->store(count[0], 0);
       break;
     }
     case Item_sum::AVG_FUNC:
     {
-      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
-
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
       default_channel.apply_aggregate("Avg", operation);
+      if (attr.nullable()) aggr_query->set_validity_buffer("Avg", validity);
       std::vector<double> avg(1);
       aggr_query->set_data_buffer("Avg", avg);
 
       aggr_query->submit();
 
-      Field **field_ptr= table->field;
       std::cout << "avg = " << avg[0] << std::endl;
-      field->store(avg[0], 1);
+      field->store(avg[0]);
       break;
     }
     case Item_sum::MAX_FUNC:
-    {
-      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
-
-      tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate("Max", operation);
-      std::vector<int32_t> max(1);
-      aggr_query->set_data_buffer("Max", max);
-
-      aggr_query->submit();
-
-      Field **field_ptr= table->field;
-      std::cout << "max = " << max[0] << std::endl;
-      field->store(max[0], 1);
-      break;
-    }
     case Item_sum::MIN_FUNC:
     {
-      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
+      std::unique_ptr<tiledb::ChannelOperation> operation;
+      if (item_sum->sum_func() == Item_sum::MAX_FUNC) {
+        operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(*aggr_query, column_with_aggregate));
+      } else {
+        operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
+      }
+      default_channel.apply_aggregate("minmax", *operation);
+      if (attr.nullable()) aggr_query->set_validity_buffer("minmax", validity);
 
-      tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate("Min", operation);
-      std::vector<int32_t> min(1);
-      aggr_query->set_data_buffer("Min", min);
-
-      aggr_query->submit();
-
-      Field **field_ptr= table->field;
-      std::cout << "min = " << min[0] << std::endl;
-      field->store(min[0], 1);
+      switch (attr.type()) {
+        case TILEDB_FLOAT32:{
+          std::vector<float> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0]);
+          break;
+        }
+        case TILEDB_FLOAT64: {
+          std::vector<double> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0]);
+          break;
+        }
+        case TILEDB_INT8: {
+          std::vector<int8_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 1);
+          break;
+        }
+        case TILEDB_UINT8: {
+          std::vector<uint8_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 0);
+          break;
+        }
+        case TILEDB_INT16: {
+          std::vector<int16_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 1);
+          break;
+        }
+        case TILEDB_UINT16: {
+          std::vector<uint16_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 0);
+          break;
+        }
+        case TILEDB_INT32: {
+          std::vector<int32_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 1);
+          break;
+        }
+        case TILEDB_UINT32: {
+          std::vector<uint32_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 0);
+          break;
+        }
+        case TILEDB_UINT64: {
+          std::vector<uint64_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 0);
+          break;
+        }
+        case TILEDB_INT64: {
+          std::vector<int64_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 1);
+          break;
+        }
+        case TILEDB_DATETIME_YEAR:
+        case TILEDB_DATETIME_MONTH:
+        case TILEDB_DATETIME_WEEK:
+        case TILEDB_DATETIME_DAY:
+        case TILEDB_DATETIME_HR:
+        case TILEDB_DATETIME_MIN:
+        case TILEDB_DATETIME_SEC:
+        case TILEDB_DATETIME_MS:
+        case TILEDB_DATETIME_US:
+        case TILEDB_DATETIME_NS:
+        case TILEDB_DATETIME_PS:
+        case TILEDB_DATETIME_FS:
+        case TILEDB_DATETIME_AS:
+        case TILEDB_TIME_HR:
+        case TILEDB_TIME_MIN:
+        case TILEDB_TIME_SEC:
+        case TILEDB_TIME_MS:
+        case TILEDB_TIME_US:
+        case TILEDB_TIME_NS:
+        case TILEDB_TIME_PS:
+        case TILEDB_TIME_FS:
+        case TILEDB_TIME_AS: {
+          std::vector<int64_t> minmax(1);
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          std::cout << "minmax = " << minmax[0] << std::endl;
+          field->store(minmax[0], 1);
+          break;
+        }
+        case TILEDB_STRING_UTF8:
+        case TILEDB_STRING_ASCII:
+        case TILEDB_STRING_UCS2:
+        case TILEDB_STRING_UCS4:
+        case TILEDB_STRING_UTF16:
+        case TILEDB_STRING_UTF32:
+        case TILEDB_CHAR: {
+          std::vector<uint64_t> offsets(1);
+          aggr_query->set_offsets_buffer("minmax", offsets);
+          std::string minmax;
+          minmax.resize(32); //todo what size should we put here? maybe add option for users to increase this?
+          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->submit();
+          field->store(minmax.c_str(), minmax.length(),
+                       &my_charset_latin1);
+          std::cout << "string = " << minmax << std::endl;
+        }
+        default: {
+        }
+      }
       break;
     }
     default:
@@ -339,12 +706,72 @@ int ha_tiledb_group_by_handler::next_row()
     }
     field->set_notnull();
   }
+
   DBUG_RETURN(0);
+}
+
+static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, const std::string uri, const std::string encryption_key) {
+  DBUG_ENTER("tile::field_is_aggregation_compatible");
+  // if it not an attribute, no TileDB aggregation can be applied
+  tiledb::Array *array_for_comp;
+  tiledb::Context ctx;
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+  array_for_comp = new tiledb::Array(
+      ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
+      tiledb::EncryptionAlgorithm(
+          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                 : TILEDB_AES_256_GCM,
+          encryption_key.c_str()));
+#else
+  array_for_comp = new tiledb::Array(
+      ctx, uri, TILEDB_READ,
+      encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+      encryption_key.c_str());
+#endif
+
+  std::cout << "temp array is now open" << std::endl;
+
+
+  if (!array_for_comp->schema().has_attribute(field)){
+    DBUG_RETURN(false);
+  }
+
+  std::cout << "it is attribute" << std::endl;
+
+  auto attr = array_for_comp->schema().attribute(field);
+
+  std::cout << "got attribute" << std::endl;
+  tiledb_datatype_t type = attr.type();
+  std::cout << "got type" << std::endl;
+
+  if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
+
+  std::cout << "no multi" << std::endl;
+  array_for_comp->close();
+  delete array_for_comp;
+
+  // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
+  switch (aggregate) {
+  case Item_sum::SUM_FUNC:
+  case Item_sum::AVG_FUNC:
+    if (tile::is_numeric_type(type)){
+      std::cout << "sum with numeric type" << std::endl;
+    }
+    DBUG_RETURN(tile::is_numeric_type(type));
+  case Item_sum::MIN_FUNC:
+  case Item_sum::MAX_FUNC:
+    DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
+  case Item_sum::COUNT_FUNC:
+    DBUG_RETURN(true);
+  default:
+    // counts not supported
+    DBUG_RETURN(false);
+  }
 }
 
 static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 {
-  static std::shared_ptr<tiledb::QueryCondition> prev_qc;
   // query has from member that gets table list
   // table list has handler, then cast the handler get query.
   std::cout << "\ncreating group by handler" << std::endl;
@@ -356,19 +783,11 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     DBUG_RETURN(0);
   }
 
-  // const std::type_info& fileType = typeid(*query->from->table->);
-
-  // Output the type name
-  // std::cout << "Type of query->from->table->file: " << fileType.name() << std::endl;
-
-  // std::cout <<  query->from->dt_handler << " kk" <<  std::endl;
-
   TABLE_LIST* table_ptr = query->from;
   for (; table_ptr; table_ptr = table_ptr->next_global)
   {
     std::cout << table_ptr->table_name.str << std::endl;
   }
-
 
   tile::mytile* mytile_ptr = dynamic_cast<tile::mytile*>(query->from->table->file);
 
@@ -378,62 +797,45 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     std::cout << "cast not ok " <<std::endl;
   }
 
-
-  std::shared_ptr<tiledb::Query> qr = mytile_ptr->get_query();
-
-  std::shared_ptr<tiledb::Array> ar = mytile_ptr->get_array();
-
-  std::shared_ptr<tiledb::QueryCondition> qc = mytile_ptr->get_qc();
-  if (qc == prev_qc) {
-    qc = nullptr;
-  } else {
-    prev_qc = qc;
+  // take everything we need from the mytile handler.
+  std::string encryption_key;
+  if (mytile_ptr->get_table()->s->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(mytile_ptr->get_table()->s->option_struct->encryption_key);
   }
-
-  if (qr) {
-    std::cout << "query is not nullptr" <<std::endl;
-  } else {
-    std::cout << "query is nullptr" <<std::endl;
-  }
+  uint64_t open_at = mytile_ptr->get_table()->s->option_struct->open_at;
+  std::string uri = mytile_ptr->get_uri();
+  std::shared_ptr<tiledb::QueryCondition>& qc = mytile_ptr->get_qc();
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& ranges = mytile_ptr->get_pushdown_ranges();
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& in_ranges = mytile_ptr->get_pushdown_in_ranges();
+  bool valid_ranges = mytile_ptr->valid_pushed_ranges();
+  bool valid_in_ranges = mytile_ptr->valid_pushed_in_ranges();
 
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
 
-
-  if (select_lex->with_sum_func) { //todo agg_func_used
+  if (select_lex->with_sum_func) {
     // Iterate through the item list to find TileDB compatible aggregates
     Item *item;
     List_iterator_fast<Item> it2(select_lex->item_list);
     while ((item = it2++)) {
       Item_sum *isp = dynamic_cast<Item_sum *>(item);
-      if (isp) {
-        switch (isp->sum_func()) {
-        case Item_sum::SUM_FUNC:
-          break;
-        case Item_sum::AVG_FUNC:
-          break;
-        case Item_sum::MIN_FUNC:
-          break;
-        case Item_sum::MAX_FUNC:
-          break;
-        case Item_sum::COUNT_FUNC:
-          //todo disable pushdown on dense arrays. Only count.
-          break;
-        default:
+      if (isp && !field_is_aggregation_compatible(
+                     isp->get_arg(0)->name.str,
+                     isp->sum_func(),
+                     uri,
+                     encryption_key)) {
+          std::cout << "not compatible" << std::endl;
           DBUG_RETURN(0);
-        }
       }
+      // if you find at least one not compatible aggregation abort entire pushdown.
     }
-    std::cout << "returning handler" << std::endl;
 
     /* Create handler and return it */
-    handler= new ha_tiledb_group_by_handler(thd, qr, ar, qc);
+    handler= new ha_tiledb_group_by_handler(thd, uri, qc, valid_ranges, valid_in_ranges, ranges, in_ranges, encryption_key, open_at);
     DBUG_RETURN(handler);
   }
   DBUG_RETURN(0);
 }
-
-
 
 // Create mytile object
 static handler *mytile_create_handler(handlerton *hton, TABLE_SHARE *table,
@@ -480,9 +882,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg){
-  std::cout << "constructor " << this << std::endl;
-      };
+    : handler(hton, table_arg){};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
@@ -558,13 +958,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
     if (any_var_length) {
       this->ref_length = MAX_FIELD_VARCHARLENGTH;
-    }
-
-    bool has_aggregate = true;
-
-    if (has_aggregate){
-      this->query = nullptr;
-      open_array_for_reads(ha_thd());
     }
 
     // If the user requests we will compute the table records on opening the
@@ -1381,58 +1774,6 @@ int tile::mytile::init_scan(THD *thd) {
   DBUG_RETURN(rc);
 }
 
-//bool tile::mytile::has_aggregate(TABLE *table) {
-//  DBUG_ENTER("tile::mytile::has_aggregate");
-//
-//  if (!tile::sysvars::enable_aggregate_pushdown(ha_thd())) {
-//      DBUG_RETURN(false);
-//  }
-//
-//  for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
-//      Field *field = table->field[fieldIndex];
-//      std::string field_name = field->field_name.str;
-//      auto result = has_aggregate(ha_thd(), field_name);
-//      if (result.has_value()) DBUG_RETURN(true);
-//  }
-//  DBUG_RETURN(false);
-//}
-
-//int tile::mytile::apply_aggregate(THD *thd, const std::string &field,
-//                                  Item_sum::Sumfunctype &aggregate) {
-//  DBUG_ENTER("tile::mytile::apply_aggregate");
-//  tiledb::QueryChannel default_channel =
-//      tiledb::QueryExperimental::get_default_channel(*this->query);
-//  tiledb::ChannelOperation operation;
-//
-//  switch (aggregate) {
-//    case Item_sum::SUM_FUNC:
-//        operation =
-//                tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(
-//                        *this->query, field);
-//        break;
-//    case Item_sum::AVG_FUNC:
-//          operation =
-//              tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(
-//                      *this->query, field);
-//        break;
-//    case Item_sum::MIN_FUNC:
-//          operation =
-//                  tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(
-//                          *this->query, field);
-//        break;
-//    case Item_sum::MAX_FUNC:
-//          operation =
-//                  tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(
-//                          *this->query, field);
-//        break;
-//    default:
-//        DBUG_RETURN(1);
-//  }
-//  default_channel.apply_aggregate(field, operation);
-//  log_debug(thd, "Applied TileDB aggregate for attribute %s", field.c_str());
-//  DBUG_RETURN(0);
-//}
-
 std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const std::string &field) {
     DBUG_ENTER("tile::mytile::has_aggregate");
     if (!tile::sysvars::enable_aggregate_pushdown(ha_thd())) {
@@ -1442,23 +1783,7 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
     // Get the current SELECT statement
     SELECT_LEX *select_lex = thd->lex->current_select;
 
-    // don't allow this pushdown in JOINs
-    if (select_lex->join != nullptr &&
-        select_lex->join->table_count > 1) {
-        DBUG_RETURN(std::nullopt);
-    }
-
-    // don't allow this pushdown in GROUP BYs
-    SQL_I_List<ORDER> group_by = select_lex->group_list;
-    if (group_by.elements != 0) {
-        DBUG_RETURN(std::nullopt);
-    }
-
     if (select_lex->with_sum_func) {
-      // Queries with multiple aggregates on the same field are not supported by the pushdown
-      // . E.g. SELECT SUM(a), AVG(a) from dense;
-      if (attribute_has_multiple_aggregates(field, select_lex)) DBUG_RETURN(std::nullopt);
-
       // Iterate through the item list to find TileDB compatible aggregates
       Item *item;
       List_iterator_fast<Item> it(select_lex->item_list);
@@ -1467,84 +1792,27 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
         if (isp) {
           std::string column_with_aggregate = isp->get_arg(0)->name.str;
           if (field == column_with_aggregate) {
-              if (!field_is_aggregation_compatible(field, isp->sum_func())){
-                  DBUG_RETURN(std::nullopt);
+            switch (isp->sum_func()) {
+              case Item_sum::SUM_FUNC:
+                DBUG_RETURN(Item_sum::SUM_FUNC);
+                break;
+              case Item_sum::AVG_FUNC:
+                DBUG_RETURN(Item_sum::AVG_FUNC);
+                break;
+              case Item_sum::MIN_FUNC:
+                DBUG_RETURN(Item_sum::MIN_FUNC);
+                break;
+              case Item_sum::MAX_FUNC:
+                DBUG_RETURN(Item_sum::MAX_FUNC);
+                break;
+              default:
+                DBUG_RETURN(std::nullopt);
               }
-              switch (isp->sum_func()) {
-                case Item_sum::SUM_FUNC:
-                  if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
-                      DBUG_RETURN(Item_sum::SUM_FUNC);
-                  }
-                  break;
-                case Item_sum::AVG_FUNC:
-                  if (tile::sysvars::enable_avg_and_sum_aggregate_pushdown(thd)){
-                    DBUG_RETURN(Item_sum::AVG_FUNC);
-                  }
-                  break;
-                case Item_sum::MIN_FUNC:
-                  DBUG_RETURN(Item_sum::MIN_FUNC);
-                  break;
-                case Item_sum::MAX_FUNC:
-                  DBUG_RETURN(Item_sum::MAX_FUNC);
-                  break;
-                default:
-                  DBUG_RETURN(std::nullopt);
-                }
-              }
-        }
+            }
+          }
       }
   }
   DBUG_RETURN(std::nullopt);
-}
-
-bool tile::mytile::attribute_has_multiple_aggregates(const std::string &field, SELECT_LEX *select_lex){
-    DBUG_ENTER("tile::mytile::attribute_has_multiple_aggregates");
-
-    Item *item;
-    List_iterator_fast<Item> it(select_lex->item_list);
-
-    // return false if there are multiple aggregates on one attribute.
-    // Not currently supported. User needs to select them in separate queries.
-    int counter = 0;
-    while ((item = it++)) {
-        Item_sum *isp = dynamic_cast<Item_sum *>(item);
-        if (isp) {
-            std::string column_with_aggregate = isp->get_arg(0)->name.str;
-            if (field == column_with_aggregate) {
-                counter++;
-            }
-        }
-        if (counter > 1){
-            DBUG_RETURN(true);
-        }
-    }
-    DBUG_RETURN(false);
-}
-
-bool tile::mytile::field_is_aggregation_compatible(const std::string &field, const Item_sum::Sumfunctype &aggregate) {
-    DBUG_ENTER("tile::mytile::field_is_aggregation_compatible");
-    // if it not an attribute, no TileDB aggregation can be applied
-    if (!this->array_schema->has_attribute(field)){
-        DBUG_RETURN(false);
-    }
-
-    auto attr = this->array_schema->attribute(field);
-    tiledb_datatype_t type = attr.type();
-
-    if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
-
-    // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
-    switch (aggregate) {
-        case Item_sum::SUM_FUNC:
-        case Item_sum::AVG_FUNC:
-            DBUG_RETURN(tile::is_numeric_type(type));
-        case Item_sum::MIN_FUNC:
-        case Item_sum::MAX_FUNC:
-            DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
-        default:
-            // counts not supported
-            DBUG_RETURN(false);
-    }
 }
 
 int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
@@ -2084,8 +2352,9 @@ const COND *tile::mytile::cond_push_func_datetime(
   bool nullable = false;
   if (this->array_schema->has_attribute(column_field->field_name.str)) {
 
-    // Dense arrays do not support query conditions
-    if (this->array_schema->array_type() == TILEDB_DENSE)
+    // Dense arrays do not support query conditions.
+    auto has_aggr = has_aggregate(ha_thd(), column_field->field_name.str);
+    if (this->array_schema->array_type() == TILEDB_DENSE && !has_aggr)
       DBUG_RETURN(func_item);
 
     auto attr = this->array_schema->attribute(column_field->field_name.str);
@@ -4017,6 +4286,7 @@ int tile::mytile::set_pushdowns_for_key(const uchar *key, uint key_len,
                                         bool start_key,
                                         enum ha_rkey_function find_flag) {
   DBUG_ENTER("tile::mytile::set_pushdowns_for_key");
+  std::cout << "adding ranges" << std::endl;
   std::map<uint64_t, std::shared_ptr<tile::range>> ranges_from_keys =
       tile::build_ranges_from_key(ha_thd(), table, key, key_len, find_flag,
                                   start_key, this->array_schema->domain());
@@ -4324,6 +4594,27 @@ std::shared_ptr<tiledb::Array> &tile::mytile::get_array() {
 std::shared_ptr<tiledb::QueryCondition> &tile::mytile::get_qc() {
   std::cout << "getting query cond" << this->query_condition << std::endl;
   return this->query_condition;
+}
+
+std::vector<std::vector<std::shared_ptr<tile::range>>> &tile::mytile::get_pushdown_ranges(){
+  std::cout << "getting ranges" << &this->pushdown_ranges << std::endl;
+  return this->pushdown_ranges;
+}
+
+std::vector<std::vector<std::shared_ptr<tile::range>>> &tile::mytile::get_pushdown_in_ranges(){
+  std::cout << "getting in ranges" << std::endl;
+  return this->pushdown_in_ranges;
+}
+
+std::string tile::mytile::get_uri(){
+  std::cout << "getting uri" << std::endl;
+  return this->uri;
+}
+
+TABLE *tile::mytile::get_table(){
+  std::cout << "getting table" << std::endl;
+
+  return this->table;
 }
 
 mysql_declare_plugin(mytile){

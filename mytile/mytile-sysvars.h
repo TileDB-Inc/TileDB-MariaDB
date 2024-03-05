@@ -71,8 +71,6 @@ my_bool mrr_support(THD *thd);
 
 my_bool enable_aggregate_pushdown(THD *thd);
 
-my_bool enable_avg_and_sum_aggregate_pushdown(THD *thd);
-
 LOG_LEVEL log_level(THD *thd);
 } // namespace sysvars
 } // namespace tile

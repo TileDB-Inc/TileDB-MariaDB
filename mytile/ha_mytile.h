@@ -295,14 +295,6 @@ public:
 
   /**
    *
-   * @param field
-   * @param select_lex
-   * @return
-   */
-  bool attribute_has_multiple_aggregates(const std::string &field, SELECT_LEX *select_lex);
-
-  /**
-   *
    * @param thd
    * @param field
    * @param aggregate_str
@@ -788,23 +780,6 @@ private:
   void open_array_for_writes(THD *thd);
 
   /**
-   * Checks if there are any ranges pushed
-   * @return
-   */
-  bool valid_pushed_ranges();
-
-  /**
-   * Checks if the given field is TileDB aggregation compatible.
-   * @return
-   */
-  bool field_is_aggregation_compatible(const std::string &field, const Item_sum::Sumfunctype &aggregate);
-  /**
-   * Checks if there are any in ranges pushed
-   * @return
-   */
-  bool valid_pushed_in_ranges();
-
-  /**
    * Reset condition pushdowns to be for key conditions
    * @param key key(s) to pushdown
    * @param key_len
@@ -863,10 +838,30 @@ private:
   int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
 
   public:
+    /**
+   * Checks if there are any ranges pushed
+   * @return
+     */
+    bool valid_pushed_ranges();
+
+    /**
+   * Checks if there are any in ranges pushed
+   * @return
+     */
+    bool valid_pushed_in_ranges();
+
     std::shared_ptr<tiledb::Query> &get_query();
 
     std::shared_ptr<tiledb::Array> &get_array();
 
     std::shared_ptr<tiledb::QueryCondition> &get_qc();
+
+    std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_ranges();
+
+    std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_in_ranges();
+
+    std::string get_uri();
+
+    TABLE *get_table();
 };
 } // namespace tile

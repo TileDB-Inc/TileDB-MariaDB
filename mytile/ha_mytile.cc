@@ -1738,57 +1738,6 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
   DBUG_RETURN(std::nullopt);
 }
 
-int tile::mytile::set_up_aggregate_buffer(tiledb::Attribute &attribute,
-                                          Item_sum::Sumfunctype &aggregate,
-                                          uint64_t &data_size,
-                                          tiledb_datatype_t &datatype) {
-    DBUG_ENTER("tile::mytile::set_up_aggregate_buffer");
-    // Promote type to maximum possible. If the aggregate is SUM or AVG and we have
-    // reached this part of the code it means that the user has enabled AVG and SUM pushdown so
-    // it's ok to promote the type.
-
-    switch (aggregate) {
-        case Item_sum::SUM_FUNC:
-            data_size = 8;
-            if (attribute.type() == TILEDB_FLOAT32
-                || attribute.type() == TILEDB_FLOAT64) {
-                datatype = TILEDB_FLOAT64;
-            }
-            if (attribute.type() == TILEDB_UINT8
-                || attribute.type() == TILEDB_UINT16
-                || attribute.type() == TILEDB_UINT32
-                || attribute.type() == TILEDB_UINT64) {
-                datatype = TILEDB_UINT64;
-            }
-            if (attribute.type() == TILEDB_INT8
-                || attribute.type() == TILEDB_INT16
-                || attribute.type() == TILEDB_INT32
-                || attribute.type() == TILEDB_INT64) {
-                datatype = TILEDB_INT64;
-            }
-            break;
-        case Item_sum::AVG_FUNC:
-            data_size = 8;
-            datatype = TILEDB_FLOAT64;
-            break;
-        case Item_sum::MIN_FUNC:
-        case Item_sum::MAX_FUNC:
-            datatype = attribute.type();
-            if (tile::is_string_type(attribute.type())){
-                data_size = 128; // We need to allocate a buffer size for one string value. Contrary to fixed length
-                // types we don't know at this point the size of the result string because we are in the process of just
-                // allocating the buffers in advance. 128 should be enough. We could possibly add an option for this. to
-                // enable users increase the number.
-            } else {
-                data_size = tiledb_datatype_size(datatype);
-            }
-            break;
-        default:
-            DBUG_RETURN(1);
-    }
-    DBUG_RETURN(0);
-}
-
 int tile::mytile::load_metadata() {
   DBUG_ENTER("tile::mytile::load_metadata");
   int rc = 0;

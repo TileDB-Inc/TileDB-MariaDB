@@ -365,18 +365,6 @@ public:
 
   /**
    *
-   * @param attribute
-   * @param aggregate_str
-   * @param data_size
-   * @param datatype
-   * @return
-   */
-  int set_up_aggregate_buffer(tiledb::Attribute &attribute,
-                              Item_sum::Sumfunctype &aggregate, uint64_t &data_size,
-                              tiledb_datatype_t &datatype);
-
-  /**
-   *
    * @param table
    * @return
    */

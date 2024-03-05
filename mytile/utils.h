@@ -72,9 +72,6 @@ static inline void trim(std::string &s) {
   rtrim(s);
 }
 
-
-
-
 /**
  * Checks if the input type is numeric
  * @param datatype

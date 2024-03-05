@@ -59,6 +59,95 @@
 extern handlerton *mytile_hton;
 namespace tile {
 
+/*****************************************************************************
+This handler supports SUM(), COUNT(), AVG(), MIN(), and MAX()
+pushdown to TileDB
+*****************************************************************************/
+
+class mytile_group_by_handler: public group_by_handler
+{
+private:
+  // flag to only fetch one row
+  bool first_row;
+
+  // True if we have valid pushed ranges
+  bool valid_ranges;
+
+  // True if we have valid pushed in ranges
+  bool valid_in_ranges;
+
+  // The array uri
+  const std::string uri;
+
+  // The encryption key if applicabl
+  const std::string encryption_key;
+
+  // The open at timestamp is applicable
+  const uint64_t open_at;
+
+  // The array we run the aggregates on
+  tiledb::Array *aggr_array;
+
+  // The context
+  std::shared_ptr<tiledb::Context> ctx;
+
+  // The constructed query condition for the query if requested
+  std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
+
+  // The query for the aggregation
+  std::shared_ptr<tiledb::Query> aggr_query;
+
+  // The subarray for the dims
+  std::shared_ptr<tiledb::Subarray> tiledb_sub;
+
+  // The pushed ranges if present
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
+
+  // The pushed in ranges if present
+  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
+
+public:
+  /**
+   * This handler is responsible for the aggregate pusdhown
+   * @param thd_arg
+   * @param array
+   * @param context
+   * @param qc
+   * @param val_ranges
+   * @param val_in_ranges
+   */
+  mytile_group_by_handler(THD *thd_arg,
+                             tiledb::Array *array,
+                             std::shared_ptr<tiledb::Context>& context,
+                             std::shared_ptr<tiledb::QueryCondition> &qc,
+                             bool val_ranges,
+                             bool val_in_ranges,
+                             std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
+                             std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
+                             const std::string encryption_key,
+                             const uint64_t open_at);
+  ~mytile_group_by_handler() = default;
+
+  /**
+   * Initiates the aggregation query
+   * @return
+   */
+  int init_scan();
+
+  /**
+   * Fetches next row
+   * @return
+   */
+  int next_row();
+
+  /**
+   * Releases resources
+   * @return
+   */
+  int end_scan();
+};
+
+
 class mytile : public handler {
 public:
   // Set max support key size
@@ -656,6 +745,57 @@ public:
   build_field_details_for_buffers(const tiledb::ArraySchema &array_schema,
                                   Field **fields, const uint64_t &field_num,
                                   MY_BITMAP *read_set);
+  /**
+   * Checks if there are any ranges pushed
+   * @return
+   */
+  bool valid_pushed_ranges();
+
+  /**
+   * Checks if there are any in ranges pushed
+   * @return
+   */
+  bool valid_pushed_in_ranges();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::Query> &get_query();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::Array> &get_array();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::QueryCondition> &get_qc();
+
+  /**
+   *
+   */
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_ranges();
+
+  /**
+   *
+   */
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_in_ranges();
+
+  /**
+   *
+   * @return
+   */
+  std::string get_uri();
+
+  /**
+   *
+   * @return
+   */
+  TABLE *get_table();
 
 private:
   DsMrr_impl ds_mrr;
@@ -836,32 +976,5 @@ private:
    * @return int status
    */
   int metadata_to_fields(const std::pair<std::string, std::string> &metadata);
-
-  public:
-    /**
-   * Checks if there are any ranges pushed
-   * @return
-     */
-    bool valid_pushed_ranges();
-
-    /**
-   * Checks if there are any in ranges pushed
-   * @return
-     */
-    bool valid_pushed_in_ranges();
-
-    std::shared_ptr<tiledb::Query> &get_query();
-
-    std::shared_ptr<tiledb::Array> &get_array();
-
-    std::shared_ptr<tiledb::QueryCondition> &get_qc();
-
-    std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_ranges();
-
-    std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_in_ranges();
-
-    std::string get_uri();
-
-    TABLE *get_table();
 };
 } // namespace tile

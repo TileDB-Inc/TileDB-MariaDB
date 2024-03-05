@@ -132,49 +132,8 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
   return ctx;
 }
 
-
-/*****************************************************************************
-This implementation supports SUM(), COUNT(), AVG(), MIN(), and MAX()
-pushdown to TileDB
-*****************************************************************************/
-
-class ha_tiledb_group_by_handler: public group_by_handler
-{
-private:
-  bool first_row;
-  bool valid_ranges;
-  bool valid_in_ranges;
-  const std::string uri;
-  const std::string encryption_key;
-  const uint64_t open_at;
-
-  tiledb::Array *aggr_array;
-  std::shared_ptr<tiledb::Context> ctx;
-  std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
-  std::shared_ptr<tiledb::Query> aggr_query;
-  std::shared_ptr<tiledb::Subarray> tiledb_sub;
-  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
-  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
-
-public:
-  ha_tiledb_group_by_handler(THD *thd_arg,
-                             tiledb::Array *array,
-                             std::shared_ptr<tiledb::Context>& context,
-                             std::shared_ptr<tiledb::QueryCondition> &qc,
-                             bool val_ranges,
-                             bool val_in_ranges,
-                             std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
-                             std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
-                             const std::string encryption_key,
-                             const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {}
-  ~ha_tiledb_group_by_handler() = default;
-  int init_scan();
-  int next_row();
-  int end_scan();
-};
-
-int ha_tiledb_group_by_handler::end_scan() {
-  DBUG_ENTER("ha_tiledb_group_by_handler::end_scan");
+int tile::mytile_group_by_handler::end_scan() {
+  DBUG_ENTER("mytile_group_by_handler::end_scan");
   // reset qc and ranges
   if (this->aggr_query != nullptr){
     this->aggr_query = nullptr;
@@ -194,9 +153,9 @@ int ha_tiledb_group_by_handler::end_scan() {
   DBUG_RETURN(0);
 }
 
-int ha_tiledb_group_by_handler::init_scan()
+int tile::mytile_group_by_handler::init_scan()
 {
-  DBUG_ENTER("ha_tiledb_group_by_handler::init_scan");
+  DBUG_ENTER("mytile_group_by_handler::init_scan");
   std::cout << "init scan in new" << std::endl;
   first_row = 1 ;
 
@@ -206,8 +165,9 @@ int ha_tiledb_group_by_handler::init_scan()
           *this->ctx, *aggr_array));
 
 
-  // Get domain and dimensions
-  auto domain = aggr_array->schema().domain();
+  // Get domain, schema and dimensions
+  auto schema = aggr_array->schema();
+  auto domain = schema.domain();
   auto dims = domain.dimensions();
   int ndim = domain.ndim();
 
@@ -240,10 +200,9 @@ int ha_tiledb_group_by_handler::init_scan()
   // if no ranges to add
   if (!valid_ranges && !valid_in_ranges) {
     // No pushdown
-    for (uint64_t dim_idx = 0; dim_idx < aggr_array->schema().domain().ndim();
+    for (uint64_t dim_idx = 0; dim_idx < domain.ndim();
          dim_idx++) {
-      tiledb::Dimension dimension =
-          aggr_array->schema().domain().dimension(dim_idx);
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
 
       if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
         const auto pair = aggr_array->non_empty_domain_var(dim_idx);
@@ -271,7 +230,7 @@ int ha_tiledb_group_by_handler::init_scan()
   } else {
     std::cout << "VALID RANGES" << std::endl;
     // Loop over dimensions and build ranges for that dimension
-    for (uint64_t dim_idx = 0; dim_idx < aggr_array->schema().domain().ndim(); dim_idx++) {
+    for (uint64_t dim_idx = 0; dim_idx < domain.ndim(); dim_idx++) {
       tiledb::Dimension dimension = domain.dimension(dim_idx);
 
       // This ranges vector and the ranges it contains will be manipulated in
@@ -383,9 +342,9 @@ int ha_tiledb_group_by_handler::init_scan()
   DBUG_RETURN(0);
 }
 
-int ha_tiledb_group_by_handler::next_row()
+int tile::mytile_group_by_handler::next_row()
 {
-  DBUG_ENTER("ha_tiledb_group_by_handler::next_row");
+  DBUG_ENTER("mytile_group_by_handler::next_row");
 
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
@@ -426,8 +385,11 @@ int ha_tiledb_group_by_handler::next_row()
     this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
     std::cout << "query is created" << std::endl;
 
+    auto schema = aggr_array->schema();
+    auto domain = schema.domain();
+
     // set layout todo check correctness
-    if (aggr_array->schema().array_type() == TILEDB_SPARSE){
+    if (schema.array_type() == TILEDB_SPARSE){
       aggr_query->set_layout(TILEDB_UNORDERED);
     } else {
       aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
@@ -452,14 +414,14 @@ int ha_tiledb_group_by_handler::next_row()
 
     bool nullable = false;
     tiledb_datatype_t type;
-    if (aggr_array->schema().has_attribute(column_with_aggregate)){
+    if (schema.has_attribute(column_with_aggregate)){
       std::cout << "it is attribute2" << std::endl;
-      auto attr = aggr_array->schema().attribute(column_with_aggregate);
+      auto attr = schema.attribute(column_with_aggregate);
       if (attr.nullable()) nullable = true;
       type = attr.type();
     } else {
       std::cout << "it is dim" << std::endl;
-      auto dim = aggr_array->schema().domain().dimension(column_with_aggregate);
+      auto dim = domain.dimension(column_with_aggregate);
       std::cout << dim.name() << " ole" << std::endl;
       type = dim.type();
     }
@@ -685,14 +647,22 @@ int ha_tiledb_group_by_handler::next_row()
   DBUG_RETURN(0);
 }
 
+/**
+ * Checks if the given field in the given array is aggregation compatible
+ * @param field The input field
+ * @param aggregate The aggregation
+ * @param array_for_comp  The array
+ * @return
+ */
 static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, tiledb::Array* array_for_comp) {
   DBUG_ENTER("tile::field_is_aggregation_compatible");
   // if it not an attribute, no TileDB aggregation can be applied
 
   tiledb_datatype_t type;
-  if (array_for_comp->schema().has_attribute(field)){
+  tiledb::ArraySchema schema = array_for_comp->schema();
+  if (schema.has_attribute(field)){
     std::cout << "it is attribute" << std::endl;
-    auto attr = array_for_comp->schema().attribute(field);
+    auto attr = schema.attribute(field);
     if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
     type = attr.type();
   } else {
@@ -726,7 +696,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 {
   DBUG_ENTER("tile::mytile::create_group_by_handler");
   std::cout << "\ncreating group by handler" << std::endl;
-  ha_tiledb_group_by_handler *handler;
+  tile::mytile_group_by_handler *handler;
   if (!tile::sysvars::enable_aggregate_pushdown(thd)) {
     DBUG_RETURN(0);
   }
@@ -826,7 +796,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     }
 
     /* Create handler and return it */
-    handler= new ha_tiledb_group_by_handler(thd,
+    handler= new tile::mytile_group_by_handler(thd,
                                              aggr_array,
                                              ctx, qc,
                                              valid_ranges,
@@ -887,6 +857,17 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg){};
+
+tile::mytile_group_by_handler::mytile_group_by_handler(THD *thd_arg,
+     tiledb::Array *array,
+     std::shared_ptr<tiledb::Context>& context,
+     std::shared_ptr<tiledb::QueryCondition> &qc,
+     bool val_ranges,
+     bool val_in_ranges,
+     std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
+     std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
+     const std::string encryption_key,
+     const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {

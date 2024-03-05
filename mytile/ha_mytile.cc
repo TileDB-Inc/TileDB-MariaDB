@@ -149,24 +149,24 @@ private:
   const uint64_t open_at;
 
   tiledb::Array *aggr_array;
+  std::shared_ptr<tiledb::Context> ctx;
   std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
   std::shared_ptr<tiledb::Query> aggr_query;
   std::shared_ptr<tiledb::Subarray> tiledb_sub;
-  std::shared_ptr<tiledb::Config> cfg;
-  std::shared_ptr<tiledb::Context> ctx;
   std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
   std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
 
 public:
   ha_tiledb_group_by_handler(THD *thd_arg,
-                             const std::string uri,
+                             tiledb::Array *array,
+                             std::shared_ptr<tiledb::Context>& context,
                              std::shared_ptr<tiledb::QueryCondition> &qc,
                              bool val_ranges,
                              bool val_in_ranges,
                              std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
                              std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
                              const std::string encryption_key,
-                             const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), uri(uri), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {}
+                             const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {}
   ~ha_tiledb_group_by_handler() = default;
   int init_scan();
   int next_row();
@@ -199,46 +199,6 @@ int ha_tiledb_group_by_handler::init_scan()
   DBUG_ENTER("ha_tiledb_group_by_handler::init_scan");
   std::cout << "init scan in new" << std::endl;
   first_row = 1 ;
-  this->cfg = std::make_unique<tiledb::Config>(tile::build_config(thd));
-
-  this->ctx = std::make_unique<tiledb::Context>(tile::build_context(*cfg));
-  std::cout << "context ready" << std::endl;
-
-  if (this->open_at != UINT64_MAX) {
-#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-    this->aggr_array = new tiledb::Array(
-        *this->ctx, this->uri, TILEDB_READ,
-        tiledb::TemporalPolicy(tiledb::TimeTravel,
-                               this->open_at),
-        tiledb::EncryptionAlgorithm(
-            this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                   : TILEDB_AES_256_GCM, this->encryption_key.c_str()));
-#else
-    this->aggr_array = new tiledb::Array(
-        *this->ctx, this->uri, TILEDB_READ,
-        this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        this->encryption_key, this->open_at);
-#endif
-
-  } else {
-
-#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-    std::cout << "trying to create array  " << std::endl;
-    this->aggr_array = new tiledb::Array(
-        *this->ctx, this->uri, TILEDB_READ, tiledb::TemporalPolicy(),
-        tiledb::EncryptionAlgorithm(
-            this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                   : TILEDB_AES_256_GCM, this->encryption_key.c_str()));
-#else
-    this->aggr_array = new tiledb::Array(
-        *this->ctx, this->uri, TILEDB_READ,
-        this->encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        this->encryption_key);
-#endif
-  }
-
-
-  std::cout << "array is created" << std::endl;
 
   // set subarray
   this->tiledb_sub =
@@ -431,12 +391,11 @@ int ha_tiledb_group_by_handler::next_row()
   SELECT_LEX *select_lex = thd->lex->current_select;
   Item *item;
   List_iterator_fast<Item> it(select_lex->item_list);
-
-  //  List_iterator_fast<Item> it(*fields);
+  Field **field_ptr= table->field;
+  std::vector<uint8_t> validity(1);
   Item_sum *item_sum;
 
   std::cout << "next row now" << std::endl;
-
   /*
     Check if this is the first call to the function. If not, we have already
     returned all data.
@@ -448,11 +407,22 @@ int ha_tiledb_group_by_handler::next_row()
 
   first_row= 0;
 
-  Field **field_ptr= table->field;
-  std::vector<uint8_t> validity(1);
-
   while ((item_sum= (Item_sum*) it++))
   {
+    Field *field= *(field_ptr++);
+    Item_sum* item_sum_ptr = dynamic_cast<Item_sum*>(item_sum);
+
+    if (!item_sum_ptr) continue;
+
+    if (item_sum_ptr->get_arg_count() == 0) continue;
+
+    Item* arg = item_sum_ptr->get_arg(0);
+    if (!arg) continue;
+
+    std::string column_with_aggregate = arg->name.str;
+
+    std::cout << column_with_aggregate << " :column " << std::endl;
+
     this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
     std::cout << "query is created" << std::endl;
 
@@ -476,12 +446,9 @@ int ha_tiledb_group_by_handler::next_row()
     aggr_query->set_subarray(*this->tiledb_sub);
 
     std::cout << "loop  " << std::endl;
-    Field *field= *(field_ptr++);
     std::cout << "field ok " << std::endl;
     std::cout << "sum func " << std::endl;
     std::cout << field->field_name.str << std::endl;
-    std::string column_with_aggregate = ((Item_sum*) item_sum)->get_arg(0)->name.str;
-    std::cout << column_with_aggregate << " :column " << std::endl;
     auto attr = aggr_array->schema().attribute(column_with_aggregate);
     if (attr.nullable()){
       std::cout << "nullable" << std::endl;
@@ -710,28 +677,9 @@ int ha_tiledb_group_by_handler::next_row()
   DBUG_RETURN(0);
 }
 
-static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, const std::string uri, const std::string encryption_key) {
+static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, tiledb::Array* array_for_comp) {
   DBUG_ENTER("tile::field_is_aggregation_compatible");
   // if it not an attribute, no TileDB aggregation can be applied
-  tiledb::Array *array_for_comp;
-  tiledb::Context ctx;
-
-#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-  array_for_comp = new tiledb::Array(
-      ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
-      tiledb::EncryptionAlgorithm(
-          encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                 : TILEDB_AES_256_GCM,
-          encryption_key.c_str()));
-#else
-  array_for_comp = new tiledb::Array(
-      ctx, uri, TILEDB_READ,
-      encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-      encryption_key.c_str());
-#endif
-
-  std::cout << "temp array is now open" << std::endl;
-
 
   if (!array_for_comp->schema().has_attribute(field)){
     DBUG_RETURN(false);
@@ -748,8 +696,6 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
   if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
 
   std::cout << "no multi" << std::endl;
-  array_for_comp->close();
-  delete array_for_comp;
 
   // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
   switch (aggregate) {
@@ -772,16 +718,16 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
 
 static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 {
-  // query has from member that gets table list
-  // table list has handler, then cast the handler get query.
+  DBUG_ENTER("tile::mytile::create_group_by_handler");
   std::cout << "\ncreating group by handler" << std::endl;
   ha_tiledb_group_by_handler *handler;
-  //  Item *item;
-  //  List_iterator_fast<Item> it(*query->select);
-  DBUG_ENTER("tile::mytile::create_group_by_handler");
   if (!tile::sysvars::enable_aggregate_pushdown(thd)) {
     DBUG_RETURN(0);
   }
+  /* check that only one table is used in FROM clause and no sub queries */
+  if (query->from->next_local != 0) DBUG_RETURN(0);
+  /* check that there is no where clause and no group_by */
+  if (query->group_by != 0) DBUG_RETURN(0);
 
   TABLE_LIST* table_ptr = query->from;
   for (; table_ptr; table_ptr = table_ptr->next_global)
@@ -810,6 +756,51 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
   bool valid_ranges = mytile_ptr->valid_pushed_ranges();
   bool valid_in_ranges = mytile_ptr->valid_pushed_in_ranges();
 
+  // open array here before init scan because we need to check if the aggregate requested
+  // can be processed by TileDB. For example if the aggregate is requested on a dimension
+  // we need to abort and leave the task to MariaDB. To do that we need early access to
+  // the array
+  tiledb::Array *aggr_array;
+  std::shared_ptr<tiledb::Config> cfg;
+  std::shared_ptr<tiledb::Context> ctx;
+
+  cfg = std::make_shared<tiledb::Config>(tile::build_config(thd));
+  ctx = std::make_shared<tiledb::Context>(tile::build_context(*cfg));
+  std::cout << "context ready" << std::endl;
+
+  if (open_at != UINT64_MAX) {
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    aggr_array = new tiledb::Array(
+        *ctx, uri, TILEDB_READ,
+        tiledb::TemporalPolicy(tiledb::TimeTravel, open_at),
+        tiledb::EncryptionAlgorithm(encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                         : TILEDB_AES_256_GCM, encryption_key.c_str()));
+#else
+    aggr_array = new tiledb::Array(
+        *ctx, uri, TILEDB_READ,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key, open_at);
+#endif
+
+  } else {
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    std::cout << "trying to create array  " << std::endl;
+    aggr_array = new tiledb::Array(
+        *ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
+        tiledb::EncryptionAlgorithm(
+            encryption_key.empty() ? TILEDB_NO_ENCRYPTION
+                                         : TILEDB_AES_256_GCM, encryption_key.c_str()));
+#else
+    aggr_array = new tiledb::Array(
+        *ctx, uri, TILEDB_READ,
+        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
+        encryption_key);
+#endif
+  }
+
+  std::cout << "array is created" << std::endl;
+
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
 
@@ -822,16 +813,23 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
       if (isp && !field_is_aggregation_compatible(
                      isp->get_arg(0)->name.str,
                      isp->sum_func(),
-                     uri,
-                     encryption_key)) {
+                     aggr_array)) {
           std::cout << "not compatible" << std::endl;
           DBUG_RETURN(0);
       }
-      // if you find at least one not compatible aggregation abort entire pushdown.
+      // if you find at least one not compatible aggregate abort entire pushdown
     }
 
     /* Create handler and return it */
-    handler= new ha_tiledb_group_by_handler(thd, uri, qc, valid_ranges, valid_in_ranges, ranges, in_ranges, encryption_key, open_at);
+    handler= new ha_tiledb_group_by_handler(thd,
+                                             aggr_array,
+                                             ctx, qc,
+                                             valid_ranges,
+                                             valid_in_ranges,
+                                             ranges,
+                                             in_ranges,
+                                             encryption_key,
+                                             open_at);
     DBUG_RETURN(handler);
   }
   DBUG_RETURN(0);

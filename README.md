@@ -133,7 +133,6 @@ That will run all unit tests defined for mytile
 - Condition pushdown only works for constants not sub selects
 - Buffers will double in size for incomplete queries with zero results
 - MyTile is not capable of binlogging currently both stmt and row based is disabled at the storage engine level
-- A user can not ask for multiple aggregates from the same attribute in the same query. E.g. ```SELECT AVG(A), SUM(A) from array``` will not use the pushdown. Such queries revert back to MariaDB filtering.
 - Aggregates on multi-valued attributes are not supported.
 - Aggregate pushdown does not work when using multiple functions on a column. e.g. ```SELECT COALESCE(SUM(count), 0) from allele;```. Such queries revert back to MariaDB filtering.
-- Aggregate pushdown does not work with ```JOINs``` or ```GROUP BYs```. Such queries revert back to MariaDB filtering.
+- Aggregate pushdown does not work with ```GROUP BYs```. Such queries revert back to MariaDB filtering.

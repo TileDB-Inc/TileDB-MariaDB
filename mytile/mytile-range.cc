@@ -1195,7 +1195,7 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
                           tiledb::Array *array) {
 
   auto dims = domain.dimensions();
-  int ndim = domain.ndim();
+  uint64_t ndim = domain.ndim();
 
   std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
   for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {

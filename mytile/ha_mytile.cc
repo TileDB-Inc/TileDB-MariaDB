@@ -156,36 +156,52 @@ int tile::mytile_group_by_handler::end_scan() {
 int tile::mytile_group_by_handler::init_scan() {
   DBUG_ENTER("tile::mytile_group_by_handler::init_scan");
   first_row = 1 ;
+  int rc = 0;
 
-  // Get domain, schema and dimensions
-  auto schema = aggr_array->schema();
-  auto domain = schema.domain();
-  int empty_read;
+  try{
+    // Get domain, schema and dimensions
+    auto schema = aggr_array->schema();
+    auto domain = schema.domain();
+    int empty_read;
 
-  this->tiledb_sub =
-      std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-          *this->ctx, *aggr_array));
+    this->tiledb_sub =
+        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+            *this->ctx, *aggr_array));
 
-  tile::build_subarray(thd,
-                       this->valid_ranges,
-                       this->valid_in_ranges,
-                       empty_read,
-                       domain,
-                       this->pushdown_ranges,
-                       this->pushdown_in_ranges,
-                       this->tiledb_sub,
-                       this->ctx.get(),
-                       this->aggr_array);
+    tile::build_subarray(thd,
+                         this->valid_ranges,
+                         this->valid_in_ranges,
+                         empty_read,
+                         domain,
+                         this->pushdown_ranges,
+                         this->pushdown_in_ranges,
+                         this->tiledb_sub,
+                         this->ctx.get(),
+                         this->aggr_array);
+  } catch (const tiledb::TileDBError &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->aggr_array->uri().c_str(), e.what());
+    rc = ERR_INIT_SCAN_TILEDB;
+    // clear out failed query details
+    end_scan();
+  } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->aggr_array->uri().c_str(), e.what());
+    rc = ERR_INIT_SCAN_TILEDB;
+    end_scan();
+  }
 
   // The query condition is already built and will be applied in the next_row()
   // method.
-  DBUG_RETURN(0);
+  DBUG_RETURN(rc);
 }
 
 int tile::mytile_group_by_handler::next_row()
 {
   DBUG_ENTER("tile::mytile_group_by_handler::next_row");
-
+  int rc = 0;
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
   List_iterator_fast<Item> it(select_lex->item_list);
@@ -202,254 +218,272 @@ int tile::mytile_group_by_handler::next_row()
   }
 
   first_row= 0;
-
-  while ((item_sum= (Item_sum*) it++))
-  {
-    Field *field= *(field_ptr++);
-    Item_sum* item_sum_ptr = dynamic_cast<Item_sum*>(item_sum);
-
-    if (!item_sum_ptr) continue;
-
-    if (item_sum_ptr->get_arg_count() == 0) continue;
-
-    Item* arg = item_sum_ptr->get_arg(0);
-    if (!arg) continue;
-
-    std::string column_with_aggregate = arg->name.str;
-
-    this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
-
-    auto schema = aggr_array->schema();
-    auto domain = schema.domain();
-
-    // set layout todo check correctness
-    if (schema.array_type() == TILEDB_SPARSE){
-      aggr_query->set_layout(TILEDB_UNORDERED);
-    } else {
-      aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
-    }
-
-    tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
-
-    // add query condition
-    if (this->tiledb_qc != nullptr) {
-      aggr_query->set_condition(*this->tiledb_qc);
-    }
-
-    aggr_query->set_subarray(*this->tiledb_sub);
-
-    bool nullable = false;
-    tiledb_datatype_t type;
-    if (schema.has_attribute(column_with_aggregate)){
-      auto attr = schema.attribute(column_with_aggregate);
-      if (attr.nullable()) nullable = true;
-      type = attr.type();
-    } else {
-      auto dim = domain.dimension(column_with_aggregate);
-      type = dim.type();
-    }
-    switch (item_sum->sum_func()) {
-    case Item_sum::SUM_FUNC:
+  try {
+    while ((item_sum= (Item_sum*) it++))
     {
-      std::string sum_string = "Sum";
-      tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate(sum_string, operation);
-      if (nullable) aggr_query->set_validity_buffer(sum_string, validity);
+      Field *field= *(field_ptr++);
+      Item_sum* item_sum_ptr = dynamic_cast<Item_sum*>(item_sum);
 
-      if (type == TILEDB_FLOAT32
-          || type == TILEDB_FLOAT64) {
-        std::vector<double> sum(1);
-        aggr_query->set_data_buffer(sum_string, sum);
-        aggr_query->submit();
-        field->store(sum[0]);
-      } else if (type == TILEDB_UINT8
-          || type == TILEDB_UINT16
-          || type == TILEDB_UINT32
-          || type == TILEDB_UINT64) {
-        std::vector<uint64_t> sum(1);
-        aggr_query->set_data_buffer(sum_string, sum);
-        aggr_query->submit();
-        field->store(sum[0], 0);
-      } else if (type == TILEDB_INT8
-          || type == TILEDB_INT16
-          || type == TILEDB_INT32
-          || type == TILEDB_INT64) {
+      if (!item_sum_ptr) continue;
 
-        std::vector<int64_t> sum(1);
-        aggr_query->set_data_buffer(sum_string, sum);
-        aggr_query->submit();
-        field->store(sum[0], 1);
-      }
-      break;
-    }
-    case Item_sum::COUNT_FUNC:
-    {
-      std::string count_string = "Count";
-      default_channel.apply_aggregate(count_string, tiledb::CountOperation());
-      if (nullable) aggr_query->set_validity_buffer(count_string, validity);
+      if (item_sum_ptr->get_arg_count() == 0) continue;
 
-      std::vector<uint64_t> count(1);
-      aggr_query->set_data_buffer(count_string, count);
+      Item* arg = item_sum_ptr->get_arg(0);
+      if (!arg) continue;
 
-      aggr_query->submit();
+      std::string column_with_aggregate = arg->name.str;
 
-      field->store(count[0], 0);
-      break;
-    }
-    case Item_sum::AVG_FUNC:
-    {
-      std::string avg_string = "Avg";
-      tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate(avg_string, operation);
-      if (nullable) aggr_query->set_validity_buffer(avg_string, validity);
-      std::vector<double> avg(1);
-      aggr_query->set_data_buffer(avg_string, avg);
+      this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
 
-      aggr_query->submit();
+      auto schema = aggr_array->schema();
+      auto domain = schema.domain();
 
-      field->store(avg[0]);
-      break;
-    }
-    case Item_sum::MAX_FUNC:
-    case Item_sum::MIN_FUNC:
-    {
-      std::unique_ptr<tiledb::ChannelOperation> operation;
-      if (item_sum->sum_func() == Item_sum::MAX_FUNC) {
-        operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(*aggr_query, column_with_aggregate));
+      // set layout todo check correctness
+      if (schema.array_type() == TILEDB_SPARSE){
+        aggr_query->set_layout(TILEDB_UNORDERED);
       } else {
-        operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
+        aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
       }
-      std::string minmax_string = "minmax";
-      default_channel.apply_aggregate(minmax_string, *operation);
-      if (nullable) aggr_query->set_validity_buffer(minmax_string, validity);
 
-      switch (type) {
-        case TILEDB_FLOAT32:{
-          std::vector<float> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0]);
-          break;
-        }
-        case TILEDB_FLOAT64: {
-          std::vector<double> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0]);
-          break;
-        }
-        case TILEDB_INT8: {
-          std::vector<int8_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 1);
-          break;
-        }
-        case TILEDB_UINT8: {
-          std::vector<uint8_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 0);
-          break;
-        }
-        case TILEDB_INT16: {
-          std::vector<int16_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 1);
-          break;
-        }
-        case TILEDB_UINT16: {
-          std::vector<uint16_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 0);
-          break;
-        }
-        case TILEDB_INT32: {
-          std::vector<int32_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 1);
-          break;
-        }
-        case TILEDB_UINT32: {
-          std::vector<uint32_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 0);
-          break;
-        }
-        case TILEDB_UINT64: {
-          std::vector<uint64_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 0);
-          break;
-        }
-        case TILEDB_INT64: {
-          std::vector<int64_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 1);
-          break;
-        }
-        case TILEDB_DATETIME_YEAR:
-        case TILEDB_DATETIME_MONTH:
-        case TILEDB_DATETIME_WEEK:
-        case TILEDB_DATETIME_DAY:
-        case TILEDB_DATETIME_HR:
-        case TILEDB_DATETIME_MIN:
-        case TILEDB_DATETIME_SEC:
-        case TILEDB_DATETIME_MS:
-        case TILEDB_DATETIME_US:
-        case TILEDB_DATETIME_NS:
-        case TILEDB_DATETIME_PS:
-        case TILEDB_DATETIME_FS:
-        case TILEDB_DATETIME_AS:
-        case TILEDB_TIME_HR:
-        case TILEDB_TIME_MIN:
-        case TILEDB_TIME_SEC:
-        case TILEDB_TIME_MS:
-        case TILEDB_TIME_US:
-        case TILEDB_TIME_NS:
-        case TILEDB_TIME_PS:
-        case TILEDB_TIME_FS:
-        case TILEDB_TIME_AS: {
-          std::vector<int64_t> minmax(1);
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax[0], 1);
-          break;
-        }
-        case TILEDB_STRING_UTF8:
-        case TILEDB_STRING_ASCII:
-        case TILEDB_STRING_UCS2:
-        case TILEDB_STRING_UCS4:
-        case TILEDB_STRING_UTF16:
-        case TILEDB_STRING_UTF32:
-        case TILEDB_CHAR: {
-          std::vector<uint64_t> offsets(1);
-          aggr_query->set_offsets_buffer(minmax_string, offsets);
-          std::string minmax;
-          minmax.resize(32); //todo what size should we put here? maybe add option for users to increase this?
-          aggr_query->set_data_buffer(minmax_string, minmax);
-          aggr_query->submit();
-          field->store(minmax.c_str(), minmax.length(),
-                       &my_charset_latin1);
-        }
-        default: {
-        }
+      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
+
+      // add query condition
+      if (this->tiledb_qc != nullptr) {
+        aggr_query->set_condition(*this->tiledb_qc);
       }
-      break;
+
+      aggr_query->set_subarray(*this->tiledb_sub);
+
+      bool nullable = false;
+      tiledb_datatype_t type;
+      if (schema.has_attribute(column_with_aggregate)){
+        auto attr = schema.attribute(column_with_aggregate);
+        if (attr.nullable()) nullable = true;
+        type = attr.type();
+      } else {
+        auto dim = domain.dimension(column_with_aggregate);
+        type = dim.type();
+      }
+      switch (item_sum->sum_func()) {
+      case Item_sum::SUM_FUNC:
+      {
+        std::string sum_string = "Sum";
+        tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
+        default_channel.apply_aggregate(sum_string, operation);
+        if (nullable) aggr_query->set_validity_buffer(sum_string, validity);
+
+        if (type == TILEDB_FLOAT32
+            || type == TILEDB_FLOAT64) {
+          std::vector<double> sum(1);
+          aggr_query->set_data_buffer(sum_string, sum);
+          aggr_query->submit();
+          field->store(sum[0]);
+        } else if (type == TILEDB_UINT8
+            || type == TILEDB_UINT16
+            || type == TILEDB_UINT32
+            || type == TILEDB_UINT64) {
+          std::vector<uint64_t> sum(1);
+          aggr_query->set_data_buffer(sum_string, sum);
+          aggr_query->submit();
+          field->store(sum[0], 0);
+        } else if (type == TILEDB_INT8
+            || type == TILEDB_INT16
+            || type == TILEDB_INT32
+            || type == TILEDB_INT64) {
+
+          std::vector<int64_t> sum(1);
+          aggr_query->set_data_buffer(sum_string, sum);
+          aggr_query->submit();
+          field->store(sum[0], 1);
+        }
+        break;
+      }
+      case Item_sum::COUNT_FUNC:
+      {
+        std::string count_string = "Count";
+        default_channel.apply_aggregate(count_string, tiledb::CountOperation());
+        if (nullable) aggr_query->set_validity_buffer(count_string, validity);
+
+        std::vector<uint64_t> count(1);
+        aggr_query->set_data_buffer(count_string, count);
+
+        aggr_query->submit();
+
+        field->store(count[0], 0);
+        break;
+      }
+      case Item_sum::AVG_FUNC:
+      {
+        std::string avg_string = "Avg";
+        tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
+        default_channel.apply_aggregate(avg_string, operation);
+        if (nullable) aggr_query->set_validity_buffer(avg_string, validity);
+        std::vector<double> avg(1);
+        aggr_query->set_data_buffer(avg_string, avg);
+
+        aggr_query->submit();
+
+        field->store(avg[0]);
+        break;
+      }
+      case Item_sum::MAX_FUNC:
+      case Item_sum::MIN_FUNC:
+      {
+        std::unique_ptr<tiledb::ChannelOperation> operation;
+        if (item_sum->sum_func() == Item_sum::MAX_FUNC) {
+          operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(*aggr_query, column_with_aggregate));
+        } else {
+          operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
+        }
+        std::string minmax_string = "minmax";
+        default_channel.apply_aggregate(minmax_string, *operation);
+        if (nullable) aggr_query->set_validity_buffer(minmax_string, validity);
+
+        switch (type) {
+          case TILEDB_FLOAT32:{
+            std::vector<float> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0]);
+            break;
+          }
+          case TILEDB_FLOAT64: {
+            std::vector<double> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0]);
+            break;
+          }
+          case TILEDB_INT8: {
+            std::vector<int8_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 1);
+            break;
+          }
+          case TILEDB_UINT8: {
+            std::vector<uint8_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 0);
+            break;
+          }
+          case TILEDB_INT16: {
+            std::vector<int16_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 1);
+            break;
+          }
+          case TILEDB_UINT16: {
+            std::vector<uint16_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 0);
+            break;
+          }
+          case TILEDB_INT32: {
+            std::vector<int32_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 1);
+            break;
+          }
+          case TILEDB_UINT32: {
+            std::vector<uint32_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 0);
+            break;
+          }
+          case TILEDB_UINT64: {
+            std::vector<uint64_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 0);
+            break;
+          }
+          case TILEDB_INT64: {
+            std::vector<int64_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 1);
+            break;
+          }
+          case TILEDB_DATETIME_YEAR:
+          case TILEDB_DATETIME_MONTH:
+          case TILEDB_DATETIME_WEEK:
+          case TILEDB_DATETIME_DAY:
+          case TILEDB_DATETIME_HR:
+          case TILEDB_DATETIME_MIN:
+          case TILEDB_DATETIME_SEC:
+          case TILEDB_DATETIME_MS:
+          case TILEDB_DATETIME_US:
+          case TILEDB_DATETIME_NS:
+          case TILEDB_DATETIME_PS:
+          case TILEDB_DATETIME_FS:
+          case TILEDB_DATETIME_AS:
+          case TILEDB_TIME_HR:
+          case TILEDB_TIME_MIN:
+          case TILEDB_TIME_SEC:
+          case TILEDB_TIME_MS:
+          case TILEDB_TIME_US:
+          case TILEDB_TIME_NS:
+          case TILEDB_TIME_PS:
+          case TILEDB_TIME_FS:
+          case TILEDB_TIME_AS: {
+            std::vector<int64_t> minmax(1);
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax[0], 1);
+            break;
+          }
+          case TILEDB_STRING_UTF8:
+          case TILEDB_STRING_ASCII:
+          case TILEDB_STRING_UCS2:
+          case TILEDB_STRING_UCS4:
+          case TILEDB_STRING_UTF16:
+          case TILEDB_STRING_UTF32:
+          case TILEDB_CHAR: {
+            std::vector<uint64_t> offsets(1);
+            aggr_query->set_offsets_buffer(minmax_string, offsets);
+            std::string minmax;
+            minmax.resize(32); //todo what size should we put here? maybe add option for users to increase this?
+            aggr_query->set_data_buffer(minmax_string, minmax);
+            aggr_query->submit();
+            field->store(minmax.c_str(), minmax.length(),
+                         &my_charset_latin1);
+            break;
+          }
+          default: {
+            throw tiledb::TileDBError(
+                std::string("Unknown or Unsupported type for aggregate"));
+          }
+        }
+        break;
+      }
+      default:
+        throw tiledb::TileDBError(
+            std::string("Unknown or Unsupported aggregate"));
+      }
+      field->set_notnull();
     }
-    default:
-      DBUG_ASSERT(0);
-    }
-    field->set_notnull();
+  } catch (const tiledb::TileDBError &e) {
+  // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[next_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->aggr_array->uri().c_str(), e.what());
+    rc = ERR_INIT_SCAN_TILEDB;
+    // clear out failed query details
+    end_scan();
+    } catch (const std::exception &e) {
+    // Log errors
+    my_printf_error(ER_UNKNOWN_ERROR, "[next_row] error for table %s : %s",
+                    ME_ERROR_LOG | ME_FATAL, this->aggr_array->uri().c_str(), e.what());
+    rc = ERR_INIT_SCAN_TILEDB;
+    end_scan();
   }
 
-  DBUG_RETURN(0);
+  DBUG_RETURN(rc);
 }
 
 /**
@@ -479,16 +513,15 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
   switch (aggregate) {
   case Item_sum::SUM_FUNC:
   case Item_sum::AVG_FUNC:
-    DBUG_RETURN(tile::is_numeric_type(type));
+    return tile::is_numeric_type(type);
   case Item_sum::MIN_FUNC:
   case Item_sum::MAX_FUNC:
-    DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
+    return tile::is_numeric_type(type) || tile::is_string_type(type);
   case Item_sum::COUNT_FUNC:
     //disable count for dense as it also counts the fill values,// thus producing wrong results
-    DBUG_RETURN(schema.array_type() != TILEDB_DENSE);
+    return schema.array_type() != TILEDB_DENSE;
     return true;
   default:
-    // counts not supported
     return false;
   }
 }

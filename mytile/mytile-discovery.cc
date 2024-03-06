@@ -253,7 +253,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     }
 
     for (const auto &dim : schema->domain().dimensions()) {
-      int mysql_type = TileDBTypeToMysqlType(thd, dim.type(), false, dim.cell_val_num());
+      int mysql_type = TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num());
 
       sql_string << std::endl
                  << "`" << dim.name() << "` " << MysqlTypeString(mysql_type);
@@ -300,7 +300,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       bool is_enum = enmr_name.has_value();
 
       auto mysql_type =
-          TileDBTypeToMysqlType(thd, attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num());
+          TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1, attribute.cell_val_num());
 
       if (is_enum) {
         // if the attribute has an enum

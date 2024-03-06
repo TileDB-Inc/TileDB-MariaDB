@@ -104,7 +104,7 @@ private:
   std::shared_ptr<tiledb::Query> aggr_query;
 
   // The subarray for the dims
-  std::shared_ptr<tiledb::Subarray> tiledb_sub;
+  std::unique_ptr<tiledb::Subarray> tiledb_sub;
 
 public:
   /**

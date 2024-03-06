@@ -133,7 +133,7 @@ tiledb::Context tile::build_context(tiledb::Config &cfg) {
 }
 
 int tile::mytile_group_by_handler::end_scan() {
-  DBUG_ENTER("mytile_group_by_handler::end_scan");
+  DBUG_ENTER("tile::mytile_group_by_handler::end_scan");
   // reset qc and ranges
   if (this->aggr_query != nullptr){
     this->aggr_query = nullptr;
@@ -153,196 +153,38 @@ int tile::mytile_group_by_handler::end_scan() {
   DBUG_RETURN(0);
 }
 
-int tile::mytile_group_by_handler::init_scan()
-{
-  DBUG_ENTER("mytile_group_by_handler::init_scan");
+int tile::mytile_group_by_handler::init_scan() {
+  DBUG_ENTER("tile::mytile_group_by_handler::init_scan");
   first_row = 1 ;
-
-  // set subarray
-  this->tiledb_sub =
-      std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-          *this->ctx, *aggr_array));
-
 
   // Get domain, schema and dimensions
   auto schema = aggr_array->schema();
   auto domain = schema.domain();
-  auto dims = domain.dimensions();
-  uint64_t ndim = domain.ndim();
+  int empty_read;
 
-  std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
-  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
-    nonEmptyDomains.emplace_back(
-        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
-  }
+  this->tiledb_sub =
+      std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+          *this->ctx, *aggr_array));
 
-  std::vector<std::pair<std::string, std::string>> nonEmptyDomainVars(ndim);
-  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
-    tiledb::Dimension dimension = domain.dimension(dim_idx);
+  tile::build_subarray(thd,
+                       this->valid_ranges,
+                       this->valid_in_ranges,
+                       empty_read,
+                       domain,
+                       this->pushdown_ranges,
+                       this->pushdown_in_ranges,
+                       this->tiledb_sub,
+                       this->ctx.get(),
+                       this->aggr_array);
 
-    if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-      nonEmptyDomainVars[dim_idx] =
-          aggr_array->non_empty_domain_var(dim_idx);
-    } else {
-      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-          std::malloc(size), &std::free);
-      int empty_read;
-      this->ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
-          this->ctx->ptr().get(), aggr_array->ptr().get(), dim_idx,
-          nonEmptyDomain.get(), &empty_read));
-
-      nonEmptyDomains[dim_idx] = (std::move(nonEmptyDomain));
-    }
-  }
-
-  // if no ranges to add
-  // todo massive code repetition here, will create a method
-  if (!valid_ranges && !valid_in_ranges) {
-    // No pushdown
-    for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
-      tiledb::Dimension dimension = domain.dimension(dim_idx);
-
-      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-        const auto pair = aggr_array->non_empty_domain_var(dim_idx);
-        this->tiledb_sub->add_range(dim_idx, pair.first, pair.second);
-      } else {
-        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(size), &std::free);
-
-        int empty = 0;
-        this->ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
-            this->ctx->ptr().get(), aggr_array->ptr().get(), dim_idx,
-            nonEmptyDomain.get(), &empty));
-
-        void *lower = static_cast<char *>(nonEmptyDomain.get());
-        void *upper = static_cast<char *>(nonEmptyDomain.get()) +
-                      tiledb_datatype_size(dimension.type());
-
-        // set range
-        this->ctx->handle_error(tiledb_subarray_add_range(
-            this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx, lower,
-            upper, nullptr));
-      }
-    }
-  } else {
-    // Loop over dimensions and build ranges for that dimension
-    for (uint64_t dim_idx = 0; dim_idx < domain.ndim(); dim_idx++) {
-      tiledb::Dimension dimension = domain.dimension(dim_idx);
-
-      // This ranges vector and the ranges it contains will be manipulated in
-      // merge ranges
-      const auto &ranges = this->pushdown_ranges[dim_idx];
-
-      // If there is valid ranges from IN clause, first we must see if they
-      // are contained inside the merged super range we have
-      const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
-
-      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-        auto &non_empty_domain = nonEmptyDomainVars[dim_idx];
-        // If the ranges for this dimension are not empty, we'll push it down
-        // else non empty domain is used
-        if (!ranges.empty() || !in_ranges.empty()) {
-          std::shared_ptr<tile::range> range = nullptr;
-          if (!ranges.empty()) {
-            // Merge multiple ranges into single super range
-            range = merge_ranges(ranges, dims[dim_idx].type());
-
-            if (range != nullptr) {
-              // Setup the range by filling in missing values with non empty
-              // domain
-              setup_range(thd, range, non_empty_domain, dims[dim_idx]);
-
-              // set range
-              this->ctx->handle_error(tiledb_subarray_add_range_var(
-                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
-                  range->lower_value.get(), range->lower_value_size,
-                  range->upper_value.get(), range->upper_value_size));
-            }
-          }
-
-          // If there are ranges from in conditions let's build proper ranges
-          // for them
-          if (!in_ranges.empty()) {
-            // First make the in ranges unique and remove any which are
-            // contained by the main range (if it is non null)
-            auto unique_in_ranges =
-                get_unique_non_contained_in_ranges(in_ranges, range);
-
-            for (auto &in_range : unique_in_ranges) {
-              // setup range so values are set to correct datatypes
-              setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
-              // set range
-              this->ctx->handle_error(tiledb_subarray_add_range_var(
-                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
-                  in_range->lower_value.get(), in_range->lower_value_size,
-                  in_range->upper_value.get(), in_range->upper_value_size));
-            }
-          }
-        } else { // If the range is empty we need to use the non-empty-domain
-
-          this->tiledb_sub->add_range(dim_idx, non_empty_domain.first,
-                                      non_empty_domain.second);
-        }
-      } else {
-        // get start of non empty domain
-        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
-        // If the ranges for this dimension are not empty, we'll push it down
-        // else non empty domain is used
-        if (!ranges.empty() || !in_ranges.empty()) {
-          std::shared_ptr<tile::range> range = nullptr;
-          if (!ranges.empty()) {
-            // Merge multiple ranges into single super range
-            range = merge_ranges(ranges, dims[dim_idx].type());
-
-            if (range != nullptr) {
-              // Setup the range by filling in missing values with non empty
-              // domain
-              setup_range(thd, range, lower, dims[dim_idx]);
-
-              // set range
-              this->ctx->handle_error(tiledb_subarray_add_range(
-                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
-                  range->lower_value.get(), range->upper_value.get(),
-                  nullptr));
-            }
-          }
-
-          // If there are ranges from in conditions let's build proper ranges
-          // for them
-          if (!in_ranges.empty()) {
-            // First make the in ranges unique and remove any which are
-            // contained by the main range (if it is non null)
-            auto unique_in_ranges =
-                get_unique_non_contained_in_ranges(in_ranges, range);
-
-            for (auto &in_range : unique_in_ranges) {
-              // setup range so values are set to correct datatypes
-              setup_range(thd, in_range, lower, dims[dim_idx]);
-              // set range
-              this->ctx->handle_error(tiledb_subarray_add_range(
-                  this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx,
-                  in_range->lower_value.get(), in_range->upper_value.get(),
-                  nullptr));
-            }
-          }
-        } else { // If the range is empty we need to use the non-empty-domain
-          void *upper = static_cast<char *>(lower) +
-                        tiledb_datatype_size(dimension.type());
-          this->ctx->handle_error(tiledb_subarray_add_range(
-              this->ctx->ptr().get(), this->tiledb_sub->ptr().get(), dim_idx, lower,
-              upper, nullptr));
-        }
-      }
-    }
-  }
+  // The query condition is already built and will be applied in the next_row()
+  // method.
   DBUG_RETURN(0);
 }
 
 int tile::mytile_group_by_handler::next_row()
 {
-  DBUG_ENTER("mytile_group_by_handler::next_row");
+  DBUG_ENTER("tile::mytile_group_by_handler::next_row");
 
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
@@ -618,18 +460,17 @@ int tile::mytile_group_by_handler::next_row()
  * @return
  */
 static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, tiledb::Array* array_for_comp) {
-  DBUG_ENTER("tile::field_is_aggregation_compatible");
   // if it not an attribute, no TileDB aggregation can be applied
 
   tiledb_datatype_t type;
   tiledb::ArraySchema schema = array_for_comp->schema();
   if (schema.has_attribute(field)){
     auto attr = schema.attribute(field);
-    if (attr.cell_val_num() > 1 && !attr.variable_sized()) DBUG_RETURN(false); // multi valued not supported
+    if (attr.cell_val_num() > 1 && !attr.variable_sized()) return false; // multi valued not supported
     type = attr.type();
   } else {
-    DBUG_RETURN(false); // todo temporarily disable dim aggr pushdown shortcut-42339. Just remove after testing
-    if (array_for_comp->schema().array_type() == TILEDB_DENSE) DBUG_RETURN(false); // disable on dense array dims
+    return false; // todo temporarily disable dim aggr pushdown shortcut-42339. Just remove after testing
+    if (array_for_comp->schema().array_type() == TILEDB_DENSE) return false; // disable on dense array dims
     auto dim = array_for_comp->schema().domain().dimension(field);
     type = dim.type();
   }
@@ -643,23 +484,22 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
   case Item_sum::MAX_FUNC:
     DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
   case Item_sum::COUNT_FUNC:
-    DBUG_RETURN(true);
+    return true;
   default:
     // counts not supported
-    DBUG_RETURN(false);
+    return false;
   }
 }
 
 static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 {
-  DBUG_ENTER("tile::mytile::create_group_by_handler");
   tile::mytile_group_by_handler *handler;
   if (!tile::sysvars::enable_aggregate_pushdown(thd)) {
-    DBUG_RETURN(0);
+    return 0;
   }
 
   /* check that there is no group_by. Not currently supported by TileDB*/
-  if (query->group_by != 0) DBUG_RETURN(0);
+  if (query->group_by != 0) return 0;
 
   tile::mytile* mytile_ptr = dynamic_cast<tile::mytile*>(query->from->table->file);
 
@@ -708,7 +548,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
         *ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
         tiledb::EncryptionAlgorithm(
             encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                         : TILEDB_AES_256_GCM, encryption_key.c_str()));
+                                 : TILEDB_AES_256_GCM, encryption_key.c_str()));
 #else
     aggr_array = new tiledb::Array(
         *ctx, uri, TILEDB_READ,
@@ -730,13 +570,13 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
                      isp->get_arg(0)->name.str,
                      isp->sum_func(),
                      aggr_array)) {
-          DBUG_RETURN(0);
+          return 0;
       }
       // if you find at least one not compatible aggregate abort entire pushdown
     }
 
     /* Create handler and return it */
-    handler= new tile::mytile_group_by_handler(thd,
+    handler = new tile::mytile_group_by_handler(thd,
                                              aggr_array,
                                              ctx,qc,
                                              valid_ranges,
@@ -745,9 +585,9 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
                                              in_ranges,
                                              encryption_key,
                                              open_at);
-    DBUG_RETURN(handler);
+    return handler;
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 // Create mytile object
@@ -1488,191 +1328,26 @@ int tile::mytile::init_scan(THD *thd) {
     auto domain = this->array_schema->domain();
     auto dims = domain.dimensions();
 
-    std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
-    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-      nonEmptyDomains.emplace_back(
-          std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
-    }
+    this->subarray =
+        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
+            this->ctx, *this->array));
 
-    std::vector<std::pair<std::string, std::string>> nonEmptyDomainVars(
-        this->ndim);
-    for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-      tiledb::Dimension dimension = domain.dimension(dim_idx);
-
-      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-        nonEmptyDomainVars[dim_idx] =
-            this->array->non_empty_domain_var(dim_idx);
-      } else {
-        uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
-        auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
-            std::malloc(size), &std::free);
-        this->ctx.handle_error(tiledb_array_get_non_empty_domain_from_index(
-            this->ctx.ptr().get(), this->array->ptr().get(), dim_idx,
-            nonEmptyDomain.get(), &this->empty_read));
-
-        nonEmptyDomains[dim_idx] = (std::move(nonEmptyDomain));
-      }
-    }
+    tile::build_subarray(thd,
+                         this->valid_pushed_ranges(),
+                         this->valid_pushed_in_ranges(),
+                         this->empty_read,
+                         domain,
+                         this->pushdown_ranges,
+                         this->pushdown_in_ranges,
+                         this->subarray,
+                         &this->ctx,
+                         this->array.get());
 
     // If a query condition on an attribute was set, apply it
     if (this->query_condition != nullptr) {
       this->query->set_condition(*this->query_condition);
     }
 
-    this->subarray =
-        std::unique_ptr<tiledb::Subarray>(new tiledb::Subarray(
-            this->ctx, *this->array));
-
-    if (!this->valid_pushed_ranges() &&
-        !this->valid_pushed_in_ranges()) { // No pushdown
-      if (this->empty_read)
-        DBUG_RETURN(rc);
-
-      log_debug(thd, "no pushdowns possible for query on table %s",
-                this->table->s->table_name.str);
-
-      for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-        tiledb::Dimension dimension = domain.dimension(dim_idx);
-
-        // set range
-        if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-          auto &pair = nonEmptyDomainVars[dim_idx];
-          this->subarray->add_range(dim_idx, pair.first, pair.second);
-        } else {
-
-          void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
-          void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
-                        tiledb_datatype_size(dimension.type());
-          this->ctx.handle_error(tiledb_subarray_add_range(
-              this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
-              upper, nullptr));
-        }
-      }
-
-    } else {
-      log_debug(thd, "pushdown of ranges for query on table %s",
-                this->table->s->table_name.str);
-
-      // Loop over dimensions and build ranges for that dimension
-      for (uint64_t dim_idx = 0; dim_idx < this->ndim; dim_idx++) {
-        tiledb::Dimension dimension = domain.dimension(dim_idx);
-
-        // This ranges vector and the ranges it contains will be manipulated in
-        // merge ranges
-        const auto &ranges = this->pushdown_ranges[dim_idx];
-
-        // If there is valid ranges from IN clause, first we must see if they
-        // are contained inside the merged super range we have
-        const auto &in_ranges = this->pushdown_in_ranges[dim_idx];
-
-        if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
-          auto &non_empty_domain = nonEmptyDomainVars[dim_idx];
-          // If the ranges for this dimension are not empty, we'll push it down
-          // else non empty domain is used
-          if (!ranges.empty() || !in_ranges.empty()) {
-            log_debug(thd, "Pushdown for %s.%s", this->table->s->table_name.str,
-                      dims[dim_idx].name().c_str());
-
-            std::shared_ptr<tile::range> range = nullptr;
-            if (!ranges.empty()) {
-              // Merge multiple ranges into single super range
-              range = merge_ranges(ranges, dims[dim_idx].type());
-
-              if (range != nullptr) {
-                // Setup the range by filling in missing values with non empty
-                // domain
-                setup_range(thd, range, non_empty_domain, dims[dim_idx]);
-
-                // set range
-                this->ctx.handle_error(tiledb_subarray_add_range_var(
-                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
-                    range->lower_value.get(), range->lower_value_size,
-                    range->upper_value.get(), range->upper_value_size));
-              }
-            }
-
-            // If there are ranges from in conditions let's build proper ranges
-            // for them
-            if (!in_ranges.empty()) {
-              // First make the in ranges unique and remove any which are
-              // contained by the main range (if it is non null)
-              auto unique_in_ranges =
-                  get_unique_non_contained_in_ranges(in_ranges, range);
-
-              for (auto &in_range : unique_in_ranges) {
-                // setup range so values are set to correct datatypes
-                setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
-                // set range
-                this->ctx.handle_error(tiledb_subarray_add_range_var(
-                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
-                    in_range->lower_value.get(), in_range->lower_value_size,
-                    in_range->upper_value.get(), in_range->upper_value_size));
-              }
-            }
-          } else { // If the range is empty we need to use the non-empty-domain
-
-            this->subarray->add_range(dim_idx, non_empty_domain.first,
-                                   non_empty_domain.second);
-          }
-        } else {
-          // get start of non empty domain
-          void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
-          // If the ranges for this dimension are not empty, we'll push it down
-          // else non empty domain is used
-          if (!ranges.empty() || !in_ranges.empty()) {
-            log_debug(thd, "Pushdown for %s.%s", this->table->s->table_name.str,
-                      dims[dim_idx].name().c_str());
-
-            std::shared_ptr<tile::range> range = nullptr;
-            if (!ranges.empty()) {
-              // Merge multiple ranges into single super range
-              range = merge_ranges(ranges, dims[dim_idx].type());
-
-              if (range != nullptr) {
-                // Setup the range by filling in missing values with non empty
-                // domain
-                setup_range(thd, range, lower, dims[dim_idx]);
-
-                // set range
-                this->ctx.handle_error(tiledb_subarray_add_range(
-                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
-                    range->lower_value.get(), range->upper_value.get(),
-                    nullptr));
-              }
-            }
-
-            // If there are ranges from in conditions let's build proper ranges
-            // for them
-            if (!in_ranges.empty()) {
-              // First make the in ranges unique and remove any which are
-              // contained by the main range (if it is non null)
-              auto unique_in_ranges =
-                  get_unique_non_contained_in_ranges(in_ranges, range);
-
-              for (auto &in_range : unique_in_ranges) {
-                // setup range so values are set to correct datatypes
-                setup_range(thd, in_range, lower, dims[dim_idx]);
-                // set range
-                this->ctx.handle_error(tiledb_subarray_add_range(
-                    this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx,
-                    in_range->lower_value.get(), in_range->upper_value.get(),
-                    nullptr));
-              }
-            }
-          } else { // If the range is empty we need to use the non-empty-domain
-            log_debug(thd, "No pushdownfor %s.%s",
-                      this->table->s->table_name.str,
-                      dims[dim_idx].name().c_str());
-
-            void *upper = static_cast<char *>(lower) +
-                          tiledb_datatype_size(dimension.type());
-            this->ctx.handle_error(tiledb_subarray_add_range(
-                this->ctx.ptr().get(), this->subarray->ptr().get(), dim_idx, lower,
-                upper, nullptr));
-          }
-        }
-      }
-    }
     // set subarray
     this->query->set_subarray(*this->subarray);
 

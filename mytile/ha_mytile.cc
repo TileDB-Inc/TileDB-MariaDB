@@ -168,7 +168,7 @@ int tile::mytile_group_by_handler::init_scan()
   auto schema = aggr_array->schema();
   auto domain = schema.domain();
   auto dims = domain.dimensions();
-  int ndim = domain.ndim();
+  uint64_t ndim = domain.ndim();
 
   std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
   for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
@@ -200,8 +200,7 @@ int tile::mytile_group_by_handler::init_scan()
   // todo massive code repetition here, will create a method
   if (!valid_ranges && !valid_in_ranges) {
     // No pushdown
-    for (uint64_t dim_idx = 0; dim_idx < domain.ndim();
-         dim_idx++) {
+    for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
       tiledb::Dimension dimension = domain.dimension(dim_idx);
 
       if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
@@ -347,7 +346,6 @@ int tile::mytile_group_by_handler::next_row()
 
   // Get the current SELECT statement
   SELECT_LEX *select_lex = thd->lex->current_select;
-  Item *item;
   List_iterator_fast<Item> it(select_lex->item_list);
   Field **field_ptr= table->field;
   std::vector<uint8_t> validity(1);
@@ -408,18 +406,18 @@ int tile::mytile_group_by_handler::next_row()
       auto dim = domain.dimension(column_with_aggregate);
       type = dim.type();
     }
-    Field **field_ptr= table->field;
     switch (item_sum->sum_func()) {
     case Item_sum::SUM_FUNC:
     {
+      std::string sum_string = "Sum";
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate("Sum", operation);
-      if (nullable) aggr_query->set_validity_buffer("Sum", validity);
+      default_channel.apply_aggregate(sum_string, operation);
+      if (nullable) aggr_query->set_validity_buffer(sum_string, validity);
 
       if (type == TILEDB_FLOAT32
           || type == TILEDB_FLOAT64) {
         std::vector<double> sum(1);
-        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->set_data_buffer(sum_string, sum);
         aggr_query->submit();
         field->store(sum[0]);
       } else if (type == TILEDB_UINT8
@@ -427,7 +425,7 @@ int tile::mytile_group_by_handler::next_row()
           || type == TILEDB_UINT32
           || type == TILEDB_UINT64) {
         std::vector<uint64_t> sum(1);
-        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->set_data_buffer(sum_string, sum);
         aggr_query->submit();
         field->store(sum[0], 0);
       } else if (type == TILEDB_INT8
@@ -436,7 +434,7 @@ int tile::mytile_group_by_handler::next_row()
           || type == TILEDB_INT64) {
 
         std::vector<int64_t> sum(1);
-        aggr_query->set_data_buffer("Sum", sum);
+        aggr_query->set_data_buffer(sum_string, sum);
         aggr_query->submit();
         field->store(sum[0], 1);
       }
@@ -444,11 +442,12 @@ int tile::mytile_group_by_handler::next_row()
     }
     case Item_sum::COUNT_FUNC:
     {
-      default_channel.apply_aggregate("Count", tiledb::CountOperation());
-      if (nullable) aggr_query->set_validity_buffer("Count", validity);
+      std::string count_string = "Count";
+      default_channel.apply_aggregate(count_string, tiledb::CountOperation());
+      if (nullable) aggr_query->set_validity_buffer(count_string, validity);
 
       std::vector<uint64_t> count(1);
-      aggr_query->set_data_buffer("Count", count);
+      aggr_query->set_data_buffer(count_string, count);
 
       aggr_query->submit();
 
@@ -457,11 +456,12 @@ int tile::mytile_group_by_handler::next_row()
     }
     case Item_sum::AVG_FUNC:
     {
+      std::string avg_string = "Avg";
       tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
-      default_channel.apply_aggregate("Avg", operation);
-      if (nullable) aggr_query->set_validity_buffer("Avg", validity);
+      default_channel.apply_aggregate(avg_string, operation);
+      if (nullable) aggr_query->set_validity_buffer(avg_string, validity);
       std::vector<double> avg(1);
-      aggr_query->set_data_buffer("Avg", avg);
+      aggr_query->set_data_buffer(avg_string, avg);
 
       aggr_query->submit();
 
@@ -477,76 +477,77 @@ int tile::mytile_group_by_handler::next_row()
       } else {
         operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
       }
-      default_channel.apply_aggregate("minmax", *operation);
-      if (nullable) aggr_query->set_validity_buffer("minmax", validity);
+      std::string minmax_string = "minmax";
+      default_channel.apply_aggregate(minmax_string, *operation);
+      if (nullable) aggr_query->set_validity_buffer(minmax_string, validity);
 
       switch (type) {
         case TILEDB_FLOAT32:{
           std::vector<float> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0]);
           break;
         }
         case TILEDB_FLOAT64: {
           std::vector<double> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0]);
           break;
         }
         case TILEDB_INT8: {
           std::vector<int8_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 1);
           break;
         }
         case TILEDB_UINT8: {
           std::vector<uint8_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 0);
           break;
         }
         case TILEDB_INT16: {
           std::vector<int16_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 1);
           break;
         }
         case TILEDB_UINT16: {
           std::vector<uint16_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 0);
           break;
         }
         case TILEDB_INT32: {
           std::vector<int32_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 1);
           break;
         }
         case TILEDB_UINT32: {
           std::vector<uint32_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 0);
           break;
         }
         case TILEDB_UINT64: {
           std::vector<uint64_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 0);
           break;
         }
         case TILEDB_INT64: {
           std::vector<int64_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 1);
           break;
@@ -574,7 +575,7 @@ int tile::mytile_group_by_handler::next_row()
         case TILEDB_TIME_FS:
         case TILEDB_TIME_AS: {
           std::vector<int64_t> minmax(1);
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax[0], 1);
           break;
@@ -587,10 +588,10 @@ int tile::mytile_group_by_handler::next_row()
         case TILEDB_STRING_UTF32:
         case TILEDB_CHAR: {
           std::vector<uint64_t> offsets(1);
-          aggr_query->set_offsets_buffer("minmax", offsets);
+          aggr_query->set_offsets_buffer(minmax_string, offsets);
           std::string minmax;
           minmax.resize(32); //todo what size should we put here? maybe add option for users to increase this?
-          aggr_query->set_data_buffer("minmax", minmax);
+          aggr_query->set_data_buffer(minmax_string, minmax);
           aggr_query->submit();
           field->store(minmax.c_str(), minmax.length(),
                        &my_charset_latin1);
@@ -659,8 +660,6 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
 
   /* check that there is no group_by. Not currently supported by TileDB*/
   if (query->group_by != 0) DBUG_RETURN(0);
-
-  TABLE_LIST* table_ptr = query->from;
 
   tile::mytile* mytile_ptr = dynamic_cast<tile::mytile*>(query->from->table->file);
 
@@ -739,7 +738,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     /* Create handler and return it */
     handler= new tile::mytile_group_by_handler(thd,
                                              aggr_array,
-                                             ctx, qc,
+                                             ctx,qc,
                                              valid_ranges,
                                              valid_in_ranges,
                                              ranges,
@@ -824,8 +823,6 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
 
 int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   DBUG_ENTER("tile::mytile::open");
-  int rc = 0;
-
   // First rebuild context with new config if needed
   tiledb::Config cfg = build_config(ha_thd());
 
@@ -3128,12 +3125,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   // Set Attribute Buffers
   auto domain = this->array_schema->domain();
   auto dims = domain.dimensions();
-  bool at_least_one_aggregate = false;
-  bool valid_ranges_in_dims =false;
-
-  if (this->valid_pushed_ranges() || this->valid_pushed_in_ranges()){
-      valid_ranges_in_dims = true;
-  }
 
   if (this->buffers.empty()) {
     for (size_t i = 0; i < table->s->fields; i++)
@@ -3147,21 +3138,15 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
   tile::BufferSizeByType bufferSizesByType =
       tile::compute_buffer_sizes(field_details, memory_budget);
 
-  // check if there is at least one aggregate in the query
   for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
     Field *field = table->field[fieldIndex];
     std::string field_name = field->field_name.str;
-  }
-
-  for (size_t fieldIndex = 0; fieldIndex < table->s->fields; fieldIndex++) {
-    Field *field = table->field[fieldIndex];
-    std::string field_name = field->field_name.str;
-
     // Only set buffers for fields that are asked for except always set
     // dimensions. We check the read_set because the read_set is set to ALL column
-    // for writes and set to the subset of columns for reads.
-    if ((!bitmap_is_set(this->table->read_set, fieldIndex) && !this->array_schema->domain().has_dimension(field_name))) {
-        continue;
+    // for writes and set to the subset of columns for reads
+    if (!bitmap_is_set(this->table->read_set, fieldIndex) &&
+        !this->array_schema->domain().has_dimension(field_name)) {
+      continue;
     }
 
     // Create buffer
@@ -3172,7 +3157,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
     buff->dimension = false;
     buff->buffer_offset = 0;
     buff->fixed_size_elements = 1;
-
 
     if (this->array_schema->domain().has_dimension(field_name)) {
       auto dim = this->array_schema->domain().dimension(field_name);
@@ -3192,7 +3176,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
         // Override buffer size as this is var length
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
       }
-    } else { // attribute with no aggr
+    } else { // attribute
       tiledb::Attribute attr = this->array_schema->attribute(field_name);
 
       uint8_t *validity_buffer = nullptr;
@@ -3229,7 +3213,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       buff->offset_buffer = offset_buffer;
       buff->type = attr.type();
     }
-
     buff->buffer = alloc_buffer(datatype, data_size);
     buff->type = datatype;
     buff->buffer_size = data_size;
@@ -3240,7 +3223,6 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
 }
 
 void tile::mytile::alloc_read_buffers(uint64_t memory_budget) {
-  // pushdown aggregates if present in the query
   alloc_buffers(memory_budget);
   auto domain = this->array_schema->domain();
 

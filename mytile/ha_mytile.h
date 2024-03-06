@@ -70,21 +70,6 @@ private:
   // flag to only fetch one row
   bool first_row;
 
-  // True if we have valid pushed ranges
-  bool valid_ranges;
-
-  // True if we have valid pushed in ranges
-  bool valid_in_ranges;
-
-  // The array uri
-  const std::string uri;
-
-  // The encryption key if applicabl
-  const std::string encryption_key;
-
-  // The open at timestamp is applicable
-  const uint64_t open_at;
-
   // The array we run the aggregates on
   tiledb::Array *aggr_array;
 
@@ -94,17 +79,32 @@ private:
   // The constructed query condition for the query if requested
   std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
 
-  // The query for the aggregation
-  std::shared_ptr<tiledb::Query> aggr_query;
+  // True if we have valid pushed ranges
+  bool valid_ranges;
 
-  // The subarray for the dims
-  std::shared_ptr<tiledb::Subarray> tiledb_sub;
+  // True if we have valid pushed in ranges
+  bool valid_in_ranges;
 
   // The pushed ranges if present
   std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
 
   // The pushed in ranges if present
   std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
+
+  // The encryption key if applicabl
+  const std::string encryption_key;
+
+  // The open at timestamp is applicable
+  const uint64_t open_at;
+
+  // The array uri
+  const std::string uri;
+
+  // The query for the aggregation
+  std::shared_ptr<tiledb::Query> aggr_query;
+
+  // The subarray for the dims
+  std::shared_ptr<tiledb::Subarray> tiledb_sub;
 
 public:
   /**

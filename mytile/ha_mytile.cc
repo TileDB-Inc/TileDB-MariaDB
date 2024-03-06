@@ -470,8 +470,8 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
     type = attr.type();
   } else {
     return false; // todo temporarily disable dim aggr pushdown shortcut-42339. Just remove after testing
-    if (array_for_comp->schema().array_type() == TILEDB_DENSE) return false; // disable on dense array dims
-    auto dim = array_for_comp->schema().domain().dimension(field);
+    if (schema.array_type() == TILEDB_DENSE) return false; // disable on dense array dims
+    auto dim = schema.domain().dimension(field);
     type = dim.type();
   }
 
@@ -484,6 +484,8 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
   case Item_sum::MAX_FUNC:
     DBUG_RETURN(tile::is_numeric_type(type) || tile::is_string_type(type));
   case Item_sum::COUNT_FUNC:
+    //disable count for dense as it also counts the fill values,// thus producing wrong results
+    DBUG_RETURN(schema.array_type() != TILEDB_DENSE);
     return true;
   default:
     // counts not supported
@@ -517,9 +519,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
   bool valid_in_ranges = mytile_ptr->valid_pushed_in_ranges();
 
   // open array here before init scan because we need to check if the aggregate requested
-  // can be processed by TileDB. For example if the aggregate is requested on a dimension
-  // we need to abort and leave the task to MariaDB. To do that we need early access to
-  // the array
+  // can be processed by TileDB.
   tiledb::Array *aggr_array;
   std::shared_ptr<tiledb::Config> cfg;
   std::shared_ptr<tiledb::Context> ctx;
@@ -563,13 +563,17 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
   if (select_lex->with_sum_func) {
     // Iterate through the item list to find TileDB compatible aggregates
     Item *item;
-    List_iterator_fast<Item> it2(select_lex->item_list);
-    while ((item = it2++)) {
+    List_iterator_fast<Item> it(*query->select);
+    while ((item = it++)) {
       Item_sum *isp = dynamic_cast<Item_sum *>(item);
       if (isp && !field_is_aggregation_compatible(
                      isp->get_arg(0)->name.str,
                      isp->sum_func(),
                      aggr_array)) {
+          if (aggr_array != nullptr && aggr_array->is_open()){
+            aggr_array->close();
+            delete aggr_array;
+          }
           return 0;
       }
       // if you find at least one not compatible aggregate abort entire pushdown

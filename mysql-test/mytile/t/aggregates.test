@@ -100,7 +100,9 @@ SELECT MAX(a) as MAXIMUM1 from dense;
 SELECT MAX(a) as MAXIMUM2 from dense where cols=3;
 SELECT MAX(a) as MAXIMUM3 from dense where `a` > 10;
 
-SELECT AVG(a), SUM(a), COUNT(a), MIN(a), MAX(a) from dense where a > 3;
+SELECT AVG(a), MIN(a), MAX(a) from dense where a > 3;
+SELECT COUNT(a) from dense where a > 3;
+SELECT COUNT(a) from dense where a > 3 and cols > 1;
 SELECT SUM(a) from dense where a > 3 and `cols` > 3;
 SELECT AVG(a), `cols` ,MAX(a) from dense where a > 3;
 

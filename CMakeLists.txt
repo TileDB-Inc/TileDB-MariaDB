@@ -82,7 +82,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     # Manually link library
     # Must use full library name else cmake things its the external target of `tiledb`
-    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_SHARED_LIBRARY_PREFIX}tiledb${CMAKE_SHARED_LIBRARY_SUFFIX}.${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}")
+    SET(TILEDB_LIBRARIES "${EP_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}tiledb${CMAKE_STATIC_LIBRARY_SUFFIX}")
     FILE(GLOB TILEDB_INSTALL_LIBRARIES "${TILEDB_LIBRARIES}")
 else()
     # This whole block could be simplified to set(TILEDB_LIBRARIES TileDB::tiledb_shared),

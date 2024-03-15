@@ -64,8 +64,7 @@ This handler supports SUM(), COUNT(), AVG(), MIN(), and MAX()
 pushdown to TileDB
 *****************************************************************************/
 
-class mytile_group_by_handler: public group_by_handler
-{
+class mytile_group_by_handler: public group_by_handler {
 private:
   // flag to only fetch one row
   bool first_row;
@@ -77,7 +76,7 @@ private:
   std::shared_ptr<tiledb::Context> ctx;
 
   // The constructed query condition for the query if requested
-  std::shared_ptr<tiledb::QueryCondition>& tiledb_qc;
+  std::shared_ptr<tiledb::QueryCondition> &tiledb_qc;
 
   // True if we have valid pushed ranges
   bool valid_ranges;
@@ -86,10 +85,10 @@ private:
   bool valid_in_ranges;
 
   // The pushed ranges if present
-  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_ranges;
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_ranges;
 
   // The pushed in ranges if present
-  std::vector<std::vector<std::shared_ptr<tile::range>>>& pushdown_in_ranges;
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_in_ranges;
 
   // The encryption key if applicabl
   const std::string encryption_key;
@@ -116,16 +115,14 @@ public:
    * @param val_ranges
    * @param val_in_ranges
    */
-  mytile_group_by_handler(THD *thd_arg,
-                             tiledb::Array *array,
-                             std::shared_ptr<tiledb::Context>& context,
-                             std::shared_ptr<tiledb::QueryCondition> &qc,
-                             bool val_ranges,
-                             bool val_in_ranges,
-                             std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
-                             std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
-                             const std::string encryption_key,
-                             const uint64_t open_at);
+  mytile_group_by_handler(
+      THD *thd_arg, tiledb::Array *array,
+      std::shared_ptr<tiledb::Context> &context,
+      std::shared_ptr<tiledb::QueryCondition> &qc, bool val_ranges,
+      bool val_in_ranges,
+      std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
+      std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
+      const std::string encryption_key, const uint64_t open_at);
   ~mytile_group_by_handler() = default;
 
   /**
@@ -145,6 +142,32 @@ public:
    * @return
    */
   int end_scan();
+
+  /**
+   * Submits the TileDB query and sets the MariaDB field with the aggregate
+   * result of min or max
+   * @param aggr_query  The TileDB query
+   * @param type The attribute/dimension type
+   * @param field The MariaDB field
+   * @param minmax_string The string for TileDB
+   * @return
+   */
+  int submit_and_set_minmax_aggregate(
+      std::shared_ptr<tiledb::Query> &aggr_query, const tiledb_datatype_t type,
+      Field *field, std::string minmax_string);
+
+  /**
+   * Submits the TileDB query and sets the MariaDB field with the aggregate
+   * result of sum
+   * @param aggr_query  The TileDB query
+   * @param type The attribute/dimension type
+   * @param field The MariaDB field
+   * @param minmax_string The string for TileDB
+   * @return
+   */
+  int submit_and_set_sum_aggregate(std::shared_ptr<tiledb::Query> &aggr_query,
+                                   const tiledb_datatype_t type, Field *field,
+                                   std::string sum_string);
 };
 
 

@@ -484,6 +484,7 @@ int tile::mytile_group_by_handler::submit_and_set_minmax_aggregate(
       minmax.resize(32); //todo what size should we put here? maybe add option for users to increase this?
       aggr_query->set_data_buffer(minmax_string, minmax);
       aggr_query->submit();
+      minmax.erase(std::find(minmax.begin(), minmax.end(), '\0'), minmax.end());
       field->store(minmax.c_str(), minmax.length(),
                    &my_charset_latin1);
       break;

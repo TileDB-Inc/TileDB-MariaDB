@@ -1217,13 +1217,15 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
           ctx->ptr().get(), array->ptr().get(), dim_idx,
           nonEmptyDomain.get(), &empty_read));
 
-      nonEmptyDomains[dim_idx] = (std::move(nonEmptyDomain));
+      nonEmptyDomains[dim_idx] = std::move(nonEmptyDomain);
     }
   }
 
   // if no ranges to add
   if (!valid_ranges && !valid_in_ranges) { // No pushdown
-    if (empty_read) return; //todo
+    if (empty_read) {
+      return;
+    }
 
     for (uint64_t dim_idx = 0; dim_idx < domain.ndim(); dim_idx++) {
       tiledb::Dimension dimension = domain.dimension(dim_idx);

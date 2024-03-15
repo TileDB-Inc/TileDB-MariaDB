@@ -3,7 +3,6 @@
 */
 #include "mytile.h"
 #include "utils.h"
-#include "mytile-sysvars.h"
 #include <log.h>
 #include <my_global.h>
 #include <mysqld_error.h>
@@ -166,9 +165,8 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value,
-                                uint32 val_num) {
-  if (val_num > 1 && val_num != TILEDB_VAR_NUM) {
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num) {
+  if (val_num > 1 && val_num != TILEDB_VAR_NUM){
     return MYSQL_TYPE_BLOB;
   }
 

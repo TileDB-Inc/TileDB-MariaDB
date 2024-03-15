@@ -233,7 +233,8 @@ int tile::mytile_group_by_handler::next_row()
 
       std::string column_with_aggregate = arg->name.str;
 
-      this->aggr_query = std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
+      this->aggr_query =
+          std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
 
       auto schema = aggr_array->schema();
       auto domain = schema.domain();
@@ -245,7 +246,8 @@ int tile::mytile_group_by_handler::next_row()
         aggr_query->set_layout(TILEDB_GLOBAL_ORDER);
       }
 
-      tiledb::QueryChannel default_channel = tiledb::QueryExperimental::get_default_channel(*aggr_query);
+      tiledb::QueryChannel default_channel =
+          tiledb::QueryExperimental::get_default_channel(*aggr_query);
 
       // add query condition
       if (this->tiledb_qc != nullptr) {
@@ -268,7 +270,9 @@ int tile::mytile_group_by_handler::next_row()
       case Item_sum::SUM_FUNC:
       {
         std::string sum_string = "Sum";
-        tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::SumOperator>(*aggr_query, column_with_aggregate);
+        tiledb::ChannelOperation operation =
+            tiledb::QueryExperimental::create_unary_aggregate<
+                tiledb::SumOperator>(*aggr_query, column_with_aggregate);
         default_channel.apply_aggregate(sum_string, operation);
         if (nullable) aggr_query->set_validity_buffer(sum_string, validity);
 
@@ -315,7 +319,9 @@ int tile::mytile_group_by_handler::next_row()
       case Item_sum::AVG_FUNC:
       {
         std::string avg_string = "Avg";
-        tiledb::ChannelOperation operation = tiledb::QueryExperimental::create_unary_aggregate<tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
+        tiledb::ChannelOperation operation =
+            tiledb::QueryExperimental::create_unary_aggregate<
+                tiledb::MeanOperator>(*aggr_query, column_with_aggregate);
         default_channel.apply_aggregate(avg_string, operation);
         if (nullable) aggr_query->set_validity_buffer(avg_string, validity);
         std::vector<double> avg(1);
@@ -330,11 +336,17 @@ int tile::mytile_group_by_handler::next_row()
       case Item_sum::MIN_FUNC:
       {
         std::unique_ptr<tiledb::ChannelOperation> operation;
+
         if (item_sum->sum_func() == Item_sum::MAX_FUNC) {
-          operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MaxOperator>(*aggr_query, column_with_aggregate));
+          operation = std::make_unique<tiledb::ChannelOperation>(
+              tiledb::QueryExperimental::create_unary_aggregate<
+                  tiledb::MaxOperator>(*aggr_query, column_with_aggregate));
         } else {
-          operation = std::make_unique<tiledb::ChannelOperation>(tiledb::QueryExperimental::create_unary_aggregate<tiledb::MinOperator>(*aggr_query, column_with_aggregate));
+          operation = std::make_unique<tiledb::ChannelOperation>(
+              tiledb::QueryExperimental::create_unary_aggregate<
+                  tiledb::MinOperator>(*aggr_query, column_with_aggregate));
         }
+
         std::string minmax_string = "minmax";
         default_channel.apply_aggregate(minmax_string, *operation);
         if (nullable) aggr_query->set_validity_buffer(minmax_string, validity);
@@ -493,7 +505,7 @@ int tile::mytile_group_by_handler::next_row()
  * @param array_for_comp  The array
  * @return
  */
-static bool field_is_aggregation_compatible(const std::string field, const Item_sum::Sumfunctype aggregate, tiledb::Array* array_for_comp) {
+static bool aggregate_is_supported(const std::string field, const Item_sum::Sumfunctype aggregate, tiledb::Array* array_for_comp) {
   // if it not an attribute, no TileDB aggregation can be applied
 
   tiledb_datatype_t type;
@@ -511,18 +523,17 @@ static bool field_is_aggregation_compatible(const std::string field, const Item_
 
   // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
   switch (aggregate) {
-  case Item_sum::SUM_FUNC:
-  case Item_sum::AVG_FUNC:
-    return tile::is_numeric_type(type);
-  case Item_sum::MIN_FUNC:
-  case Item_sum::MAX_FUNC:
-    return tile::is_numeric_type(type) || tile::is_string_type(type);
-  case Item_sum::COUNT_FUNC:
-    //disable count for dense as it also counts the fill values,// thus producing wrong results
-    return schema.array_type() != TILEDB_DENSE;
-    return true;
-  default:
-    return false;
+    case Item_sum::SUM_FUNC:
+    case Item_sum::AVG_FUNC:
+      return tile::is_numeric_type(type);
+    case Item_sum::MIN_FUNC:
+    case Item_sum::MAX_FUNC:
+      return tile::is_numeric_type(type) || tile::is_string_type(type);
+    case Item_sum::COUNT_FUNC:
+      //disable count for dense as it also counts the fill values,// thus producing wrong results
+      return schema.array_type() != TILEDB_DENSE;
+    default:
+      return false;
   }
 }
 
@@ -599,7 +610,7 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     List_iterator_fast<Item> it(*query->select);
     while ((item = it++)) {
       Item_sum *isp = dynamic_cast<Item_sum *>(item);
-      if (isp && !field_is_aggregation_compatible(
+      if (isp && !aggregate_is_supported(
                      isp->get_arg(0)->name.str,
                      isp->sum_func(),
                      aggr_array)) {
@@ -683,7 +694,11 @@ tile::mytile_group_by_handler::mytile_group_by_handler(THD *thd_arg,
      std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
      std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
      const std::string encryption_key,
-     const uint64_t open_at) : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context), tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges), pushdown_ranges(ranges), pushdown_in_ranges(in_ranges), encryption_key(encryption_key), open_at(open_at) {};
+     const uint64_t open_at)
+     : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context),
+       tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges),
+       pushdown_ranges(ranges), pushdown_in_ranges(in_ranges),
+       encryption_key(encryption_key), open_at(open_at){};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
@@ -1434,6 +1449,9 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
               case Item_sum::MIN_FUNC:
                 DBUG_RETURN(Item_sum::MIN_FUNC);
                 break;
+              case Item_sum::COUNT_FUNC:
+                DBUG_RETURN(Item_sum::COUNT_FUNC);
+                break;
               case Item_sum::MAX_FUNC:
                 DBUG_RETURN(Item_sum::MAX_FUNC);
                 break;
@@ -1934,8 +1952,13 @@ const COND *tile::mytile::cond_push_func_datetime(
 
     // Dense arrays do not support query conditions.
     auto has_aggr = has_aggregate(ha_thd(), column_field->field_name.str);
-    if (this->array_schema->array_type() == TILEDB_DENSE && !has_aggr)
+    if (has_aggr == Item_sum::COUNT_FUNC) {
       DBUG_RETURN(func_item);
+    }
+
+    if (this->array_schema->array_type() == TILEDB_DENSE && !has_aggr){
+      DBUG_RETURN(func_item);
+    }
 
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
@@ -2381,8 +2404,13 @@ tile::mytile::cond_push_func(const Item_func *func_item,
 
     // Dense arrays do not support query conditions
     auto has_aggr = has_aggregate(ha_thd(), column_field->field_name.str);
-    if (this->array_schema->array_type() == TILEDB_DENSE && !has_aggr)
+    if (has_aggr == Item_sum::COUNT_FUNC) {
       DBUG_RETURN(func_item);
+    }
+
+    if (this->array_schema->array_type() == TILEDB_DENSE && !has_aggr){
+      DBUG_RETURN(func_item);
+    }
 
     auto attr = this->array_schema->attribute(column_field->field_name.str);
     datatype = attr.type();
@@ -2898,9 +2926,7 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       datatype = attr.type();
       data_size = bufferSizesByType.SizeByType(datatype);
 
-      bool nullable;
-      nullable = attr.nullable();
-      if (nullable) {
+      if (attr.nullable()) {
         validity_buffer = static_cast<uint8_t *>(
             alloc_buffer(tiledb_datatype_t::TILEDB_UINT8,
                          bufferSizesByType.var_length_uint8_buffer_size));
@@ -3670,14 +3696,13 @@ begin:
       do {
         this->status = query->submit();
 
+        // Compute the number of cells (records) that were returned by the query
         auto buff = this->buffers[0];
         if (buff->offset_buffer != nullptr) {
           this->records = buff->offset_buffer_size / sizeof(uint64_t);
         } else {
-          this->records =
-              buff->buffer_size / tiledb_datatype_size(buff->type);
+          this->records = buff->buffer_size / tiledb_datatype_size(buff->type);
         }
-
 
         // Increase the buffer allocation and resubmit if necessary.
         if (this->status == tiledb::Query::Status::INCOMPLETE &&

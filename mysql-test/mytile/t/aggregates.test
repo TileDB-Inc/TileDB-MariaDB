@@ -13,6 +13,9 @@ select SUM(a) from dense;
 select MAX(a) from dense;
 select MIN(a) from dense;
 select COUNT(a) from dense;
+select SUM(d.cols) from dense as d;
+select AVG(d.cols) from dense as d;
+select MAX(d.cols) from dense as d;
 
 select AVG(`cols`) from dense; # is not pushed down because `cols` is a dimension
 

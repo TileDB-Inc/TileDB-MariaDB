@@ -23,6 +23,15 @@ MIN(a)
 select COUNT(a) from dense;
 COUNT(a)
 16
+select SUM(d.cols) from dense as d;
+SUM(d.cols)
+40
+select AVG(d.cols) from dense as d;
+AVG(d.cols)
+2.5000
+select MAX(d.cols) from dense as d;
+MAX(d.cols)
+4
 select AVG(`cols`) from dense;
 AVG(`cols`)
 2.5000

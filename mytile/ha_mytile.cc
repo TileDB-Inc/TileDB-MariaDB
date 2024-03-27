@@ -578,8 +578,7 @@ static bool aggregate_is_supported(const std::string field, const Item_sum::Sumf
     if (attr.cell_val_num() > 1 && !attr.variable_sized()) return false; // multi valued not supported
     type = attr.type();
   } else {
-    return false; // todo temporarily disable dim aggr pushdown shortcut-42339. Just remove after testing
-    if (schema.array_type() == TILEDB_DENSE) return false; // disable on dense array dims
+    if (schema.array_type() == TILEDB_SPARSE) return false; // disable on sparse array dims
     auto dim = schema.domain().dimension(field);
     type = dim.type();
   }

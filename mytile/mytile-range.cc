@@ -1186,6 +1186,176 @@ void tile::update_range_from_key_for_super_range(
   }
 }
 
+void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_in_ranges,
+                          int &empty_read, const tiledb::Domain &domain,
+                          const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_ranges,
+                          const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_in_ranges,
+                          std::unique_ptr<tiledb::Subarray> &subarray,
+                          tiledb::Context *ctx,
+                          tiledb::Array *array) {
+
+  auto dims = domain.dimensions();
+  uint64_t ndim = domain.ndim();
+
+  std::vector<std::unique_ptr<void, decltype(&std::free)>> nonEmptyDomains;
+  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
+    nonEmptyDomains.emplace_back(
+        std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free));
+  }
+
+  std::vector<std::pair<std::string, std::string>> nonEmptyDomainVars(ndim);
+  for (uint64_t dim_idx = 0; dim_idx < ndim; dim_idx++) {
+    tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+    if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+      nonEmptyDomainVars[dim_idx] = array->non_empty_domain_var(dim_idx);
+    } else {
+      uint64_t size = (tiledb_datatype_size(dimension.type()) * 2);
+      auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
+          std::malloc(size), &std::free);
+      ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
+          ctx->ptr().get(), array->ptr().get(), dim_idx,
+          nonEmptyDomain.get(), &empty_read));
+
+      nonEmptyDomains[dim_idx] = std::move(nonEmptyDomain);
+    }
+  }
+
+  // if no ranges to add
+  if (!valid_ranges && !valid_in_ranges) { // No pushdown
+    if (empty_read) {
+      return;
+    }
+
+    for (uint64_t dim_idx = 0; dim_idx < domain.ndim(); dim_idx++) {
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        auto &pair = nonEmptyDomainVars[dim_idx];
+        subarray->add_range(dim_idx, pair.first, pair.second);
+      } else {
+        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+        void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
+                      tiledb_datatype_size(dimension.type());
+        // set range
+        ctx->handle_error(tiledb_subarray_add_range(
+            ctx->ptr().get(), subarray->ptr().get(), dim_idx, lower,
+            upper, nullptr));
+      }
+    }
+  } else {
+    // Loop over dimensions and build ranges for that dimension
+    for (uint64_t dim_idx = 0; dim_idx < domain.ndim(); dim_idx++) {
+      tiledb::Dimension dimension = domain.dimension(dim_idx);
+
+      // This ranges vector and the ranges it contains will be manipulated in
+      // merge ranges
+      const auto &ranges = pushdown_ranges[dim_idx];
+
+      // If there is valid ranges from IN clause, first we must see if they
+      // are contained inside the merged super range we have
+      const auto &in_ranges = pushdown_in_ranges[dim_idx];
+
+      if (dimension.cell_val_num() == TILEDB_VAR_NUM) {
+        auto &non_empty_domain = nonEmptyDomainVars[dim_idx];
+        // If the ranges for this dimension are not empty, we'll push it down
+        // else non empty domain is used
+        if (!ranges.empty() || !in_ranges.empty()) {
+          std::shared_ptr<tile::range> range = nullptr;
+          if (!ranges.empty()) {
+            // Merge multiple ranges into single super range
+            range = merge_ranges(ranges, dims[dim_idx].type());
+
+            if (range != nullptr) {
+              // Setup the range by filling in missing values with non empty
+              // domain
+              setup_range(thd, range, non_empty_domain, dims[dim_idx]);
+
+              // set range
+              ctx->handle_error(tiledb_subarray_add_range_var(
+                  ctx->ptr().get(), subarray->ptr().get(), dim_idx,
+                  range->lower_value.get(), range->lower_value_size,
+                  range->upper_value.get(), range->upper_value_size));
+            }
+          }
+
+          // If there are ranges from in conditions let's build proper ranges
+          // for them
+          if (!in_ranges.empty()) {
+            // First make the in ranges unique and remove any which are
+            // contained by the main range (if it is non null)
+            auto unique_in_ranges =
+                get_unique_non_contained_in_ranges(in_ranges, range);
+
+            for (auto &in_range : unique_in_ranges) {
+              // setup range so values are set to correct datatypes
+              setup_range(thd, in_range, non_empty_domain, dims[dim_idx]);
+              // set range
+              ctx->handle_error(tiledb_subarray_add_range_var(
+                  ctx->ptr().get(), subarray->ptr().get(), dim_idx,
+                  in_range->lower_value.get(), in_range->lower_value_size,
+                  in_range->upper_value.get(), in_range->upper_value_size));
+            }
+          }
+        } else { // If the range is empty we need to use the non-empty-domain
+
+          subarray->add_range(dim_idx, non_empty_domain.first,
+                              non_empty_domain.second);
+        }
+      } else {
+        // get start of non empty domain
+        void *lower = static_cast<char *>(nonEmptyDomains[dim_idx].get());
+        // If the ranges for this dimension are not empty, we'll push it down
+        // else non empty domain is used
+        if (!ranges.empty() || !in_ranges.empty()) {
+          std::shared_ptr<tile::range> range = nullptr;
+          if (!ranges.empty()) {
+            // Merge multiple ranges into single super range
+            range = merge_ranges(ranges, dims[dim_idx].type());
+
+            if (range != nullptr) {
+              // Setup the range by filling in missing values with non empty
+              // domain
+              setup_range(thd, range, lower, dims[dim_idx]);
+
+              // set range
+              ctx->handle_error(tiledb_subarray_add_range(
+                  ctx->ptr().get(), subarray->ptr().get(), dim_idx,
+                  range->lower_value.get(), range->upper_value.get(),
+                  nullptr));
+            }
+          }
+
+          // If there are ranges from in conditions let's build proper ranges
+          // for them
+          if (!in_ranges.empty()) {
+            // First make the in ranges unique and remove any which are
+            // contained by the main range (if it is non null)
+            auto unique_in_ranges =
+                get_unique_non_contained_in_ranges(in_ranges, range);
+
+            for (auto &in_range : unique_in_ranges) {
+              // setup range so values are set to correct datatypes
+              setup_range(thd, in_range, lower, dims[dim_idx]);
+              // set range
+              ctx->handle_error(tiledb_subarray_add_range(
+                  ctx->ptr().get(), subarray->ptr().get(), dim_idx,
+                  in_range->lower_value.get(), in_range->upper_value.get(),
+                  nullptr));
+            }
+          }
+        } else { // If the range is empty we need to use the non-empty-domain
+          void *upper = static_cast<char *>(lower) +
+                        tiledb_datatype_size(dimension.type());
+          ctx->handle_error(tiledb_subarray_add_range(
+              ctx->ptr().get(), subarray->ptr().get(), dim_idx, lower,
+              upper, nullptr));
+        }
+      }
+    }
+  }
+}
+
 int8_t tile::compare_typed_buffers(const void *lhs, const void *rhs,
                                    uint64_t size, tiledb_datatype_t datatype) {
   // Length shouldn't be zero here but better safe then segfault!

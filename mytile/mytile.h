@@ -173,7 +173,8 @@ tiledb_datatype_t mysqlTypeToTileDBType(int type, bool signedInt);
  * @param type
  * @return
  */
-int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num);
+int TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value,
+                          uint32 val_num);
 
 /**
  * Converts a value of tiledb_datatype_t to a string
@@ -277,8 +278,8 @@ template <typename T> T parse_value(const std::string &s) {
  * @return
  */
 template <typename T> std::array<T, 2> get_dim_domain(Field *field) {
-  std::array<T, 2> domain = {{std::numeric_limits<T>::lowest(),
-                             std::numeric_limits<T>::max()}};
+  std::array<T, 2> domain = {
+      {std::numeric_limits<T>::lowest(), std::numeric_limits<T>::max()}};
   domain[1] -= parse_value<T>(field->option_struct->tile_extent);
   if (field->option_struct->lower_bound != nullptr)
     domain[0] = parse_value<T>(field->option_struct->lower_bound);
@@ -422,8 +423,9 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
 }
 
 /**
- * Sets a fixed size multi value field to a mysql blob field as a sequence of bytes.
- * The user is then responsible for converting it to the desired datatype.
+ * Sets a fixed size multi value field to a mysql blob field as a sequence of
+ * bytes. The user is then responsible for converting it to the desired
+ * datatype.
  *
  * @tparam T
  * @param field
@@ -433,11 +435,13 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
  * @return
  */
 template <typename T>
-int set_fixed_blob_field(Field *field, std::shared_ptr<buffer> &buff, uint64_t i, uint64_t fixed_size_elements) {
+int set_fixed_blob_field(Field *field, std::shared_ptr<buffer> &buff,
+                         uint64_t i, uint64_t fixed_size_elements) {
   T *buffer = static_cast<T *>(buff->buffer);
   uint64_t start = i * fixed_size_elements;
   size_t bytes_needed = sizeof(T) * fixed_size_elements;
-  return field->store_binary(reinterpret_cast<char *>(&buffer[start]), bytes_needed);
+  return field->store_binary(reinterpret_cast<char *>(&buffer[start]),
+                             bytes_needed);
 }
 
 /**
@@ -500,8 +504,10 @@ int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff,
 
   void *buffer = buff->buffer;
   T val = static_cast<T *>(buffer)[i];
-  if (std::is_floating_point<T>())
+  if (std::is_floating_point<T>()) {
     return field->store(val);
+  }
+
   return field->store(val, std::is_signed<T>());
 }
 

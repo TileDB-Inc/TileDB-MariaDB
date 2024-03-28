@@ -122,12 +122,17 @@ That will run all unit tests defined for mytile
 
 - Based on TileDB arrays
 - Supports basic pushdown of predicates for dimensions
+- Supports basic pushdown of query conditions for attributes
+- Supports basic pushdown of aggregates (SUM, AVG, MAX, MIN) for attributes
 - Create arrays through CREATE TABLE syntax.
 - Existing arrays can be dynamically queried
-- Supports all datatypes except geometry
+- Supports all datatypes
 
 ## Known Issues
 
 - Condition pushdown only works for constants not sub selects
 - Buffers will double in size for incomplete queries with zero results
 - MyTile is not capable of binlogging currently both stmt and row based is disabled at the storage engine level
+- Aggregates on multi-valued attributes are not supported.
+- Aggregate pushdown does not work when using multiple functions on a column. e.g. ```SELECT COALESCE(SUM(count), 0) from allele;```. Such queries revert back to MariaDB filtering.
+- Aggregate pushdown does not work with ```GROUP BYs```. Such queries revert back to MariaDB filtering.

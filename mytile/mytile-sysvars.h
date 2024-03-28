@@ -69,6 +69,8 @@ my_bool create_allow_subset_existing_array(THD *thd);
 
 my_bool mrr_support(THD *thd);
 
+my_bool enable_aggregate_pushdown(THD *thd);
+
 LOG_LEVEL log_level(THD *thd);
 } // namespace sysvars
 } // namespace tile

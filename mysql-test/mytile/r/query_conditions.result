@@ -75,3 +75,22 @@ id	a1	a2	a3	a4
 2	100	NULL	test	orange
 3	300	400	def	beef
 DROP TABLE test_filter;
+CREATE TABLE dense ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
+select * from dense where a > 3;
+rows	cols	a
+1	4	4
+2	1	5
+2	2	6
+2	3	7
+2	4	8
+3	1	9
+3	2	10
+3	3	11
+3	4	12
+4	1	13
+4	2	14
+4	3	15
+4	4	16
+set mytile_delete_arrays=0;
+DROP TABLE dense;
+set mytile_delete_arrays=1;

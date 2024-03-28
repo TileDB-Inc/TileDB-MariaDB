@@ -76,6 +76,54 @@ bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
   return true;
 }
 
+
+bool tile::is_numeric_type(const tiledb_datatype_t &datatype) {
+    switch (datatype) {
+        case TILEDB_INT8:
+        case TILEDB_UINT8:
+        case TILEDB_UINT16:
+        case TILEDB_INT16:
+        case TILEDB_INT32:
+        case TILEDB_UINT32:
+        case TILEDB_INT64:
+        case TILEDB_UINT64:
+        case TILEDB_FLOAT32:
+        case TILEDB_FLOAT64:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool tile::is_signed_type(const tiledb_datatype_t &datatype) {
+    switch (datatype) {
+    case TILEDB_INT8:
+    case TILEDB_INT16:
+    case TILEDB_INT32:
+    case TILEDB_INT64:
+    case TILEDB_FLOAT32:
+    case TILEDB_FLOAT64:
+            return true;
+    default:
+            return false;
+    }
+}
+
+bool tile::is_string_type(const tiledb_datatype_t &datatype) {
+    switch (datatype) {
+        case TILEDB_STRING_UTF8:
+        case TILEDB_STRING_ASCII:
+        case TILEDB_STRING_UCS2:
+        case TILEDB_STRING_UCS4:
+        case TILEDB_STRING_UTF16:
+        case TILEDB_STRING_UTF32:
+        case TILEDB_CHAR:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void tile::log_error(THD *thd, const char *msg, ...) {
 
   if (tile::sysvars::log_level(thd) > tile::sysvars::LOG_LEVEL::ERROR)

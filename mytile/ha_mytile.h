@@ -49,6 +49,8 @@
 #include "my_base.h"   /* ha_rows */
 #include "my_global.h" /* ulonglong */
 #include "thr_lock.h"  /* THR_LOCK, THR_LOCK_DATA */
+#include "item_sum.h" /* item_sum */
+#include "utils.h"     /* utils */
 
 #define MYSQL_SERVER 1 // required for THD class
 
@@ -56,6 +58,118 @@
 // Handler for mytile engine
 extern handlerton *mytile_hton;
 namespace tile {
+
+/*****************************************************************************
+This handler supports SUM(), COUNT(), AVG(), MIN(), and MAX()
+pushdown to TileDB
+*****************************************************************************/
+
+class mytile_group_by_handler: public group_by_handler {
+private:
+  // flag to only fetch one row
+  bool first_row;
+
+  // The array we run the aggregates on
+  tiledb::Array *aggr_array;
+
+  // The context
+  std::shared_ptr<tiledb::Context> ctx;
+
+  // The constructed query condition for the query if requested
+  std::shared_ptr<tiledb::QueryCondition> &tiledb_qc;
+
+  // True if we have valid pushed ranges
+  bool valid_ranges;
+
+  // True if we have valid pushed in ranges
+  bool valid_in_ranges;
+
+  // The pushed ranges if present
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_ranges;
+
+  // The pushed in ranges if present
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_in_ranges;
+
+  // The encryption key if applicabl
+  const std::string encryption_key;
+
+  // The open at timestamp is applicable
+  const uint64_t open_at;
+
+  // The array uri
+  const std::string uri;
+
+  // The query for the aggregation
+  std::shared_ptr<tiledb::Query> aggr_query;
+
+  // The subarray for the dims
+  std::unique_ptr<tiledb::Subarray> tiledb_sub;
+
+public:
+  /**
+   * This handler is responsible for the aggregate pusdhown
+   * @param thd_arg
+   * @param array
+   * @param context
+   * @param qc
+   * @param val_ranges
+   * @param val_in_ranges
+   */
+  mytile_group_by_handler(
+      THD *thd_arg, tiledb::Array *array,
+      std::shared_ptr<tiledb::Context> &context,
+      std::shared_ptr<tiledb::QueryCondition> &qc, bool val_ranges,
+      bool val_in_ranges,
+      std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
+      std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
+      const std::string encryption_key, const uint64_t open_at);
+  ~mytile_group_by_handler() = default;
+
+  /**
+   * Initiates the aggregation query
+   * @return
+   */
+  int init_scan();
+
+  /**
+   * Fetches next row
+   * @return
+   */
+  int next_row();
+
+  /**
+   * Releases resources
+   * @return
+   */
+  int end_scan();
+
+  /**
+   * Submits the TileDB query and sets the MariaDB field with the aggregate
+   * result of min or max
+   * @param aggr_query  The TileDB query
+   * @param type The attribute/dimension type
+   * @param field The MariaDB field
+   * @param minmax_string The string for TileDB
+   * @return
+   */
+  int submit_and_set_minmax_aggregate(
+      std::shared_ptr<tiledb::Query> &aggr_query, const tiledb_datatype_t type,
+      Field *field, std::string minmax_string);
+
+  /**
+   * Submits the TileDB query and sets the MariaDB field with the aggregate
+   * result of sum
+   * @param aggr_query  The TileDB query
+   * @param type The attribute/dimension type
+   * @param field The MariaDB field
+   * @param minmax_string The string for TileDB
+   * @return
+   */
+  int submit_and_set_sum_aggregate(std::shared_ptr<tiledb::Query> &aggr_query,
+                                   const tiledb_datatype_t type, Field *field,
+                                   std::string sum_string);
+};
+
 
 class mytile : public handler {
 public:
@@ -262,6 +376,32 @@ public:
    * @return
    */
   int flush_write();
+
+  /**
+   *
+   * @param thd
+   * @param field
+   * @param aggregate_str
+   * @return
+   */
+  std::optional<Item_sum::Sumfunctype> has_aggregate(THD *thd, const std::string &field);
+
+  /**
+   *
+   * @param table
+   * @return
+   */
+  bool has_aggregate(TABLE *table);
+
+  /**
+   *
+   * @param thd
+   * @param field
+   * @param aggregate_str
+   * @return
+   */
+  int apply_aggregate(THD *thd, const std::string &field,
+                      Item_sum::Sumfunctype &aggregate);
 
   /**
    * Convert a mysql row to attribute/coordinate buffers (columns)
@@ -616,6 +756,57 @@ public:
   build_field_details_for_buffers(const tiledb::ArraySchema &array_schema,
                                   Field **fields, const uint64_t &field_num,
                                   MY_BITMAP *read_set);
+  /**
+   * Checks if there are any ranges pushed
+   * @return
+   */
+  bool valid_pushed_ranges();
+
+  /**
+   * Checks if there are any in ranges pushed
+   * @return
+   */
+  bool valid_pushed_in_ranges();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::Query> &get_query();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::Array> &get_array();
+
+  /**
+   *
+   * @return
+   */
+  std::shared_ptr<tiledb::QueryCondition> &get_qc();
+
+  /**
+   *
+   */
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_ranges();
+
+  /**
+   *
+   */
+  std::vector<std::vector<std::shared_ptr<tile::range>>> &get_pushdown_in_ranges();
+
+  /**
+   *
+   * @return
+   */
+  std::string get_uri();
+
+  /**
+   *
+   * @return
+   */
+  TABLE *get_table();
 
 private:
   DsMrr_impl ds_mrr;
@@ -738,18 +929,6 @@ private:
    * Helper function which validates the array is open for writes
    */
   void open_array_for_writes(THD *thd);
-
-  /**
-   * Checks if there are any ranges pushed
-   * @return
-   */
-  bool valid_pushed_ranges();
-
-  /**
-   * Checks if there are any in ranges pushed
-   * @return
-   */
-  bool valid_pushed_in_ranges();
 
   /**
    * Reset condition pushdowns to be for key conditions

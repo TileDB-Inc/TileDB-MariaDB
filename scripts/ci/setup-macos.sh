@@ -8,7 +8,6 @@ brew install \
   automake \
   bison@2.7 \
   boost \
-  cmake \
   gnutls \
   jemalloc \
   m4 \

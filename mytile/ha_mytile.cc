@@ -228,10 +228,13 @@ int tile::mytile_group_by_handler::next_row()
 
       if (item_sum_ptr->get_arg_count() == 0) continue;
 
-      Item* arg = item_sum_ptr->get_arg(0);
-      if (!arg) continue;
-
-      std::string column_with_aggregate = arg->name.str;
+      std::string column_with_aggregate;
+      const char* str_ptr = item_sum_ptr->get_arg(0)->name.str;
+      if (str_ptr != nullptr) {
+        std::string column_with_aggregate = str_ptr;
+      } else {
+        continue ;
+      }
 
       this->aggr_query =
           std::make_unique<tiledb::Query>(*this->ctx, *aggr_array, TILEDB_READ);
@@ -573,14 +576,17 @@ static bool aggregate_is_supported(const std::string field, const Item_sum::Sumf
 
   tiledb_datatype_t type;
   tiledb::ArraySchema schema = array_for_comp->schema();
+  tiledb::Domain domain = schema.domain();
   if (schema.has_attribute(field)){
     auto attr = schema.attribute(field);
     if (attr.cell_val_num() > 1 && !attr.variable_sized()) return false; // multi valued not supported
     type = attr.type();
-  } else {
+  } else if (domain.has_dimension(field)) {
     if (schema.array_type() == TILEDB_SPARSE) return false; // disable on sparse array dims
     auto dim = schema.domain().dimension(field);
     type = dim.type();
+  } else {
+    return false;
   }
 
   // The following switch is based on https://docs.tiledb.com/main/background/internal-mechanics/aggregates
@@ -672,8 +678,15 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd, Query *query)
     List_iterator_fast<Item> it(*query->select);
     while ((item = it++)) {
       Item_sum *isp = dynamic_cast<Item_sum *>(item);
+
+      std::string column_with_aggregate;
+      const char* str_ptr = isp->get_arg(0)->name.str;
+      if (str_ptr != nullptr) {
+          std::string column_with_aggregate = str_ptr;
+      }
+
       if (isp && !aggregate_is_supported(
-                     isp->get_arg(0)->name.str,
+                     column_with_aggregate,
                      isp->sum_func(),
                      aggr_array)) {
           if (aggr_array != nullptr && aggr_array->is_open()){
@@ -1499,7 +1512,14 @@ std::optional<Item_sum::Sumfunctype> tile::mytile::has_aggregate(THD *thd, const
       while ((item = it++)) {
         Item_sum *isp = dynamic_cast<Item_sum *>(item);
         if (isp) {
-          std::string column_with_aggregate = isp->get_arg(0)->name.str;
+          std::string column_with_aggregate;
+          const char* str_ptr = isp->get_arg(0)->name.str;
+          if (str_ptr != nullptr) {
+            std::string column_with_aggregate = str_ptr;
+          } else {
+            continue ;
+          }
+
           if (field == column_with_aggregate) {
             switch (isp->sum_func()) {
               case Item_sum::SUM_FUNC:

@@ -101,7 +101,7 @@ static MYSQL_THDVAR_BOOL(enable_pushdown,
 static MYSQL_THDVAR_BOOL(enable_aggregate_pushdown,
                          PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_THDLOCAL,
                          "Pushdown aggregates where possible", NULL, NULL,
-                         false);
+                         true);
 
 // Computing records in array can be intensive, but sometimes the trade off is
 // worth it for smarter optimizer should we compute the record upper bound on

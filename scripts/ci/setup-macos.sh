@@ -13,3 +13,6 @@ brew install \
   m4 \
   openssl@1.1 \
   pkg-config
+
+echo "cmake version"
+cmake --version

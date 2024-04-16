@@ -10,3 +10,6 @@ apt-get install --yes \
   bison \
   gdb \
   libncurses5-dev
+
+echo "cmake version"
+cmake --version

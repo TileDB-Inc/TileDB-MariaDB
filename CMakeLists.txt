@@ -53,13 +53,12 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     SET(TILEDB_VERSION_MAJOR "2")
     SET(TILEDB_VERSION_MINOR "22")
     SET(TILEDB_VERSION_PATCH "0")
-    SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
+    SET(TILEDB_VERSION "teo/no-deprecated-build")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor -Wno-error=missing-braces")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=edce787da60547b8a3043248f1f44e86fcffc3eb
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
@@ -70,6 +69,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             -DBUILD_SHARED_LIBS=ON
             -DTILEDB_SERIALIZATION=ON
             -DTILEDB_FORCE_ALL_DEPS=${TILEDB_FORCE_ALL_DEPS}
+            -DTILEDB_REMOVE_DEPRECATIONS=ON
             UPDATE_COMMAND ""
             INSTALL_COMMAND
             ${CMAKE_COMMAND} --build . --target install-tiledb

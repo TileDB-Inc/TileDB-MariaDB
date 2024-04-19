@@ -134,6 +134,9 @@ else()
     target_include_directories(mytile PUBLIC "${TILEDB_INCLUDE_DIRECTORIES}")
 endif()
 
+# We have to define this manually because we are not importing the target
+target_compile_definitions(mytile PRIVATE TILEDB_REMOVE_DEPRECATIONS)
+
 # Set my.cnf values based on build flags
 if(WITH_EMBEDDED_SERVER)
     SET(MYTILE_PLUGIN_LOAD_ADD "# plugin-load-add=ha_mytile")

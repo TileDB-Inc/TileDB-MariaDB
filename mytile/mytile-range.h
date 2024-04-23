@@ -420,13 +420,15 @@ merge_ranges_to_super(const std::vector<std::shared_ptr<tile::range>> &ranges) {
  * @param empty_read
  * @param domain
  */
-void build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_in_ranges,
-                    int &empty_read, const tiledb::Domain &domain,
-                    const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_ranges,
-                    const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_in_ranges,
+void build_subarray(THD *thd, const bool &valid_ranges,
+                    const bool &valid_in_ranges, int &empty_read,
+                    const tiledb::Domain &domain,
+                    const std::vector<std::vector<std::shared_ptr<tile::range>>>
+                        &pushdown_ranges,
+                    const std::vector<std::vector<std::shared_ptr<tile::range>>>
+                        &pushdown_in_ranges,
                     std::unique_ptr<tiledb::Subarray> &subarray,
-                    tiledb::Context *ctx,
-                    tiledb::Array *array);
+                    tiledb::Context *ctx, tiledb::Array *array);
 
 /**
  * Takes a vector of ranges build from IN predicates and returns a unique vector

@@ -1186,13 +1186,15 @@ void tile::update_range_from_key_for_super_range(
   }
 }
 
-void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_in_ranges,
-                          int &empty_read, const tiledb::Domain &domain,
-                          const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_ranges,
-                          const std::vector<std::vector<std::shared_ptr<tile::range>>> &pushdown_in_ranges,
-                          std::unique_ptr<tiledb::Subarray> &subarray,
-                          tiledb::Context *ctx,
-                          tiledb::Array *array) {
+void tile::build_subarray(
+    THD *thd, const bool &valid_ranges, const bool &valid_in_ranges,
+    int &empty_read, const tiledb::Domain &domain,
+    const std::vector<std::vector<std::shared_ptr<tile::range>>>
+        &pushdown_ranges,
+    const std::vector<std::vector<std::shared_ptr<tile::range>>>
+        &pushdown_in_ranges,
+    std::unique_ptr<tiledb::Subarray> &subarray, tiledb::Context *ctx,
+    tiledb::Array *array) {
 
   auto dims = domain.dimensions();
   uint64_t ndim = domain.ndim();
@@ -1214,8 +1216,8 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
       auto nonEmptyDomain = std::unique_ptr<void, decltype(&std::free)>(
           std::malloc(size), &std::free);
       ctx->handle_error(tiledb_array_get_non_empty_domain_from_index(
-          ctx->ptr().get(), array->ptr().get(), dim_idx,
-          nonEmptyDomain.get(), &empty_read));
+          ctx->ptr().get(), array->ptr().get(), dim_idx, nonEmptyDomain.get(),
+          &empty_read));
 
       nonEmptyDomains[dim_idx] = std::move(nonEmptyDomain);
     }
@@ -1238,9 +1240,9 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
         void *upper = static_cast<char *>(nonEmptyDomains[dim_idx].get()) +
                       tiledb_datatype_size(dimension.type());
         // set range
-        ctx->handle_error(tiledb_subarray_add_range(
-            ctx->ptr().get(), subarray->ptr().get(), dim_idx, lower,
-            upper, nullptr));
+        ctx->handle_error(
+            tiledb_subarray_add_range(ctx->ptr().get(), subarray->ptr().get(),
+                                      dim_idx, lower, upper, nullptr));
       }
     }
   } else {
@@ -1321,8 +1323,7 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
               // set range
               ctx->handle_error(tiledb_subarray_add_range(
                   ctx->ptr().get(), subarray->ptr().get(), dim_idx,
-                  range->lower_value.get(), range->upper_value.get(),
-                  nullptr));
+                  range->lower_value.get(), range->upper_value.get(), nullptr));
             }
           }
 
@@ -1347,9 +1348,9 @@ void tile::build_subarray(THD* thd, const bool &valid_ranges, const bool &valid_
         } else { // If the range is empty we need to use the non-empty-domain
           void *upper = static_cast<char *>(lower) +
                         tiledb_datatype_size(dimension.type());
-          ctx->handle_error(tiledb_subarray_add_range(
-              ctx->ptr().get(), subarray->ptr().get(), dim_idx, lower,
-              upper, nullptr));
+          ctx->handle_error(
+              tiledb_subarray_add_range(ctx->ptr().get(), subarray->ptr().get(),
+                                        dim_idx, lower, upper, nullptr));
         }
       }
     }

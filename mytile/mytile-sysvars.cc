@@ -179,7 +179,9 @@ my_bool dimensions_are_keys(THD *thd) {
 
 my_bool enable_pushdown(THD *thd) { return THDVAR(thd, enable_pushdown); }
 
-my_bool enable_aggregate_pushdown(THD *thd) { return THDVAR(thd, enable_aggregate_pushdown); }
+my_bool enable_aggregate_pushdown(THD *thd) {
+  return THDVAR(thd, enable_aggregate_pushdown);
+}
 
 my_bool compute_table_records(THD *thd) {
   return THDVAR(thd, compute_table_records);

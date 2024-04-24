@@ -165,8 +165,9 @@ std::string tile::MysqlTypeString(int type) {
   }
 }
 
-int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32 val_num) {
-  if (val_num > 1 && val_num != TILEDB_VAR_NUM){
+int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value,
+                                uint32 val_num) {
+  if (val_num > 1 && val_num != TILEDB_VAR_NUM) {
     return MYSQL_TYPE_BLOB;
   }
 
@@ -189,7 +190,7 @@ int tile::TileDBTypeToMysqlType(tiledb_datatype_t type, bool multi_value, uint32
   }
   case TILEDB_BLOB:
   case TILEDB_GEOM_WKB:
-  case TILEDB_GEOM_WKT:{
+  case TILEDB_GEOM_WKT: {
     if (multi_value)
       return MYSQL_TYPE_LONG_BLOB;
     return MYSQL_TYPE_TINY_BLOB;
@@ -837,34 +838,44 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   switch (buff->type) {
   /** 8-bit signed integer */
   case TILEDB_INT8:
-    return set_field<int8_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<int8_t>(field, i, buff, fixed_size_multi_value,
+                             fixed_size_elements);
   /** 8-bit unsigned integer */
   case TILEDB_UINT8:
-    return set_field<uint8_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<uint8_t>(field, i, buff, fixed_size_multi_value,
+                              fixed_size_elements);
   /** 16-bit signed integer */
   case TILEDB_INT16:
-    return set_field<int16_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<int16_t>(field, i, buff, fixed_size_multi_value,
+                              fixed_size_elements);
   /** 16-bit unsigned integer */
   case TILEDB_UINT16:
-    return set_field<uint16_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<uint16_t>(field, i, buff, fixed_size_multi_value,
+                               fixed_size_elements);
   /** 32-bit signed integer */
   case TILEDB_INT32:
-    return set_field<int32_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<int32_t>(field, i, buff, fixed_size_multi_value,
+                              fixed_size_elements);
   /** 32-bit unsigned integer */
   case TILEDB_UINT32:
-    return set_field<uint32_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<uint32_t>(field, i, buff, fixed_size_multi_value,
+                               fixed_size_elements);
   /** 64-bit signed integer */
   case TILEDB_INT64:
-    return set_field<int64_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<int64_t>(field, i, buff, fixed_size_multi_value,
+                              fixed_size_elements);
   /** 64-bit unsigned integer */
   case TILEDB_UINT64:
-    return set_field<uint64_t>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<uint64_t>(field, i, buff, fixed_size_multi_value,
+                               fixed_size_elements);
   /** 32-bit floating point value */
   case TILEDB_FLOAT32:
-    return set_field<float>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<float>(field, i, buff, fixed_size_multi_value,
+                            fixed_size_elements);
   /** 64-bit floating point value */
   case TILEDB_FLOAT64:
-    return set_field<double>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<double>(field, i, buff, fixed_size_multi_value,
+                             fixed_size_elements);
 
   /** Character */
   case TILEDB_CHAR:
@@ -1072,7 +1083,8 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
   case TILEDB_GEOM_WKT:
     return set_string_field<std::byte>(field, buff, i, &my_charset_latin1);
   case TILEDB_BOOL:
-    return set_field<bool>(field, i, buff, fixed_size_multi_value, fixed_size_elements);
+    return set_field<bool>(field, i, buff, fixed_size_multi_value,
+                           fixed_size_elements);
   default: {
     const char *type_str = nullptr;
     tiledb_datatype_to_str(buff->type, &type_str);
@@ -1255,7 +1267,7 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
   }
   case TILEDB_BLOB:
   case TILEDB_GEOM_WKB:
-  case TILEDB_GEOM_WKT:{
+  case TILEDB_GEOM_WKT: {
     if (buff->offset_buffer != nullptr)
       return set_string_buffer_from_field<std::byte>(field, field_null, buff,
                                                      i);
@@ -1626,8 +1638,8 @@ tile::BufferSizeByType tile::compute_buffer_sizes(
       num_int8_buffers += 1;
     }
 
-//     Currently we don't support list buffers in TileDB schema but this will
-//     just work when we do //todo comment irrelevant
+    //     Currently we don't support list buffers in TileDB schema but this
+    //     will just work when we do //todo comment irrelevant
     if (list) {
       num_blob_buffers += 1;
     }

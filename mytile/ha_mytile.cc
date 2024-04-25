@@ -788,6 +788,20 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
   // First rebuild context with new config if needed
   tiledb::Config cfg = build_config(ha_thd());
 
+  std::string encryption_key;
+  if (this->table->s->option_struct->encryption_key != nullptr) {
+    encryption_key =
+        std::string(this->table->s->option_struct->encryption_key);
+  } else if (this->table_share->option_struct->encryption_key != nullptr) {
+    encryption_key =
+        std::string(this->table_share->option_struct->encryption_key);
+  }
+
+  if (!encryption_key.empty()) {
+    cfg["sm.encryption_type"] = "AES_256_GCM";
+    cfg["sm.encryption_key"] = encryption_key.c_str();
+  }
+
   if (!compare_configs(cfg, this->config)) {
     this->config = cfg;
     this->ctx = build_context(this->config);
@@ -795,14 +809,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
   // Open TileDB Array
   try {
-    std::string encryption_key;
-    if (this->table->s->option_struct->encryption_key != nullptr) {
-      encryption_key =
-          std::string(this->table->s->option_struct->encryption_key);
-    } else if (this->table_share->option_struct->encryption_key != nullptr) {
-      encryption_key =
-          std::string(this->table_share->option_struct->encryption_key);
-    }
     uri = name;
     if (this->table->s->option_struct->array_uri != nullptr)
       uri = this->table->s->option_struct->array_uri;
@@ -816,11 +822,8 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       metadata_query = true;
     }
 
-    this->array_schema =
-        std::unique_ptr<tiledb::ArraySchema>(new tiledb::ArraySchema(
-            this->ctx, this->uri,
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key));
+    this->array_schema = std::unique_ptr<tiledb::ArraySchema>(
+        new tiledb::ArraySchema(this->ctx, this->uri));
     this->domain =
         std::make_unique<tiledb::Domain>(this->array_schema->domain());
     this->ndim = domain->ndim();

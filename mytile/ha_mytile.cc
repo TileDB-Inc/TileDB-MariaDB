@@ -755,7 +755,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg){};
+    : handler(hton, table_arg) {};
 
 tile::mytile_group_by_handler::mytile_group_by_handler(
     THD *thd_arg, tiledb::Array *array,
@@ -768,13 +768,26 @@ tile::mytile_group_by_handler::mytile_group_by_handler(
     : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context),
       tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges),
       pushdown_ranges(ranges), pushdown_in_ranges(in_ranges),
-      encryption_key(encryption_key), open_at(open_at){};
+      encryption_key(encryption_key), open_at(open_at) {};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
   DBUG_ENTER("tile::mytile::create");
   // First rebuild context with new config if needed
   tiledb::Config cfg = build_config(ha_thd());
+
+  std::string encryption_key;
+  if (table_arg->s->option_struct->encryption_key != nullptr) {
+    encryption_key = std::string(table_arg->s->option_struct->encryption_key);
+  } else if (this->table_share->option_struct->encryption_key != nullptr) {
+    encryption_key =
+        std::string(this->table_share->option_struct->encryption_key);
+  }
+
+  if (!encryption_key.empty()) {
+    cfg["sm.encryption_type"] = "AES_256_GCM";
+    cfg["sm.encryption_key"] = encryption_key.c_str();
+  }
 
   if (!compare_configs(cfg, this->config)) {
     this->config = cfg;
@@ -790,8 +803,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
 
   std::string encryption_key;
   if (this->table->s->option_struct->encryption_key != nullptr) {
-    encryption_key =
-        std::string(this->table->s->option_struct->encryption_key);
+    encryption_key = std::string(this->table->s->option_struct->encryption_key);
   } else if (this->table_share->option_struct->encryption_key != nullptr) {
     encryption_key =
         std::string(this->table_share->option_struct->encryption_key);
@@ -1367,10 +1379,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
 
     try {
       // Create the array on storage
-      tiledb::Array::create(create_uri, *schema,
-                            encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                   : TILEDB_AES_256_GCM,
-                            encryption_key);
+      tiledb::Array::create(create_uri, *schema);
       // Next we write the frm file to persist the newly created table
       table_arg->s->write_frm_image();
     } catch (tiledb::TileDBError &e) {

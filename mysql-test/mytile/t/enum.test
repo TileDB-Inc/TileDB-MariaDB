@@ -22,12 +22,12 @@ CREATE TABLE tiledb_with_enum (
   attr1 integer,
   fruit ENUM('apple','orange','pear')
 ) ENGINE=mytile;
-INSERT INTO tiledb_with_enum VALUES (1, 1, 'pear'), (1, 2, 'orange');
+INSERT INTO tiledb_with_enum VALUES (1, 2, 'pear'), (2, 1, 'orange');
 
 SELECT column_name, COLUMN_TYPE, is_nullable, column_default
 FROM information_schema.COLUMNS
 WHERE table_name = 'tiledb_with_enum' order by column_name;
 
 select `dim1`, `attr1`, `fruit` from tiledb_with_enum order by `dim1`;
-select `dim1`, `attr1`, `fruit` FROM tiledb_with_enum where fruit = 'pear' order by `dim1`;
+select `dim1`, `attr1`, `fruit` from tiledb_with_enum where fruit = 'pear';
 DROP TABLE tiledb_with_enum;

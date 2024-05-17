@@ -615,6 +615,11 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
   if (query->group_by != 0)
     return 0;
 
+  /* check that there is no order_by. Not currently supported by TileDB*/
+  if (query->order_by != 0) {
+    return 0;
+  }
+
   tile::mytile *mytile_ptr =
       dynamic_cast<tile::mytile *>(query->from->table->file);
 

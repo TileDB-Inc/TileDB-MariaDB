@@ -28,8 +28,8 @@ export CXXFLAGS="${CXXFLAGS-} ${FLAGS_NEEDED}"
 export CFLAGS="${CFLAGS-} ${FLAGS_NEEDED}"
 
 cd mariadb
-mkdir builddir
-cd builddir
+mkdir bldr
+cd bldr
 cmake \
   -DPLUGIN_OQGRAPH=NO \
   -DWITH_MARIABACKUP=OFF \

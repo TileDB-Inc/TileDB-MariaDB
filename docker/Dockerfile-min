@@ -65,18 +65,36 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
  && git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
- && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
- && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
+RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/0.31.0.tar.gz -O /tmp/0.31.0.tar.gz \
+ && tar xf /tmp/0.31.0.tar.gz \
+ && mv TileDB-MariaDB-0.31.0 mytile
 
 # Copy example arrays to opt
 RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
 
 # Install tiledb
-RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
- && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm  ${TILEDB_PREBUILT_FILE} \
- && ldconfig
+RUN git clone https://github.com/TileDB-Inc/TileDB.git libtiledb \
+&& git -C libtiledb checkout "${TILEDB_VERSION}" \
+&& cd libtiledb \
+&& mkdir -p build \
+&& cd build \
+&& cmake \
+  -DCMAKE_INSTALL_PREFIX=/usr/local/ \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DTILEDB_S3=ON \
+  -DTILEDB_VERBOSE=ON \
+  -DTILEDB_AZURE=ON \
+  -DTILEDB_GCS=ON \
+  -DTILEDB_HDFS=ON \
+  -DTILEDB_SERIALIZATION=ON \
+  -DTILEDB_WEBP=ON \
+  -DTILEDB_TESTS=OFF \
+  -DVCPKG_TARGET_TRIPLET=x64-linux \
+  -DTILEDB_VCPKG_BASE_TRIPLET=x64-linux \
+  .. \
+&& make -j$(nproc) \
+&& sudo make -C tiledb install \
+&& ldconfig
 
 # TODO change branch after release cut
 #RUN git clone https://github.com/TileDB-Inc/TileDB-MariaDB.git -b ${MYTILE_VERSION} mytile \

@@ -44,6 +44,9 @@ RUN apt-get update \
  ccache \
  git \
  wget \
+ zip \
+ unzip \
+ pkg-config \
  libcurl4-openssl-dev \
  libcurl4 \
  && rm -rf /var/lib/apt/lists/*

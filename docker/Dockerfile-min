@@ -16,7 +16,6 @@ RUN apt-get update \
  libasan5 \
  bison \
  chrpath \
- cmake \
  gdb \
  gnutls-dev \
  libaio-dev \
@@ -48,6 +47,21 @@ RUN apt-get update \
  libcurl4-openssl-dev \
  libcurl4 \
  && rm -rf /var/lib/apt/lists/*
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.24.1/cmake-3.24.1-Linux-x86_64.sh \
+  -q -O /tmp/cmake-install.sh \
+  && chmod u+x /tmp/cmake-install.sh \
+  && mkdir /opt/cmake-3.24.1 \
+  && /tmp/cmake-install.sh --skip-license --prefix=/opt/cmake-3.24.1 \
+  && rm /tmp/cmake-install.sh \
+  && ln -s /opt/cmake-3.24.1/bin/* /usr/local/bin
+
+# Set environment variables for compilers
+ENV CC=gcc
+ENV CXX=g++
+
+# Verify CMake version
+RUN cmake --version
 
 ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-11.0.2"

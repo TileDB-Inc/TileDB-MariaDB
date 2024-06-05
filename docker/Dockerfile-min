@@ -44,24 +44,23 @@ RUN apt-get update \
  ccache \
  git \
  wget \
- zip \
- unzip \
- pkg-config \
  libcurl4-openssl-dev \
  libcurl4 \
+ apt-transport-https \
+ ca-certificates \
+ gnupg \
+ gpg \
+ software-properties-common \
  && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.24.1/cmake-3.24.1-Linux-x86_64.sh \
-  -q -O /tmp/cmake-install.sh \
-  && chmod u+x /tmp/cmake-install.sh \
-  && mkdir /opt/cmake-3.24.1 \
-  && /tmp/cmake-install.sh --skip-license --prefix=/opt/cmake-3.24.1 \
-  && rm /tmp/cmake-install.sh \
-  && ln -s /opt/cmake-3.24.1/bin/* /usr/local/bin
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
 
-# Set environment variables for compilers
-ENV CC=gcc
-ENV CXX=g++
+RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
+
+RUN apt-get update \
+ && apt-get install -y \
+    cmake \
+    build-essential
 
 # Verify CMake version
 RUN cmake --version

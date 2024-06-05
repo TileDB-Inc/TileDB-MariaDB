@@ -59,8 +59,11 @@ RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https:
 
 RUN apt-get update \
  && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    make \
     cmake \
-    build-essential
 
 # Verify CMake version
 RUN cmake --version

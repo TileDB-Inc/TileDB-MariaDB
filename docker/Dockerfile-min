@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 AS builder
+FROM ubuntu:22.04 AS builder
 LABEL maintainer="support@tiledb.io"
 
 ENV AWS_EC2_METADATA_DISABLED=true \
@@ -16,6 +16,7 @@ RUN apt-get update \
  libasan5 \
  bison \
  chrpath \
+ cmake \
  gdb \
  gnutls-dev \
  libaio-dev \
@@ -57,21 +58,6 @@ RUN apt-get update \
  software-properties-common \
  && rm -rf /var/lib/apt/lists/*
 
-RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-
-RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
-
-RUN apt-get update \
- && apt-get install -y \
-    build-essential \
-    gcc \
-    g++ \
-    make \
-    cmake \
-
-# Verify CMake version
-RUN cmake --version
-
 ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-11.0.2"
 WORKDIR /tmp
@@ -88,9 +74,9 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
  && git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/0.31.0.tar.gz -O /tmp/0.31.0.tar.gz \
- && tar xf /tmp/0.31.0.tar.gz \
- && mv TileDB-MariaDB-0.31.0 mytile
+RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/0.32.0.tar.gz -O /tmp/0.32.0.tar.gz \
+ && tar xf /tmp/0.32.0.tar.gz \
+ && mv TileDB-MariaDB-0.32.0 mytile
 
 # Copy example arrays to opt
 RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/

@@ -26,7 +26,6 @@ RUN apt-get update \
  libncurses5-dev \
  libpam0g-dev \
  libpcre3-dev \
- libreadline-gplv2-dev \
  libstemmer-dev \
  libssl-dev \
  libnuma-dev \
@@ -57,8 +56,6 @@ RUN apt-get update \
  tar \
  software-properties-common \
  && rm -rf /var/lib/apt/lists/*
-
-RUN cmake --verion
 
 ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-11.0.2"

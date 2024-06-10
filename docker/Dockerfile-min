@@ -50,6 +50,10 @@ RUN apt-get update \
  ca-certificates \
  gnupg \
  gpg \
+ curl \
+ zip \
+ unzip \
+ tar \
  software-properties-common \
  && rm -rf /var/lib/apt/lists/*
 

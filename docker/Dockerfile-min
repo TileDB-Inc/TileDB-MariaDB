@@ -50,6 +50,7 @@ RUN apt-get update \
  ca-certificates \
  gnupg \
  gpg \
+ pkg-config \
  curl \
  zip \
  unzip \

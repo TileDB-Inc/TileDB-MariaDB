@@ -58,6 +58,8 @@ RUN apt-get update \
  software-properties-common \
  && rm -rf /var/lib/apt/lists/*
 
+RUN cmake --verion
+
 ENV MTR_MEM=/tmp \
  MARIADB_VERSION="mariadb-11.0.2"
 WORKDIR /tmp

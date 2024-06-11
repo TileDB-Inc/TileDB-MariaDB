@@ -576,7 +576,8 @@ tile::create_field_attribute(tiledb::Context &ctx, Field *field,
 }
 
 tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
-                                               Field *field) {
+                                               Field *field,
+                                               tiledb_array_type_t array_type) {
   switch (field->type()) {
 
   case MYSQL_TYPE_DOUBLE:
@@ -635,6 +636,10 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_STRING:
   case MYSQL_TYPE_VAR_STRING:
   case MYSQL_TYPE_SET: {
+    if (array_type == TILEDB_DENSE) {
+      throw tiledb::TileDBError(
+          std::string("Dimensions in DENSE arrays must only be numeric"));
+    }
     return tiledb::Dimension::create(ctx, field->field_name.str,
                                      TILEDB_STRING_ASCII, nullptr, nullptr);
     break;

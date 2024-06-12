@@ -760,7 +760,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg) {};
+    : handler(hton, table_arg){};
 
 tile::mytile_group_by_handler::mytile_group_by_handler(
     THD *thd_arg, tiledb::Array *array,
@@ -773,7 +773,7 @@ tile::mytile_group_by_handler::mytile_group_by_handler(
     : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context),
       tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges),
       pushdown_ranges(ranges), pushdown_in_ranges(in_ranges),
-      encryption_key(encryption_key), open_at(open_at) {};
+      encryption_key(encryption_key), open_at(open_at){};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
@@ -1228,7 +1228,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         primaryKeyParts[field->field_name.str] = true;
 
         try {
-          domain.add_dimension(create_field_dimension(context, field));
+          domain.add_dimension(
+              create_field_dimension(context, field, arrayType));
         } catch (const std::exception &e) {
           // Log errors
           my_printf_error(
@@ -1268,7 +1269,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         }
         */
         try {
-          domain.add_dimension(create_field_dimension(context, field));
+          domain.add_dimension(
+              create_field_dimension(context, field, arrayType));
         } catch (const std::exception &e) {
           // Log errors
           my_printf_error(
@@ -3249,6 +3251,35 @@ int tile::mytile::flush_write() {
       if (buff == nullptr)
         continue;
 
+      if (buff->dimension && this->array_schema->array_type() ==
+                                 tiledb_array_type_t::TILEDB_DENSE) {
+        // In case of a dense write we need to create a subarray
+        // see
+        // https://docs.tiledb.com/main/background/internal-mechanics/writing#dense-writes
+
+        // Get the first and last elements of the dim buffer
+        tiledb_datatype_t type = buff->type;
+        uint64_t type_size = tiledb_datatype_size(type);
+        int num_elements = buff->buffer_size / type_size;
+
+        // The user is responsible for providing the dim values in the correct
+        // order for each dimension. See docs link above.
+        void *first_element = buff->buffer;
+        void *last_element =
+            (char *)buff->buffer + (num_elements - 1) * type_size;
+
+        // Use the c-api because it uses void*
+        this->ctx.handle_error(tiledb_subarray_add_range_by_name(
+            this->ctx.ptr().get(), this->subarray->ptr().get(),
+            buff->name.c_str(), first_element, last_element, nullptr));
+
+        // set the subarray to the query
+        this->query->set_subarray(*this->subarray);
+
+        // continue without setting any buffers
+        continue;
+      }
+
       this->ctx.handle_error(tiledb_query_set_data_buffer(
           this->ctx.ptr().get(), this->query->ptr().get(), buff->name.c_str(),
           buff->buffer, &buff->buffer_size));
@@ -3506,7 +3537,14 @@ void tile::mytile::open_array_for_writes(THD *thd) {
     }
   }
 
-  this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  if (this->array_schema->array_type() == tiledb_array_type_t::TILEDB_SPARSE) {
+    this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+  } else {
+    this->query->set_layout(this->array_schema->cell_order());
+    // dense writes need a subarray
+    this->subarray = std::unique_ptr<tiledb::Subarray>(
+        new tiledb::Subarray(this->ctx, *this->array));
+  };
 }
 
 bool tile::mytile::valid_pushed_ranges() {

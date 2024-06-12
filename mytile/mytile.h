@@ -246,7 +246,8 @@ tiledb::Attribute create_field_attribute(tiledb::Context &ctx, Field *field,
  * @param field
  * @return tiledb::Dimension from field
  */
-tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field);
+tiledb::Dimension create_field_dimension(tiledb::Context &ctx, Field *field,
+                                         tiledb_array_type_t array_type);
 
 // -- helpers --
 

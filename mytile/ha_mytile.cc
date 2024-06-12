@@ -760,7 +760,7 @@ int tile::mytile::external_lock(THD *thd, int lock_type) {
 }
 
 tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
-    : handler(hton, table_arg) {};
+    : handler(hton, table_arg){};
 
 tile::mytile_group_by_handler::mytile_group_by_handler(
     THD *thd_arg, tiledb::Array *array,
@@ -773,7 +773,7 @@ tile::mytile_group_by_handler::mytile_group_by_handler(
     : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context),
       tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges),
       pushdown_ranges(ranges), pushdown_in_ranges(in_ranges),
-      encryption_key(encryption_key), open_at(open_at) {};
+      encryption_key(encryption_key), open_at(open_at){};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
@@ -3257,18 +3257,21 @@ int tile::mytile::flush_write() {
         // see
         // https://docs.tiledb.com/main/background/internal-mechanics/writing#dense-writes
 
-        // Cast the dim buffer to uint64. This is the type for all dim buffers
-        // in dense arrays
-        uint64_t *uint64_buffer = static_cast<uint64_t *>(buff->buffer);
-        int num_elements = buff->buffer_size / 8;
+        // Get the first and last elements of the dim buffer
+        tiledb_datatype_t type = buff->type;
+        uint64_t type_size = tiledb_datatype_size(type);
+        int num_elements = buff->buffer_size / type_size;
 
         // The user is responsible for providing the dim values in the correct
         // order for each dimension. See docs link above.
-        uint64_t min = uint64_buffer[0];
-        uint64_t max = uint64_buffer[num_elements - 1];
+        void *first_element = buff->buffer;
+        void *last_element =
+            (char *)buff->buffer + (num_elements - 1) * type_size;
 
-        // add the ranges to the subarray
-        this->subarray->add_range(buff->name.c_str(), min, max);
+        // Use the c-api because it uses void*
+        this->ctx.handle_error(tiledb_subarray_add_range_by_name(
+            this->ctx.ptr().get(), this->subarray->ptr().get(),
+            buff->name.c_str(), first_element, last_element, nullptr));
 
         // set the subarray to the query
         this->query->set_subarray(*this->subarray);

@@ -583,10 +583,18 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_DOUBLE:
   case MYSQL_TYPE_DECIMAL:
   case MYSQL_TYPE_NEWDECIMAL: {
+    if (array_type == TILEDB_DENSE) {
+      throw tiledb::TileDBError(
+          std::string("Dimensions in DENSE arrays can not be of type DOUBLE"));
+    }
     return create_dim<double>(ctx, field, tiledb_datatype_t::TILEDB_FLOAT64);
   }
 
   case MYSQL_TYPE_FLOAT: {
+    if (array_type == TILEDB_DENSE) {
+      throw tiledb::TileDBError(
+          std::string("Dimensions in DENSE arrays can not be of type FLOAT"));
+    }
     return create_dim<float>(ctx, field, tiledb_datatype_t::TILEDB_FLOAT32);
   }
 
@@ -638,7 +646,8 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   case MYSQL_TYPE_SET: {
     if (array_type == TILEDB_DENSE) {
       throw tiledb::TileDBError(
-          std::string("Dimensions in DENSE arrays must only be numeric"));
+          std::string("Dimensions in DENSE arrays must only be numeric (this "
+                      "excludes floating-point numbers)."));
     }
     return tiledb::Dimension::create(ctx, field->field_name.str,
                                      TILEDB_STRING_ASCII, nullptr, nullptr);

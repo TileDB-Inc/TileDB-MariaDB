@@ -64,6 +64,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}
             -DCMAKE_PREFIX_PATH=${EP_INSTALL_PREFIX}
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
             -DTILEDB_VERBOSE=ON
             -DTILEDB_S3=ON
             -DTILEDB_AZURE=ON

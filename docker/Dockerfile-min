@@ -118,6 +118,8 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
 COPY --from=builder /opt/server /opt/server
 COPY --from=builder /opt/tiledb_arrays /opt/tiledb_arrays
 COPY --from=builder /etc /etc
+COPY --from=builder /opt/server/builddir/storage/mytile/externals/install/include/tiledb /usr/include/tiledb
+COPY --from=builder /opt/server/builddir/storage/mytile/externals/install/lib/libtiledb.so* /usr/lib/
 
 RUN set -ex \
  && sed -ri 's/^user\s/#&/' /etc/mysql/my.cnf /etc/mysql/conf.d/* \

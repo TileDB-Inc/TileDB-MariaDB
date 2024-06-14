@@ -17,8 +17,8 @@ jobs:
     strategy:
       matrix:
         configuration:
-          - dockerfile: "Dockerfile-dev"
-            repository: "tiledb/tiledb-mariadb-dev"
+          - dockerfile: "Dockerfile-R"
+            repository: "tiledb/tiledb-mariadb-r"
     steps:
       - uses: actions/checkout@v3
       - name: Build and push develop

@@ -87,9 +87,9 @@ ARG TILEDB_VERSION_SHORT_SHA="ff3879b"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
 # Download mytile release
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/0.32.1.tar.gz -O /tmp/0.32.1.tar.gz \
-  && tar xf /tmp/0.32.1.tar.gz \
-  && mv TileDB-MariaDB-0.32.1 mytile
+RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
+  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
+  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
 
 # Copy example arrays to opt
 RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/

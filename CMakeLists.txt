@@ -52,14 +52,14 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
 
     SET(TILEDB_VERSION_MAJOR "2")
     SET(TILEDB_VERSION_MINOR "24")
-    SET(TILEDB_VERSION_PATCH "0")
+    SET(TILEDB_VERSION_PATCH "1")
     SET(TILEDB_VERSION "${TILEDB_VERSION_MAJOR}.${TILEDB_VERSION_MINOR}.${TILEDB_VERSION_PATCH}")
 
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=non-virtual-dtor -Wno-error=missing-braces")
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=0316a8cd4c275988f138b1613b0c6682dfe18485
+	    URL_HASH SHA1=83254d820740ffb673a0b3685381110eaeabaef5
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

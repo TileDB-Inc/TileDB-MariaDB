@@ -30,7 +30,7 @@ jobs:
       TILEDB_FORCE_ALL_DEPS: OFF
     steps:
       # This initial checkout is only to obtain the CI scripts
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Clone and checkout repos
         run: bash scripts/ci/checkout.sh
       - name: Setup Ubuntu

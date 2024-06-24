@@ -119,8 +119,8 @@ RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${
   && cmake -DPLUGIN_INNODB=NO -DPLUGIN_INNOBASE=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=ON -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
-  && cp -r storage/mytile/externals/install/include/tiledb/ /opt/server/ \
-  && cp -r storage/mytile/externals/install/lib/libtiledb.so* /opt/server/ \
+  && cp -r storage/mytile/externals/install/include/tiledb/ /usr/include/tiledb/ \
+  && cp -r storage/mytile/externals/install/lib/libtiledb.so* /usr/lib/ \
   && cd ../../ \
   && rm -r ${MARIADB_VERSION}
 

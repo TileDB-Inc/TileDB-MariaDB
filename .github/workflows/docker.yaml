@@ -22,6 +22,8 @@ jobs:
             repository: "tiledb/tiledb-mariadb-min"
           - dockerfile: "Dockerfile-server"
             repository: "tiledb/tiledb-mariadb-server"
+          - dockerfile: "Dockerfile-R"
+            repository: "tiledb/tiledb-mariadb-r"
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3

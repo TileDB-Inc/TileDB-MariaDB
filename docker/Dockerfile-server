@@ -99,7 +99,7 @@ RUN apt-get update && apt-get install -y \
 ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
 ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
 
-RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
+RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \
   && mv /tmp/mytile ${MARIADB_VERSION}/storage/mytile \
   && cd ${MARIADB_VERSION} \
@@ -108,8 +108,7 @@ RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${
   && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
-  && cp -r storage/mytile/externals/install/include/tiledb/ /usr/include/tiledb/ \
-  && cp -r storage/mytile/externals/install/lib/libtiledb.so* /usr/lib/ \
+  && cp -r storage/mytile/externals/install/* /usr \
   && cd ../../ \
   && rm -r ${MARIADB_VERSION}
 

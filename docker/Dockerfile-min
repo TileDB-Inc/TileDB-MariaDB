@@ -98,7 +98,7 @@ RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
 ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
 ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
 
-RUN wget https://downloads.mariadb.org/interstitial/${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
+RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
  && tar xf ${MARIADB_VERSION}.tar.gz \
  && mv /tmp/mytile ${MARIADB_VERSION}/storage/mytile \
  && cd ${MARIADB_VERSION} \

@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 LABEL maintainer="support@tiledb.io"
 
 ENV AWS_EC2_METADATA_DISABLED true
@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
   libncurses5-dev \
   libpam0g-dev \
   libpcre3-dev \
+  libreadline-gplv2-dev \
   libstemmer-dev \
   libssl-dev \
   libnuma-dev \
@@ -70,6 +71,12 @@ WORKDIR /tmp
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
+# Install tiledb
+RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+ && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
+ && rm  ${TILEDB_PREBUILT_FILE} \
+ && ldconfig
+
 ENV MARIADB_VERSION="mariadb-11.0.2"
 
 ADD . /tmp/mytile
@@ -98,7 +105,6 @@ RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSIO
   && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=DEBUG -SWITH_DEBUG=1 -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
-  && cp -r storage/mytile/externals/install/* /usr \
   && cd ../../ \
   && rm -r ${MARIADB_VERSION}
 

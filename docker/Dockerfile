@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:20.04
 LABEL maintainer="support@tiledb.io"
 
 ENV AWS_EC2_METADATA_DISABLED true
@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y \
   libncurses5-dev \
   libpam0g-dev \
   libpcre3-dev \
+  libreadline-gplv2-dev \
   libstemmer-dev \
   libssl-dev \
   libnuma-dev \
@@ -45,16 +46,6 @@ RUN apt-get update && apt-get install -y \
   git \
   wget \
   libcurl4-openssl-dev \
-  apt-transport-https \
-  ca-certificates \
-  gnupg \
-  gpg \
-  pkg-config \
-  curl \
-  zip \
-  unzip \
-  tar \
-  software-properties-common \
   libcurl4 \
   && rm -rf /var/lib/apt/lists/*
 
@@ -64,7 +55,7 @@ WORKDIR /tmp
 
 ENV MARIADB_VERSION="mariadb-11.0.2"
 
-ARG MYTILE_VERSION="0.32.3"
+ARG MYTILE_VERSION="0.32.4"
 
 ARG TILEDB_VERSION="2.24.2"
 ARG TILEDB_VERSION_SHORT_SHA="76cd03c"
@@ -85,6 +76,12 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql
 RUN git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
+# Install tiledb
+RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
+ && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
+ && rm ${TILEDB_PREBUILT_FILE} \
+ && ldconfig
+
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
  && cp /tmp/mytile/docker/docker-entrypoint-interactive.sh /usr/local/bin/docker-entrypoint-interactive.sh
@@ -103,7 +100,6 @@ RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSIO
   && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
-  && cp -r storage/mytile/externals/install/* /usr \
   && cd ../../ \
   && rm -r ${MARIADB_VERSION}
 

@@ -46,16 +46,6 @@ RUN apt-get update && apt-get install -y \
   git \
   wget \
   libcurl4-openssl-dev \
-  apt-transport-https \
-  ca-certificates \
-  gnupg \
-  gpg \
-  pkg-config \
-  curl \
-  zip \
-  unzip \
-  tar \
-  software-properties-common \
   libcurl4 \
   && rm -rf /var/lib/apt/lists/*
 

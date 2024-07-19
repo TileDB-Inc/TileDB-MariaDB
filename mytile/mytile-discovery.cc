@@ -55,7 +55,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   DBUG_ENTER("tile::discover_array");
   std::stringstream sql_string;
   tiledb::Config config = build_config(thd);
-  tiledb::Context ctx = build_context(config);
   std::pair<std::string, uint64_t> array_uri_timestamp("", UINT64_MAX);
   std::unique_ptr<tiledb::ArraySchema> schema;
 
@@ -69,6 +68,15 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
              ts->option_struct->encryption_key != nullptr) {
     encryption_key = std::string(ts->option_struct->encryption_key);
   }
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+  if (!encryption_key.empty()) {
+    config["sm.encryption_type"] = "AES_256_GCM";
+    config["sm.encryption_key"] = encryption_key.c_str();
+  }
+#endif
+
+  tiledb::Context ctx = build_context(config);
 
   tiledb::VFS vfs(ctx);
 
@@ -147,10 +155,16 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
   // If we found the array, load the schema
   if (array_found) {
     if (schema == nullptr) {
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+      schema =
+          std::make_unique<tiledb::ArraySchema>(ctx, array_uri_timestamp.first);
+#else
       schema = std::make_unique<tiledb::ArraySchema>(
           ctx, array_uri_timestamp.first,
           encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
           encryption_key);
+#endif
     }
   } else {
     DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
@@ -288,10 +302,15 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
                    << ",";
       }
     }
+
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    auto array = tiledb::Array(ctx, array_uri_timestamp.first, TILEDB_READ);
+#else
     auto array = tiledb::Array(ctx, array_uri_timestamp.first, TILEDB_READ,
                                encryption_key.empty() ? TILEDB_NO_ENCRYPTION
                                                       : TILEDB_AES_256_GCM,
                                encryption_key);
+#endif
 
     for (const auto &attributeMap : schema->attributes()) {
       auto attribute = attributeMap.second;
@@ -562,10 +581,14 @@ bool tile::check_cloud_array_exists(
     std::unique_ptr<tiledb::ArraySchema> &array_schema) {
   try {
     // check to see if we can load the schema
+#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
+    array_schema = std::make_unique<tiledb::ArraySchema>(ctx, array_uri);
+#else
     array_schema = std::make_unique<tiledb::ArraySchema>(
         ctx, array_uri,
         encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
         encryption_key);
+#endif
     return true;
   } catch (tiledb::TileDBError &e) {
     return false;

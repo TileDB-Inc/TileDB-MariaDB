@@ -65,9 +65,22 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
  && git config --global user.email "you@example.com" \
  && git config --global user.name "Your Name"
 
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
- && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
- && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
+# RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
+#  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
+#  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
+
+ADD . /tmp/mytile
+RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
+  && tar xf ${MARIADB_VERSION}.tar.gz \
+  && mv /tmp/mytile ${MARIADB_VERSION}/storage/mytile \
+  && cd ${MARIADB_VERSION} \
+  && mkdir builddir \
+  && cd builddir \
+  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=DEBUG -SWITH_DEBUG=1 -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
+  && make -j$(nproc) \
+  && make install \
+  && cd ../../ \
+  && rm -r ${MARIADB_VERSION}
 
 # Copy example arrays to opt
 RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/

@@ -69,12 +69,10 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
     encryption_key = std::string(ts->option_struct->encryption_key);
   }
 
-#if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
   if (!encryption_key.empty()) {
     config["sm.encryption_type"] = "AES_256_GCM";
     config["sm.encryption_key"] = encryption_key.c_str();
   }
-#endif
 
   tiledb::Context ctx = build_context(config);
 

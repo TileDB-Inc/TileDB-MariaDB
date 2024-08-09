@@ -68,7 +68,8 @@ RUN groupadd -r mysql && useradd -r -g mysql mysql \
 # RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
 #  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
 #  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
-
+ENV CFLAGS "${CFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
+ENV CXXFLAGS "${CXXFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
 ADD . /tmp/mytile
 RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \

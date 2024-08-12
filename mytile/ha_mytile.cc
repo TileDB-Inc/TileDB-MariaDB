@@ -110,6 +110,10 @@ tiledb::Config tile::build_config(THD *thd) {
     }
   }
 
+  // This should be removed in the future. It should be tested against REST first.
+  cfg["rest.use_refactored_array_open"] = "false";
+  cfg["rest.use_refactored_array_open_and_query_submit"] = "false";
+
   return cfg;
 }
 

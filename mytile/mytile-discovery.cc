@@ -353,15 +353,20 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         enum_string << ")";
       }
 
-      // If we can use the calculated enum values and use them
-      if (is_enum && enum_values < 65536 &&
-          enum_string.str().size() < 65536 * 2 &&
-          !empty_enum) { // 2^16. MariaDB enum limit + create table character
-                         // limit
+      // bool to check if enum is oversized and we should use its plain type
+      bool over_sized_enum =
+          enum_values > 65536 || enum_string.str().size() > 65536 * 2;
 
+      if (is_enum && !over_sized_enum && !empty_enum) {
         // if the attribute has an enum and the enum values are not too many
         sql_string << enum_string.str();
-      } else { // if not a usable enum continue as normal
+      } else { // if not a usable enum continue as normal and use plain type
+        if (is_enum && over_sized_enum) {
+          std::string logMessage =
+              "Attribute " + attribute.name() +
+              " has too many enum values. Mytile is using its base type";
+          log_info(thd, logMessage.c_str());
+        }
         if (mysql_type == MYSQL_TYPE_VARCHAR) {
           sql_string << "TEXT";
         } else {

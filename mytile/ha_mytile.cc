@@ -1989,7 +1989,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
               std::make_shared<tiledb::QueryCondition>(*queryCondition);
         } else {
           tiledb::QueryCondition tempCondition =
-              queryCondition->combine(*operatorCondition, op);
+              queryCondition->combine(*queryCondition, op);
           operatorCondition =
               std::make_shared<tiledb::QueryCondition>(tempCondition);
         }

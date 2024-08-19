@@ -324,33 +324,51 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           TileDBTypeToMysqlType(attribute.type(), attribute.cell_size() > 1,
                                 attribute.cell_val_num());
 
+      // Handle enums
+      size_t enum_values = 0;
+      std::stringstream enum_string;
+      bool empty_enum = false;
+      // first we need to see if the enum values are too many
+
       if (is_enum) {
-        // if the attribute has an enum
+        // if the attribute has an enum calculate enum values
         auto enmr = tiledb::ArrayExperimental::get_enumeration(
             ctx, array, enmr_name.value());
 
         auto enum_vec_string = enmr.as_vector<std::string>();
+        // store enum values
+        enum_values = enum_vec_string.size();
 
-        if (enum_vec_string.size() != 0) {
-          sql_string << "ENUM"
-                     << "(";
-          for (size_t i = 0; i < enum_vec_string.size(); ++i) {
-            sql_string << "'" << enum_vec_string[i] << "'";
-            if (i < enum_vec_string.size() - 1) {
-              sql_string << ", ";
-            }
-          }
-          sql_string << ")";
-        } else {
-          sql_string << MysqlTypeString(mysql_type);
+        if (enum_vec_string.size() == 0) {
+          empty_enum = true;
         }
-      } else {
+
+        enum_string << "ENUM" << "(";
+        for (size_t i = 0; i < enum_vec_string.size(); ++i) {
+          enum_string << "'" << enum_vec_string[i] << "'";
+          if (i < enum_vec_string.size() - 1) {
+            enum_string << ", ";
+          }
+        }
+        enum_string << ")";
+      }
+
+      // If we can use the calculated enum values and use them
+      if (is_enum && enum_values < 65536 &&
+          enum_string.str().size() < 65536 * 2 &&
+          !empty_enum) { // 2^16. MariaDB enum limit + create table character
+                         // limit
+
+        // if the attribute has an enum and the enum values are not too many
+        sql_string << enum_string.str();
+      } else { // if not a usable enum continue as normal
         if (mysql_type == MYSQL_TYPE_VARCHAR) {
           sql_string << "TEXT";
         } else {
           sql_string << MysqlTypeString(mysql_type);
         }
       }
+
       if (!MysqlBlobType(enum_field_types(mysql_type)) &&
           TileDBTypeIsUnsigned(attribute.type()))
         sql_string << " UNSIGNED";

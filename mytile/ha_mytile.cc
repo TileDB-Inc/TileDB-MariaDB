@@ -1982,7 +1982,7 @@ const COND *tile::mytile::cond_push_cond(Item_cond *cond_item) {
       // Dimensions do not support QCs, hence the queryCondition ptr
       // returned from cond_push_local() will be null, so skip
       if (queryCondition != nullptr) {
-        if (i == 0) {
+        if (operatorCondition == nullptr) {
           // if we are dealing with the first qc of this multi-predicate
           // operator, we need to initialize
           operatorCondition =

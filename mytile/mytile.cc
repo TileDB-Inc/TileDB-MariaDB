@@ -847,7 +847,8 @@ int tile::set_time_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
 int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                     uint64_t i) {
   uint64_t fixed_size_elements = buff->fixed_size_elements;
-  bool fixed_size_multi_value = fixed_size_elements > 1;
+  bool fixed_size_multi_value =
+      fixed_size_elements > 1 && fixed_size_elements != TILEDB_VAR_NUM;
 
   switch (buff->type) {
   /** 8-bit signed integer */

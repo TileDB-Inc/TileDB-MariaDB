@@ -354,8 +354,7 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       }
 
       // bool to check if enum is oversized and we should use its plain type
-      bool over_sized_enum =
-          enum_values > 65536 || enum_string.str().size() > 65536 * 2;
+      bool over_sized_enum = enum_string.str().size() > (65536 / schema->attribute_num());
 
       if (is_enum && !over_sized_enum && !empty_enum) {
         // if the attribute has an enum and the enum values are not too many

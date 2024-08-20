@@ -29,3 +29,17 @@ select * from t1;
 select * from t1 where d1=2;
 select * from t1 where d1=2 and d2=2;
 DROP TABLE t1;
+
+--echo # Test combination of dims and attributes
+create table t2 (
+X  double DIMENSION=1 lower_bound="0" upper_bound="120" tile_extent="10",
+Y  double DIMENSION=1 lower_bound="0" upper_bound="120" tile_extent="10",
+a integer NOT NULL
+) engine=MyTile array_type='SPARSE';
+
+INSERT INTO t2 (X, Y, a) VALUES (0, 1, 2);
+INSERT INTO t2 (X, Y, a) VALUES (1, 1, 3);
+INSERT INTO t2 (X, Y, a) VALUES (2, 1, 4);
+INSERT INTO t2 (X, Y, a) VALUES (3, 1, 5);
+select * from t2 where X > 0 and a > 3;
+DROP TABLE t2;

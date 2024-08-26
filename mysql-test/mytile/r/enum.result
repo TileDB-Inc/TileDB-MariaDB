@@ -53,3 +53,14 @@ select `dim1`, `attr1`, `fruit` from tiledb_with_enum where fruit = 'pear';
 dim1	attr1	fruit
 1	2	pear
 DROP TABLE tiledb_with_enum;
+# Test enum with too many values. Reverts to non-enum. Affected attribute `gene_symbol`
+CREATE TABLE var ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tabula-sapiens-immune-var';;
+describe var;
+Field	Type	Null	Key	Default	Extra
+soma_joinid	bigint(20)	NO	PRI	NULL	
+ensemblid	text	NO		NULL	
+feature_type	enum('Gene Expression')	NO		NULL	
+gene_symbol	int(11)	NO		NULL	
+var_id	text	NO		NULL	
+SET mytile_delete_arrays=0;
+DROP TABLE var;

@@ -31,3 +31,10 @@ WHERE table_name = 'tiledb_with_enum' order by column_name;
 select `dim1`, `attr1`, `fruit` from tiledb_with_enum order by `dim1`;
 select `dim1`, `attr1`, `fruit` from tiledb_with_enum where fruit = 'pear';
 DROP TABLE tiledb_with_enum;
+
+--echo # Test enum with too many values. Reverts to non-enum. Affected attribute `gene_symbol`
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--eval CREATE TABLE var ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tabula-sapiens-immune-var';
+describe var;
+SET mytile_delete_arrays=0;
+DROP TABLE var;

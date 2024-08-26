@@ -2029,7 +2029,9 @@ const COND *tile::mytile::cond_push_func_datetime(
   // We should add support at some point for handling functions (i.e.
   // date_dimension = current_date())
   for (uint i = 1; i < func_item->argument_count(); i++) {
-    if (args[i]->type() != Item::CONST_ITEM) {
+    if (args[i]->type() != Item::CONST_ITEM &&
+        func_item->functype() != Item_func::BETWEEN) {
+      // datetime args in 'BETWEEN' are not constants
       DBUG_RETURN(func_item);
     }
   }
@@ -2211,20 +2213,23 @@ const COND *tile::mytile::cond_push_func_datetime(
 
     break;
   }
-  case Item_func::BETWEEN: {
+  case Item_func::BETWEEN:
     neg = (dynamic_cast<const Item_func_opt_neg *>(func_item))->negated;
     if (neg) // don't support negations!
       DBUG_RETURN(func_item);
-  }
   // fall through
   case Item_func::LE_FUNC: // Handle all cases where there is 1 or 2 arguments
                            // we must set on
   case Item_func::LT_FUNC:
   case Item_func::GE_FUNC:
   case Item_func::GT_FUNC: {
+    bool between = false;
     // the range
     Item_basic_constant *lower_const = nullptr;
     Item_basic_constant *upper_const = nullptr;
+
+    Item *lower_item_between = nullptr;
+    Item *upper_item_between = nullptr;
 
     // Get field type for comparison
     Item_result cmp_type = args[1]->cmp_type();
@@ -2235,8 +2240,9 @@ const COND *tile::mytile::cond_push_func_datetime(
 
     // If we have 3 items then we can set lower and upper
     if (func_item->argument_count() == 3) {
-      lower_const = dynamic_cast<Item_basic_constant *>(args[1]);
-      upper_const = dynamic_cast<Item_basic_constant *>(args[2]);
+      between = true;
+      lower_item_between = args[1];
+      upper_item_between = args[2];
       // If the condition is less than we know its the upper limit we have
     } else if (func_item->functype() == Item_func::LT_FUNC ||
                func_item->functype() == Item_func::LE_FUNC) {
@@ -2253,8 +2259,16 @@ const COND *tile::mytile::cond_push_func_datetime(
         std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),
         func_item->functype(), tiledb_datatype_t::TILEDB_ANY, 0, 0});
 
-    int ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
-                                           cmp_type, range, datatype);
+    int ret;
+    if (between) {
+      ret = set_range_from_item_datetime(ha_thd(), lower_item_between,
+                                         upper_item_between, cmp_type, range,
+                                         datatype);
+    } else {
+
+      ret = set_range_from_item_datetime(ha_thd(), lower_const, upper_const,
+                                         cmp_type, range, datatype);
+    }
 
     if (ret)
       DBUG_RETURN(func_item);

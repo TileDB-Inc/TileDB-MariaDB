@@ -624,9 +624,6 @@ int tile::set_range_from_item_datetime(THD *thd, Item *lower_const,
     *static_cast<int64_t *>(range->lower_value.get()) =
         static_cast<int64_t>(lower);
     range->lower_value_size = sizeof(int64_t);
-
-        std::cout << "lower-" << static_cast<int64_t>(lower) << std::endl;
-
   }
 
   if (upper_const != nullptr) {
@@ -642,8 +639,6 @@ int tile::set_range_from_item_datetime(THD *thd, Item *lower_const,
     *static_cast<int64_t *>(range->upper_value.get()) =
         static_cast<int64_t>(upper);
     range->upper_value_size = sizeof(int64_t);
-
-    std::cout << "upper-" << static_cast<int64_t>(upper) << std::endl;
   }
 
   DBUG_RETURN(0);

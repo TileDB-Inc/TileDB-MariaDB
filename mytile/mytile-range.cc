@@ -595,12 +595,10 @@ int tile::set_range_from_item_datetime(THD *thd, Item *lower_const,
   case tiledb_datatype_t::TILEDB_TIME_FS:
   case tiledb_datatype_t::TILEDB_TIME_AS: {
     if (lower_const != nullptr) {
-      std::cout << "no null lower" << std::endl;
       lower_const->get_date(thd, &lower_date, date_mode_t(0));
       lower = MysqlTimeToTileDBTimeVal(thd, lower_date, datatype);
     }
     if (upper_const != nullptr) {
-      std::cout << "no null upper" << std::endl;
       upper_const->get_date(thd, &upper_date, date_mode_t(0));
       upper = MysqlTimeToTileDBTimeVal(thd, upper_date, datatype);
     }

@@ -184,9 +184,7 @@ void setup_range(THD *thd, const std::shared_ptr<tile::range> &range,
     break; // DBUG_RETURN(NULL);
   }        // endswitch functype
 
-  // log conditions for debug
-  std::cout << "pushed: "<< std::to_string(*static_cast<T *>(range->lower_value.get())).c_str() << " _ " << std::to_string(*static_cast<T *>(range->upper_value.get())).c_str() << std::endl;
-  
+  // log conditions for debug  
   log_debug(
       thd, "pushed conditions: [%s, %s]",
       std::to_string(*static_cast<T *>(range->lower_value.get())).c_str(),

@@ -12,7 +12,7 @@ multi_attribute	CREATE TABLE `multi_attribute` (
   `a3` blob NOT NULL DEFAULT -2147483648,
   `a2` blob NOT NULL DEFAULT 0.000000,
   PRIMARY KEY (`rows`,`cols`)
-) ENGINE=MyTile DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/multi_attribute' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR `coordinate_filters`='ZSTD=-1' `offset_filters`='ZSTD=-1' `validity_filters`='RLE'
+) ENGINE=MyTile DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/multi_attribute' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR
 DESCRIBE `multi_attribute`;
 Field	Type	Null	Key	Default	Extra
 rows	int(11)	NO	PRI	NULL	

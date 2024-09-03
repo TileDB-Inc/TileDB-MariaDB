@@ -245,27 +245,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
       table_options << " encryption_key=" << encryption_key;
     }
 
-    // Check for coordinate filters
-    tiledb::FilterList coordinate_filters = schema->coords_filter_list();
-    if (coordinate_filters.nfilters() > 0) {
-      table_options << " coordinate_filters='"
-                    << filter_list_to_str(coordinate_filters) << "'";
-    }
-
-    // Check for offset filters
-    tiledb::FilterList offset_filters = schema->offsets_filter_list();
-    if (offset_filters.nfilters() > 0) {
-      table_options << " offset_filters='" << filter_list_to_str(offset_filters)
-                    << "'";
-    }
-
-    // Check for validity filters
-    tiledb::FilterList validity_filters = schema->validity_filter_list();
-    if (validity_filters.nfilters() > 0) {
-      table_options << " validity_filters='"
-                    << filter_list_to_str(validity_filters) << "'";
-    }
-
     for (const auto &dim : schema->domain().dimensions()) {
       int mysql_type =
           TileDBTypeToMysqlType(dim.type(), false, dim.cell_val_num());
@@ -415,12 +394,6 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
           }
         }
       }
-
-      // Check for filters
-      tiledb::FilterList filters = attribute.filter_list();
-      if (filters.nfilters() > 0) {
-        sql_string << " filters='" << filter_list_to_str(filters) << "'";
-      }
       sql_string << ",";
     }
 
@@ -535,27 +508,6 @@ int tile::discover_array_metadata(THD *thd, TABLE_SHARE *ts,
 
     if (!encryption_key.empty()) {
       table_options << " encryption_key=" << encryption_key;
-    }
-
-    // Check for coordinate filters
-    tiledb::FilterList coordinate_filters = schema->coords_filter_list();
-    if (coordinate_filters.nfilters() > 0) {
-      table_options << " coordinate_filters='"
-                    << filter_list_to_str(coordinate_filters) << "'";
-    }
-
-    // Check for offset filters
-    tiledb::FilterList offset_filters = schema->offsets_filter_list();
-    if (offset_filters.nfilters() > 0) {
-      table_options << " offset_filters='" << filter_list_to_str(offset_filters)
-                    << "'";
-    }
-
-    // Check for validity filters
-    tiledb::FilterList validity_filters = schema->validity_filter_list();
-    if (validity_filters.nfilters() > 0) {
-      table_options << " validity_filters='"
-                    << filter_list_to_str(validity_filters) << "'";
     }
 
     sql_string << "`key` varchar(8000)," << std::endl;

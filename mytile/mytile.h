@@ -693,6 +693,13 @@ int set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 tiledb::FilterList parse_filter_list(tiledb::Context &ctx,
                                      const char *filter_csv);
 
+/**
+ * filter list to string
+ * @param filter_list
+ * @return
+ */
+std::string filter_list_to_str(const tiledb::FilterList &filter_list);
+
 // -- end helpers --
 
 /**

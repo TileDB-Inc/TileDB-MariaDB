@@ -1321,21 +1321,26 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
     }
 
     tiledb::Filter filter(ctx, filter_type); 
+
+    // If no parameters given, use defaults
+    if (f.size() == 1) {
+      continue;
+    } 
+
     switch (filter_type) {
       case TILEDB_FILTER_BIT_WIDTH_REDUCTION: {
-        auto value = f.size() > 1 ? parse_value<uint32_t>(f[1]) : -1;
+        auto value = parse_value<uint32_t>(f[1]);
         sql_print_information("TILEDB_BIT_WIDTH_MAX_WINDOW=%d", value);
         filter.set_option(TILEDB_BIT_WIDTH_MAX_WINDOW, value);
         break;
       }
       case TILEDB_FILTER_POSITIVE_DELTA: {
-        auto value = f.size() > 1 ? parse_value<uint32_t>(f[1]) : -1;
+        auto value = parse_value<uint32_t>(f[1]);
         sql_print_information("TILEDB_POSITIVE_DELTA_MAX_WINDOW=%d", value);
         filter.set_option(TILEDB_POSITIVE_DELTA_MAX_WINDOW, value);
         break;
       }
       case TILEDB_FILTER_SCALE_FLOAT: {
-        if (f.size() <= 1) continue;
         sql_print_information("TILEDB_SCALE_FLOAT Data=%s", f[1].c_str());
         size_t start = 0;
         size_t end = 0;
@@ -1362,7 +1367,6 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
         break;
       }
       case TILEDB_FILTER_WEBP: {
-        if (f.size() <= 1) continue;
         size_t start = 0;
         size_t end = 0;
         if (f[1][0] == '(') {
@@ -1398,15 +1402,88 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
         break;
       // Handle all compressions with default
       default: {
-        auto value = f.size() > 1 ? parse_value<int32_t>(f[1]) : -1;
+        auto value = parse_value<int32_t>(f[1]);
         filter.set_option(TILEDB_COMPRESSION_LEVEL, value);
         break;
       }
     }
-
     filter_list.add_filter(filter);
   }
   return filter_list;
+}
+
+std::string tile::filter_list_to_str(const tiledb::FilterList &filter_list) {
+  std::stringstream str;
+  for (uint64_t i = 0; i < filter_list.nfilters(); i++) {
+    tiledb::Filter filter = filter_list.filter(i);
+    std::string filter_str = tiledb::Filter::to_str(filter.filter_type());
+    str << filter_str;
+    // NONE has no filter options
+    switch (filter.filter_type()) {
+    case TILEDB_FILTER_BIT_WIDTH_REDUCTION: {
+      uint32_t value;
+      filter.get_option<uint32_t>(TILEDB_BIT_WIDTH_MAX_WINDOW, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    case TILEDB_FILTER_POSITIVE_DELTA: {
+      uint32_t value;
+      filter.get_option<uint32_t>(TILEDB_POSITIVE_DELTA_MAX_WINDOW, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    case TILEDB_FILTER_SCALE_FLOAT: {
+      uint64_t value_bytewidth;
+      filter.get_option<uint64_t>(TILEDB_SCALE_FLOAT_BYTEWIDTH,
+                                  &value_bytewidth);
+      str << "=(" << value_bytewidth << "-";
+
+      double value_factor;
+      filter.get_option<double>(TILEDB_SCALE_FLOAT_FACTOR, &value_factor);
+      str << value_factor << "-";
+
+      double value_offset;
+      filter.get_option<double>(TILEDB_SCALE_FLOAT_OFFSET, &value_offset);
+      str << value_offset << "),";
+      break;
+    }
+    case TILEDB_FILTER_WEBP: {
+      uint8_t value_format;
+      filter.get_option<uint8_t>(TILEDB_WEBP_INPUT_FORMAT, &value_format);
+      str << "=(" << value_format << "-";
+
+      uint8_t value_lossless;
+      filter.get_option<uint8_t>(TILEDB_WEBP_LOSSLESS, &value_lossless);
+      str << value_lossless << "-";
+
+      float value_quality;
+      filter.get_option<float>(TILEDB_WEBP_QUALITY, &value_quality);
+      str << value_quality << "),";
+      break;
+    }
+    // The following have no filter options
+    case TILEDB_FILTER_NONE:
+    case TILEDB_FILTER_RLE:
+    case TILEDB_FILTER_BITSHUFFLE:
+    case TILEDB_FILTER_BYTESHUFFLE:
+    case TILEDB_FILTER_DOUBLE_DELTA:
+    case TILEDB_FILTER_CHECKSUM_MD5:
+    case TILEDB_FILTER_CHECKSUM_SHA256:
+    case TILEDB_FILTER_DICTIONARY:
+      str << ",";
+      break;
+    // Handle all compressions with default
+    default: {
+      int32_t value;
+      filter.get_option<int32_t>(TILEDB_COMPRESSION_LEVEL, &value);
+      str << "=" << value << ",";
+      break;
+    }
+    }
+  }
+  std::string final = str.str();
+  final.pop_back();
+  return final;
 }
 
 const void *tile::default_tiledb_fill_value(const tiledb_datatype_t &type) {

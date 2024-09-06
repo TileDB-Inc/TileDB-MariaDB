@@ -578,12 +578,12 @@ CREATE TABLE nullable_attributes ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tile
 SHOW CREATE TABLE nullable_attributes;
 Table	Create Table
 nullable_attributes	CREATE TABLE `nullable_attributes` (
-  `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='2' `tile_extent`='2',
-  `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='2' `tile_extent`='2',
+  `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='2' `tile_extent`='2' `filters`='ZSTD=-1',
+  `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='2' `tile_extent`='2' `filters`='ZSTD=-1',
   `a1` int(10) unsigned DEFAULT 0,
   `a2` double DEFAULT 0,
   PRIMARY KEY (`rows`,`cols`)
-) ENGINE=MyTile DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/2.2/nullable_attributes' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR
+) ENGINE=MyTile DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `uri`='MTR_SUITE_DIR/test_data/tiledb_arrays/2.2/nullable_attributes' `array_type`='DENSE' `cell_order`=ROW_MAJOR `tile_order`=ROW_MAJOR `coordinate_filters`='ZSTD=-1' `offset_filters`='ZSTD=-1' `validity_filters`='RLE'
 SELECT * FROM nullable_attributes;
 rows	cols	a1	a2
 1	1	100	NULL

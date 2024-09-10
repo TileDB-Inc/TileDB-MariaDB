@@ -295,12 +295,17 @@ int tile::discover_array(THD *thd, TABLE_SHARE *ts, HA_CREATE_INFO *info) {
         sql_string << " dimension=1"
                    << " lower_bound='" << lower_domain << "' upper_bound='"
                    << upper_domain << "' tile_extent='"
-                   << dim.tile_extent_to_str() << "'"
-                   << ",";
+                   << dim.tile_extent_to_str() << "'";
       } else {
-        sql_string << " dimension=1"
-                   << ",";
+        sql_string << " dimension=1";
       }
+
+      // Check for filters
+      tiledb::FilterList filters = dim.filter_list();
+      if (filters.nfilters() > 0) {
+        sql_string << " filters='" << filter_list_to_str(filters) << "'";
+      }
+      sql_string << ",";
     }
 
 #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15

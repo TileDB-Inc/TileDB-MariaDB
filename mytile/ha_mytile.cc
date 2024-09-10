@@ -1228,8 +1228,17 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         primaryKeyParts[field->field_name.str] = true;
 
         try {
-          domain.add_dimension(
-              create_field_dimension(context, field, arrayType));
+          tiledb::FilterList filter_list(context);
+          if (field->option_struct->filters != nullptr) {
+            filter_list =
+              tile::parse_filter_list(context, field->option_struct->filters);
+          } 
+
+          auto dim = create_field_dimension(context, field, arrayType);
+          if (filter_list.nfilters() > 0) {
+            dim.set_filter_list(filter_list);
+          }
+          domain.add_dimension(dim);
         } catch (const std::exception &e) {
           // Log errors
           my_printf_error(
@@ -1269,8 +1278,18 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
         }
         */
         try {
-          domain.add_dimension(
-              create_field_dimension(context, field, arrayType));
+          tiledb::FilterList filter_list(context);
+          if (field->option_struct->filters != nullptr) {
+            filter_list =
+              tile::parse_filter_list(context, field->option_struct->filters);
+          }
+
+          auto dim = create_field_dimension(context, field, arrayType);
+          if (filter_list.nfilters() > 0) {
+            dim.set_filter_list(filter_list);
+          }
+
+          domain.add_dimension(dim);
         } catch (const std::exception &e) {
           // Log errors
           my_printf_error(

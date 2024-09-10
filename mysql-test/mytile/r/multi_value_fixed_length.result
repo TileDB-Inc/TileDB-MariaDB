@@ -6,8 +6,8 @@ CREATE TABLE multi_attribute ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_a
 show create table multi_attribute;
 Table	Create Table
 multi_attribute	CREATE TABLE `multi_attribute` (
-  `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='2',
-  `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='2',
+  `rows` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='2' `filters`='ZSTD=-1',
+  `cols` int(11) NOT NULL `dimension`=1 `lower_bound`='1' `upper_bound`='4' `tile_extent`='2' `filters`='ZSTD=-1',
   `a4` blob NOT NULL DEFAULT 0.000000,
   `a3` blob NOT NULL DEFAULT -2147483648,
   `a2` blob NOT NULL DEFAULT 0.000000,

@@ -1308,7 +1308,6 @@ int tile::set_buffer_from_field(Field *field, std::shared_ptr<buffer> &buff,
 tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
                                            const char *filter_csv) {
   std::vector<std::string> filters = split(filter_csv, ',');
-
   tiledb::FilterList filter_list(ctx);
 
   for (auto &filter_str : filters) {
@@ -1321,9 +1320,14 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
                       ME_ERROR_LOG | ME_FATAL, f[0].c_str());
     }
 
-    tiledb::Filter filter(ctx, filter_type);
-    if (f.size() > 1) {
-      switch (filter_type) {
+    tiledb::Filter filter(ctx, filter_type); 
+
+    // If no parameters given, use defaults
+    if (f.size() == 1) {
+      continue;
+    } 
+
+    switch (filter_type) {
       case TILEDB_FILTER_BIT_WIDTH_REDUCTION: {
         auto value = parse_value<uint32_t>(f[1]);
         sql_print_information("TILEDB_BIT_WIDTH_MAX_WINDOW=%d", value);
@@ -1401,7 +1405,6 @@ tiledb::FilterList tile::parse_filter_list(tiledb::Context &ctx,
         auto value = parse_value<int32_t>(f[1]);
         filter.set_option(TILEDB_COMPRESSION_LEVEL, value);
         break;
-      }
       }
     }
     filter_list.add_filter(filter);

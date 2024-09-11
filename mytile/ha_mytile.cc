@@ -647,20 +647,18 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
 
   cfg = std::make_shared<tiledb::Config>(tile::build_config(thd));
   ctx = std::make_shared<tiledb::Context>(tile::build_context(*cfg));
+  tiledb_encryption_type_t encryption_type =
+      encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM;
 
   if (open_at != UINT64_MAX) {
 #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
     aggr_array = std::make_unique<tiledb::Array>(
         *ctx, uri, TILEDB_READ,
         tiledb::TemporalPolicy(tiledb::TimeTravel, open_at),
-        tiledb::EncryptionAlgorithm(
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key.c_str()));
+        tiledb::EncryptionAlgorithm(encryption_type, encryption_key.c_str()));
 #else
     aggr_array = std::make_unique<tiledb::Array>(
-        *ctx, uri, TILEDB_READ,
-        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        encryption_key, open_at);
+        *ctx, uri, TILEDB_READ, encryption_type, encryption_key, open_at);
 #endif
 
   } else {
@@ -668,14 +666,10 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
 #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
     aggr_array = std::make_unique<tiledb::Array>(
         *ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
-        tiledb::EncryptionAlgorithm(
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key.c_str()));
+        tiledb::EncryptionAlgorithm(encryption_type, encryption_key.c_str()));
 #else
     aggr_array = std::make_unique<tiledb::Array>(
-        *ctx, uri, TILEDB_READ,
-        encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-        encryption_key);
+        *ctx, uri, TILEDB_READ, encryption_type, encryption_key);
 #endif
   }
 

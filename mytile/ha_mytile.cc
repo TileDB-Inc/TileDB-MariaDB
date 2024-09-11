@@ -711,6 +711,11 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
         thd, std::move(aggr_array), ctx, qc, valid_ranges, valid_in_ranges,
         ranges, in_ranges, encryption_key, open_at);
     return handler;
+  } else {
+    if (aggr_array != nullptr && aggr_array->is_open()) {
+      aggr_array->close();
+      aggr_array.reset();
+    }
   }
   return 0;
 }

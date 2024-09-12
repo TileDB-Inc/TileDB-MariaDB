@@ -70,7 +70,7 @@ private:
   bool first_row;
 
   // The array we run the aggregates on
-  tiledb::Array *aggr_array;
+  std::unique_ptr<tiledb::Array> aggr_array;
 
   // The context
   std::shared_ptr<tiledb::Context> ctx;
@@ -116,7 +116,7 @@ public:
    * @param val_in_ranges
    */
   mytile_group_by_handler(
-      THD *thd_arg, tiledb::Array *array,
+      THD *thd_arg, std::unique_ptr<tiledb::Array> array,
       std::shared_ptr<tiledb::Context> &context,
       std::shared_ptr<tiledb::QueryCondition> &qc, bool val_ranges,
       bool val_in_ranges,

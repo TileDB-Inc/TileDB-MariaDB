@@ -794,10 +794,10 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
     cfg["sm.encryption_key"] = encryption_key.c_str();
   }
 
-  if (!compare_configs(cfg, this->config)) {
-    this->config = cfg;
-    this->ctx = build_context(this->config);
-  }
+
+  this->config = cfg;
+  this->ctx = build_context(this->config);
+  
   DBUG_RETURN(create_array(name, table_arg, create_info, this->ctx));
 }
 
@@ -819,10 +819,9 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     cfg["sm.encryption_key"] = encryption_key.c_str();
   }
 
-  if (!compare_configs(cfg, this->config)) {
-    this->config = cfg;
-    this->ctx = build_context(this->config);
-  }
+  this->config = cfg;
+  this->ctx = build_context(this->config);
+  
 
   // Open TileDB Array
   try {

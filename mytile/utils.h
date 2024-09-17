@@ -122,14 +122,6 @@ tiledb::Config build_config(THD *thd);
 tiledb::Context build_context(tiledb::Config &cfg);
 
 /**
- * compares two config
- * @param rhs
- * @param lhs
- * @return true is identical, false otherwise
- */
-bool compare_configs(tiledb::Config &rhs, tiledb::Config &lhs);
-
-/**
  * Log errors only if log level is set to error or higher
  * @param thd thd to get log level from
  * @param msg message to log

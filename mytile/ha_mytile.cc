@@ -794,7 +794,7 @@ int tile::mytile::create(const char *name, TABLE *table_arg,
     cfg["sm.encryption_key"] = encryption_key.c_str();
   }
 
-  if (!compare_configs(cfg, this->config)) {
+  if (cfg != this->config) {
     this->config = cfg;
     this->ctx = build_context(this->config);
   }
@@ -819,7 +819,7 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
     cfg["sm.encryption_key"] = encryption_key.c_str();
   }
 
-  if (!compare_configs(cfg, this->config)) {
+  if (cfg != this->config) {
     this->config = cfg;
     this->ctx = build_context(this->config);
   }
@@ -3433,7 +3433,7 @@ void tile::mytile::open_array_for_reads(THD *thd) {
     // First rebuild context with new config if needed
     tiledb::Config cfg = build_config(ha_thd());
 
-    if (!compare_configs(cfg, this->config)) {
+    if (cfg != this->config) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }
@@ -3532,7 +3532,7 @@ void tile::mytile::open_array_for_writes(THD *thd) {
     // First rebuild context with new config if needed
     tiledb::Config cfg = build_config(ha_thd());
 
-    if (!compare_configs(cfg, this->config)) {
+    if (cfg != this->config) {
       this->config = cfg;
       this->ctx = build_context(this->config);
     }

@@ -55,27 +55,6 @@ std::vector<std::string> tile::split(const std::string &str, char delim) {
   return res;
 }
 
-/**
- * compares two config
- * @param rhs
- * @param lhs
- * @return true is identical, false otherwise
- */
-bool tile::compare_configs(tiledb::Config &rhs, tiledb::Config &lhs) {
-  // Check every parameter to see if they are the same or different
-  for (auto &it : rhs) {
-    try {
-      if (lhs.get(it.first) != it.second) {
-        return false;
-      }
-    } catch (tiledb::TileDBError &e) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 bool tile::is_numeric_type(const tiledb_datatype_t &datatype) {
   switch (datatype) {
   case TILEDB_INT8:

@@ -149,7 +149,7 @@ int tile::mytile_group_by_handler::end_scan() {
 
   this->pushdown_ranges.clear();
   this->pushdown_in_ranges.clear();
-  delete this->aggr_array;
+  this->aggr_array.reset();
   DBUG_RETURN(0);
 }
 
@@ -170,7 +170,7 @@ int tile::mytile_group_by_handler::init_scan() {
     tile::build_subarray(thd, this->valid_ranges, this->valid_in_ranges,
                          empty_read, domain, this->pushdown_ranges,
                          this->pushdown_in_ranges, this->tiledb_sub,
-                         this->ctx.get(), this->aggr_array);
+                         this->ctx.get(), this->aggr_array.get());
   } catch (const tiledb::TileDBError &e) {
     // Log errors
     my_printf_error(ER_UNKNOWN_ERROR, "[init_scan] error for table %s : %s",
@@ -641,41 +641,35 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
 
   // open array here before init scan because we need to check if the aggregate
   // requested can be processed by TileDB.
-  tiledb::Array *aggr_array;
+  std::unique_ptr<tiledb::Array> aggr_array;
   std::shared_ptr<tiledb::Config> cfg;
   std::shared_ptr<tiledb::Context> ctx;
 
   cfg = std::make_shared<tiledb::Config>(tile::build_config(thd));
   ctx = std::make_shared<tiledb::Context>(tile::build_context(*cfg));
+  tiledb_encryption_type_t encryption_type =
+      encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM;
 
   if (open_at != UINT64_MAX) {
 #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-    aggr_array = new tiledb::Array(
+    aggr_array = std::make_unique<tiledb::Array>(
         *ctx, uri, TILEDB_READ,
         tiledb::TemporalPolicy(tiledb::TimeTravel, open_at),
-        tiledb::EncryptionAlgorithm(
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key.c_str()));
+        tiledb::EncryptionAlgorithm(encryption_type, encryption_key.c_str()));
 #else
-    aggr_array = new tiledb::Array(*ctx, uri, TILEDB_READ,
-                                   encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                          : TILEDB_AES_256_GCM,
-                                   encryption_key, open_at);
+    aggr_array = std::make_unique<tiledb::Array>(
+        *ctx, uri, TILEDB_READ, encryption_type, encryption_key, open_at);
 #endif
 
   } else {
 
 #if TILEDB_VERSION_MAJOR >= 2 && TILEDB_VERSION_MINOR >= 15
-    aggr_array = new tiledb::Array(
+    aggr_array = std::make_unique<tiledb::Array>(
         *ctx, uri, TILEDB_READ, tiledb::TemporalPolicy(),
-        tiledb::EncryptionAlgorithm(
-            encryption_key.empty() ? TILEDB_NO_ENCRYPTION : TILEDB_AES_256_GCM,
-            encryption_key.c_str()));
+        tiledb::EncryptionAlgorithm(encryption_type, encryption_key.c_str()));
 #else
-    aggr_array = new tiledb::Array(*ctx, uri, TILEDB_READ,
-                                   encryption_key.empty() ? TILEDB_NO_ENCRYPTION
-                                                          : TILEDB_AES_256_GCM,
-                                   encryption_key);
+    aggr_array = std::make_unique<tiledb::Array>(
+        *ctx, uri, TILEDB_READ, encryption_type, encryption_key);
 #endif
   }
 
@@ -696,10 +690,10 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
       }
 
       if (isp && !aggregate_is_supported(column_with_aggregate, isp->sum_func(),
-                                         aggr_array)) {
+                                         aggr_array.get())) {
         if (aggr_array != nullptr && aggr_array->is_open()) {
           aggr_array->close();
-          delete aggr_array;
+          aggr_array.reset();
         }
         return 0;
       }
@@ -708,9 +702,14 @@ static group_by_handler *mytile_create_group_by_handler(THD *thd,
 
     /* Create handler and return it */
     handler = new tile::mytile_group_by_handler(
-        thd, aggr_array, ctx, qc, valid_ranges, valid_in_ranges, ranges,
-        in_ranges, encryption_key, open_at);
+        thd, std::move(aggr_array), ctx, qc, valid_ranges, valid_in_ranges,
+        ranges, in_ranges, encryption_key, open_at);
     return handler;
+  } else {
+    if (aggr_array != nullptr && aggr_array->is_open()) {
+      aggr_array->close();
+      aggr_array.reset();
+    }
   }
   return 0;
 }
@@ -763,17 +762,18 @@ tile::mytile::mytile(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg){};
 
 tile::mytile_group_by_handler::mytile_group_by_handler(
-    THD *thd_arg, tiledb::Array *array,
+    THD *thd_arg, std::unique_ptr<tiledb::Array> array,
     std::shared_ptr<tiledb::Context> &context,
     std::shared_ptr<tiledb::QueryCondition> &qc, bool val_ranges,
     bool val_in_ranges,
     std::vector<std::vector<std::shared_ptr<tile::range>>> &ranges,
     std::vector<std::vector<std::shared_ptr<tile::range>>> &in_ranges,
     const std::string encryption_key, const uint64_t open_at)
-    : group_by_handler(thd_arg, mytile_hton), aggr_array(array), ctx(context),
-      tiledb_qc(qc), valid_ranges(val_ranges), valid_in_ranges(val_in_ranges),
-      pushdown_ranges(ranges), pushdown_in_ranges(in_ranges),
-      encryption_key(encryption_key), open_at(open_at){};
+    : group_by_handler(thd_arg, mytile_hton), aggr_array(std::move(array)),
+      ctx(context), tiledb_qc(qc), valid_ranges(val_ranges),
+      valid_in_ranges(val_in_ranges), pushdown_ranges(ranges),
+      pushdown_in_ranges(in_ranges), encryption_key(encryption_key),
+      open_at(open_at){};
 
 int tile::mytile::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info) {
@@ -1231,8 +1231,8 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           tiledb::FilterList filter_list(context);
           if (field->option_struct->filters != nullptr) {
             filter_list =
-              tile::parse_filter_list(context, field->option_struct->filters);
-          } 
+                tile::parse_filter_list(context, field->option_struct->filters);
+          }
 
           auto dim = create_field_dimension(context, field, arrayType);
           if (filter_list.nfilters() > 0) {
@@ -1281,7 +1281,7 @@ int tile::mytile::create_array(const char *name, TABLE *table_arg,
           tiledb::FilterList filter_list(context);
           if (field->option_struct->filters != nullptr) {
             filter_list =
-              tile::parse_filter_list(context, field->option_struct->filters);
+                tile::parse_filter_list(context, field->option_struct->filters);
           }
 
           auto dim = create_field_dimension(context, field, arrayType);

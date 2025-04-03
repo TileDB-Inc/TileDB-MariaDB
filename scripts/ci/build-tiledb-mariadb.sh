@@ -8,7 +8,7 @@ if [[ "$OS" == "Linux" ]]
 then
   FLAGS_NEEDED="-Wno-error=deprecated-declarations -Wno-error=missing-braces"
 
-  if [[ "${REF_LIBTILEDB}" == "dev" ]]; then
+  if [[ "${REF_LIBTILEDB}" == "main" ]]; then
       FLAGS_NEEDED+=" -Wno-error=switch"
   fi
   export LD_LIBRARY_PATH=$(pwd)/libtiledb/build_deps/TileDB/dist/lib:/usr/local/lib:${LD_LIBRARY_PATH-}

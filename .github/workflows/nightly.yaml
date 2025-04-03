@@ -24,7 +24,7 @@ jobs:
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
       REF_MARIADB: mariadb-11.0.2
-      REF_LIBTILEDB: dev
+      REF_LIBTILEDB: main
       REF_TILEDB_MARIADB: ${{ github.sha }}
       TILEDB_FORCE_ALL_DEPS: OFF
     steps:

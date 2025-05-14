@@ -59,7 +59,7 @@ if(NOT TileDB_FOUND AND SUPERBUILD)
     ExternalProject_Add(tiledb
             PREFIX "externals"
             URL "https://github.com/TileDB-Inc/TileDB/archive/${TILEDB_VERSION}.zip"
-	    URL_HASH SHA1=306b8f8cf0e278247780fa133231e5d9cbf0c67b84bd499e468b76633e0f4713
+            URL_HASH SHA1=ec633e4440ff7d16f2668e37f24e80e3b7d168cd
             DOWNLOAD_NAME "tiledb.zip"
             CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX=${EP_INSTALL_PREFIX}

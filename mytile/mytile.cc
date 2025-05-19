@@ -691,7 +691,7 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str,
                                             std::array<uint8, 2>{{0, 0}}, 10);
 }
-std::tuple<void *, uint64_t > tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
+std::tuple<std::unique_ptr<void, decltype(&std::free)>, uint64_t > tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   // Round the size to the nearest unit for the datatype using integer division
   uint64_t rounded_size =
       size / tiledb_datatype_size(type) * tiledb_datatype_size(type);
@@ -783,13 +783,13 @@ std::tuple<void *, uint64_t > tile::alloc_buffer(tiledb_datatype_t type, uint64_
                     ME_ERROR_LOG | ME_FATAL);
   }
   }
-  return {0,0};
+  return {std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free),0};
 }
 
 bool tile::set_field_null_from_validity(std::shared_ptr<buffer> &buff,
                                         Field *field, uint64_t i) {
   if (buff->validity_buffer != nullptr) {
-    if (buff->validity_buffer[i] == 0) {
+    if (static_cast<uint8_t*>(buff->validity_buffer.get())[i] == 0) {
       field->set_null();
       return true;
     }
@@ -931,79 +931,79 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
     if (set_field_null_from_validity(buff, field, i)) {
       return 0;
     }
-    return field->store(static_cast<uint64_t *>(buff->buffer)[i] + 1970, false);
+    return field->store(static_cast<uint64_t *>(buff->buffer.get())[i] + 1970, false);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH: {
     // TODO: This isn't a good calculation we should fix it
     uint64_t seconds =
-        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 365) / 12;
+        static_cast<uint64_t *>(buff->buffer.get())[i] * (60 * 60 * 24 * 365) / 12;
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_WEEK: {
     uint64_t seconds =
-        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24 * 7);
+        static_cast<uint64_t *>(buff->buffer.get())[i] * (60 * 60 * 24 * 7);
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_DAY: {
     uint64_t seconds =
-        static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60 * 24);
+        static_cast<uint64_t *>(buff->buffer.get())[i] * (60 * 60 * 24);
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATE);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_HR: {
-    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * (60 * 60);
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer.get())[i] * (60 * 60);
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MIN: {
-    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i] * 60;
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer.get())[i] * 60;
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_SEC: {
-    uint64_t seconds = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t seconds = static_cast<uint64_t *>(buff->buffer.get())[i];
     return set_datetime_field(thd, field, buff, i, seconds, 0,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_MS: {
-    uint64_t ms = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t ms = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ms / 1000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               (ms - (seconds * 1000)) * 1000,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_US: {
-    uint64_t us = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t us = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = us / 1000000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               us - (seconds * 1000000),
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_NS: {
-    uint64_t ns = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t ns = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ns / 1000000000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               (ns - (seconds * 1000000000)) / 1000,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_PS: {
-    uint64_t ps = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t ps = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ps / 1000000000000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               (ps - (seconds * 1000000000000)) / 1000000,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_FS: {
-    uint64_t fs = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t fs = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = fs / 1000000000000000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               (fs - (seconds * 1000000000000000)) / 1000000000,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_DATETIME_AS: {
-    uint64_t as = static_cast<uint64_t *>(buff->buffer)[i];
+    uint64_t as = static_cast<uint64_t *>(buff->buffer.get())[i];
     uint64_t seconds = as / 1000000000000000000;
     return set_datetime_field(thd, field, buff, i, seconds,
                               (as - (seconds * 1000000000000000000)) /
@@ -1011,12 +1011,12 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                               MYSQL_TIMESTAMP_DATETIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_HR: {
-    uint64_t hour = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t hour = static_cast<int64_t *>(buff->buffer.get())[i];
     return set_time_field(thd, field, buff, i, hour, 0, 0, 0,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_MIN: {
-    uint64_t minutes = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t minutes = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t hours = minutes / 60;
     // Shift minutes
     minutes -= hours * 60;
@@ -1024,7 +1024,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_SEC: {
-    uint64_t seconds = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t seconds = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
     seconds = seconds % 60;
@@ -1033,7 +1033,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_MS: {
-    uint64_t ms = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t ms = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ms / 1000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
@@ -1043,7 +1043,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_US: {
-    uint64_t us = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t us = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = us / 1000000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
@@ -1053,7 +1053,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_NS: {
-    uint64_t ns = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t ns = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ns / 1000000000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
@@ -1063,7 +1063,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_PS: {
-    uint64_t ps = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t ps = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = ps / 1000000000000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
@@ -1074,7 +1074,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_FS: {
-    uint64_t fs = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t fs = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = fs / 1000000000000000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;
@@ -1084,7 +1084,7 @@ int tile::set_field(THD *thd, Field *field, std::shared_ptr<buffer> &buff,
                           MYSQL_TIMESTAMP_TIME);
   }
   case tiledb_datatype_t::TILEDB_TIME_AS: {
-    uint64_t as = static_cast<int64_t *>(buff->buffer)[i];
+    uint64_t as = static_cast<int64_t *>(buff->buffer.get())[i];
     uint64_t seconds = as / 1000000000000000000;
     uint64_t hours = seconds / 3600;
     uint64_t minutes = seconds / 60 % 60;

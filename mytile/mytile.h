@@ -319,7 +319,8 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
  * @param size
  * @return
  */
-std::tuple<void *, uint64_t> alloc_buffer(tiledb_datatype_t type, uint64_t size);
+std::tuple<std::unique_ptr<void, decltype(&std::free)>, uint64_t> alloc_buffer(tiledb_datatype_t type,
+                                          uint64_t size);
 
 /**
  * alloc buffer
@@ -327,8 +328,8 @@ std::tuple<void *, uint64_t> alloc_buffer(tiledb_datatype_t type, uint64_t size)
  * @param size
  * @return
  */
-template <typename T> T *alloc_buffer(uint64_t size) {
-  return static_cast<T *>(std::malloc(size));
+template <typename T> std::unique_ptr<void, decltype(&std::free)> alloc_buffer(uint64_t size) {
+  return std::unique_ptr<void, decltype(&std::free)>(std::malloc(size), &std::free);
 }
 
 /**
@@ -393,9 +394,9 @@ template <typename T>
 int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
                          uint64_t i, charset_info_st *charset_info) {
 
-  const uint64_t *offset_buffer = buff->offset_buffer;
+  const uint64_t *offset_buffer = static_cast<uint64_t*>(buff->offset_buffer.get());
   uint64_t offset_buffer_size = buff->offset_buffer_size;
-  T *buffer = static_cast<T *>(buff->buffer);
+  T *buffer = static_cast<T *>(buff->buffer.get());
   uint64_t buffer_size = buff->buffer_size;
 
   uint64_t end_position = i + 1;
@@ -438,7 +439,7 @@ int set_var_string_field(Field *field, std::shared_ptr<buffer> &buff,
 template <typename T>
 int set_fixed_blob_field(Field *field, std::shared_ptr<buffer> &buff,
                          uint64_t i, uint64_t fixed_size_elements) {
-  T *buffer = static_cast<T *>(buff->buffer);
+  T *buffer = static_cast<T *>(buff->buffer.get());
   uint64_t start = i * fixed_size_elements;
   size_t bytes_needed = sizeof(T) * fixed_size_elements;
   return field->store_binary(reinterpret_cast<char *>(&buffer[start]),
@@ -460,7 +461,7 @@ int set_fixed_string_field(Field *field, std::shared_ptr<buffer> &buff,
     return 0;
   }
 
-  T *buffer = static_cast<T *>(buff->buffer);
+  T *buffer = static_cast<T *>(buff->buffer.get());
   uint64_t fixed_size_elements = buff->fixed_size_elements;
 
   return field->store(reinterpret_cast<char *>(&buffer[i]), fixed_size_elements,
@@ -503,7 +504,7 @@ int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff,
     return set_fixed_blob_field<T>(field, buff, i, fixed_size_elements);
   }
 
-  void *buffer = buff->buffer;
+  void *buffer = buff->buffer.get();
   T val = static_cast<T *>(buffer)[i];
   if (std::is_floating_point<T>()) {
     // MariaDB doesn't handle NaNs so set them to null
@@ -556,7 +557,7 @@ int set_string_buffer_from_field(Field *field, bool field_null,
   }
 
   // Copy string
-  memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(), res->length());
+  memcpy(static_cast<T *>(buff->buffer.get()) + start, res->ptr(), res->length());
   buff->buffer_size += res->length() * sizeof(T);
 
   // Validate there is enough space on the offset buffer
@@ -565,17 +566,18 @@ int set_string_buffer_from_field(Field *field, bool field_null,
   }
 
   buff->offset_buffer_size += sizeof(uint64_t);
-  buff->offset_buffer[i] = start;
+  static_cast<uint64_t*>(buff->offset_buffer.get())[i] = start;
 
   if (buff->validity_buffer != nullptr) {
     // Validate there is enough space on the validity buffer
     if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
+    uint8_t* buff_validity = static_cast<uint8_t*>(buff->validity_buffer.get());
     if (field_null) {
-      buff->validity_buffer[i] = static_cast<uint8_t>(0);
+      buff_validity[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = static_cast<uint8_t>(1);
+      buff_validity[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }
@@ -620,7 +622,7 @@ int set_fixed_string_buffer_from_field(Field *field, bool field_null,
   }
 
   // Copy string
-  memcpy(static_cast<T *>(buff->buffer) + start, res->ptr(),
+  memcpy(static_cast<T *>(buff->buffer.get()) + start, res->ptr(),
          buff->fixed_size_elements);
 
   buff->buffer_size += buff->fixed_size_elements * sizeof(char);
@@ -630,10 +632,11 @@ int set_fixed_string_buffer_from_field(Field *field, bool field_null,
     if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
+    uint8_t* buff_validity = static_cast<uint8_t*>(buff->validity_buffer.get());
     if (field_null) {
-      buff->validity_buffer[i] = static_cast<uint8_t>(0);
+      buff_validity[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = static_cast<uint8_t>(1);
+      buff_validity[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }
@@ -665,7 +668,7 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
   }
 
   static_cast<T *>(
-      buff->buffer)[(i * buff->fixed_size_elements) + buff->buffer_offset] =
+      buff->buffer.get())[(i * buff->fixed_size_elements) + buff->buffer_offset] =
       val;
   buff->buffer_size += sizeof(T);
 
@@ -674,10 +677,11 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
     if (i >= buff->allocated_validity_buffer_size) {
       return ERR_WRITE_FLUSH_NEEDED;
     }
+    uint8_t* buff_validity = static_cast<uint8_t*>(buff->validity_buffer.get());
     if (field_null) {
-      buff->validity_buffer[i] = static_cast<uint8_t>(0);
+      buff_validity[i] = static_cast<uint8_t>(0);
     } else {
-      buff->validity_buffer[i] = static_cast<uint8_t>(1);
+      buff_validity[i] = static_cast<uint8_t>(1);
     }
     buff->validity_buffer_size += sizeof(uint8_t);
   }

@@ -35,18 +35,18 @@
 #include <tiledb/tiledb>
 
 typedef struct mytile_buffer {
-  uint8_t *validity_buffer;      /* validity buffer for nullable data */
+  std::unique_ptr<void, decltype(&std::free)> validity_buffer = std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free); ;      /* validity buffer for nullable data */
   uint64_t validity_buffer_size; /* effective validity buffer size for nullable
                                     data */
   uint64_t allocated_validity_buffer_size; /* allocated validity buffer size for
                                               nullable data */
 
-  uint64_t *offset_buffer; /* offset buffer for varlen data */
+  std::unique_ptr<void, decltype(&std::free)> offset_buffer = std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free); ; /* offset buffer for varlen data */
   uint64_t
       offset_buffer_size; /* effective offset buffer size for varlen data */
   uint64_t allocated_offset_buffer_size; /* allocated offset buffer size for
                                             varlen data */
-  void *buffer;                          /* data buffer */
+  std::unique_ptr<void, decltype(&std::free)> buffer = std::unique_ptr<void, decltype(&std::free)>(nullptr, &std::free);                          /* data buffer */
   uint64_t buffer_size;                  /* effective data buffer size */
   uint64_t allocated_buffer_size;        /* allocated size of buffer */
   tiledb_datatype_t type;                /* type buffer */

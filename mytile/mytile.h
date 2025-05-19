@@ -319,7 +319,7 @@ tiledb::Dimension create_dim(tiledb::Context &ctx, Field *field,
  * @param size
  * @return
  */
-void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
+std::tuple<void *, uint64_t> alloc_buffer(tiledb_datatype_t type, uint64_t size);
 
 /**
  * alloc buffer
@@ -328,7 +328,7 @@ void *alloc_buffer(tiledb_datatype_t type, uint64_t size);
  * @return
  */
 template <typename T> T *alloc_buffer(uint64_t size) {
-  return static_cast<T *>(malloc(size));
+  return static_cast<T *>(std::malloc(size));
 }
 
 /**
@@ -506,6 +506,11 @@ int set_field(Field *field, uint64_t i, std::shared_ptr<buffer> &buff,
   void *buffer = buff->buffer;
   T val = static_cast<T *>(buffer)[i];
   if (std::is_floating_point<T>()) {
+    // MariaDB doesn't handle NaNs so set them to null
+    if (std::isnan(val)) {
+      field->set_null();
+      return 0;
+    }
     return field->store(val);
   }
 
@@ -525,8 +530,13 @@ template <typename T>
 int set_string_buffer_from_field(Field *field, bool field_null,
                                  std::shared_ptr<buffer> &buff, uint64_t i) {
   // Validate we are not over the offset size
-  if ((i * sizeof(uint64_t)) > buff->allocated_offset_buffer_size) {
+  if ((i * sizeof(uint64_t)) >= buff->allocated_offset_buffer_size) {
     return ERR_WRITE_FLUSH_NEEDED;
+  }
+
+  // Validate there is enough space on the validity buffer
+  if (buff->validity_buffer != nullptr && i >= buff->allocated_validity_buffer_size) {
+      return ERR_WRITE_FLUSH_NEEDED;
   }
 
   char strbuff[MAX_FIELD_WIDTH];
@@ -541,7 +551,7 @@ int set_string_buffer_from_field(Field *field, bool field_null,
   }
 
   // Validate there is enough space on the buffer to copy the field into
-  if ((start + res->length()) * sizeof(T) > buff->allocated_buffer_size) {
+  if ((start + res->length()) * sizeof(T) >= buff->allocated_buffer_size) {
     return ERR_WRITE_FLUSH_NEEDED;
   }
 
@@ -563,12 +573,6 @@ int set_string_buffer_from_field(Field *field, bool field_null,
       return ERR_WRITE_FLUSH_NEEDED;
     }
     if (field_null) {
-      // XXX : zero length single cell writes are not supported (write some
-      // trash)
-      if (res->length() == 0) {
-        memcpy(static_cast<T *>(buff->buffer) + start, "0", 1);
-        buff->buffer_size += 1;
-      }
       buff->validity_buffer[i] = static_cast<uint8_t>(0);
     } else {
       buff->validity_buffer[i] = static_cast<uint8_t>(1);
@@ -594,8 +598,13 @@ int set_fixed_string_buffer_from_field(Field *field, bool field_null,
                                        uint64_t i) {
 
   // Validate there is enough space on the buffer to copy the field into
-  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >
+  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >=
       buff->allocated_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+
+  // Validate there is enough space on the validity buffer
+  if (buff->validity_buffer != nullptr && i >= buff->allocated_validity_buffer_size) {
     return ERR_WRITE_FLUSH_NEEDED;
   }
 
@@ -646,8 +655,12 @@ int set_buffer_from_field(T val, bool field_null, std::shared_ptr<buffer> &buff,
                           uint64_t i) {
 
   // Validate there is enough space on the buffer to copy the field into
-  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >
-      buff->allocated_buffer_size) {
+//  if ((((i * buff->fixed_size_elements) + buff->buffer_offset) * sizeof(T)) >=
+//      buff->allocated_buffer_size) {
+  if(buff->buffer_size + (sizeof(T) * buff->fixed_size_elements)  >= buff->allocated_buffer_size) {
+    return ERR_WRITE_FLUSH_NEEDED;
+  }
+  if (buff->validity_buffer != nullptr && i >= buff->allocated_validity_buffer_size) {
     return ERR_WRITE_FLUSH_NEEDED;
   }
 

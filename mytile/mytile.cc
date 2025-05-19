@@ -691,59 +691,59 @@ tiledb::Dimension tile::create_field_dimension(tiledb::Context &ctx,
   return tiledb::Dimension::create<uint8_t>(ctx, field->field_name.str,
                                             std::array<uint8, 2>{{0, 0}}, 10);
 }
-void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
+std::tuple<void *, uint64_t > tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   // Round the size to the nearest unit for the datatype using integer division
   uint64_t rounded_size =
       size / tiledb_datatype_size(type) * tiledb_datatype_size(type);
   switch (type) {
   case tiledb_datatype_t::TILEDB_FLOAT64:
-    return alloc_buffer<double>(rounded_size);
+    return {alloc_buffer<double>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_FLOAT32:
-    return alloc_buffer<float>(rounded_size);
+    return {alloc_buffer<float>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_INT8:
-    return alloc_buffer<int8_t>(rounded_size);
+    return {alloc_buffer<int8_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_UINT8:
-    return alloc_buffer<uint8_t>(rounded_size);
+    return {alloc_buffer<uint8_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_INT16:
-    return alloc_buffer<int16_t>(rounded_size);
+    return {alloc_buffer<int16_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_UINT16:
-    return alloc_buffer<uint16_t>(rounded_size);
+    return {alloc_buffer<uint16_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_INT32:
-    return alloc_buffer<int32_t>(rounded_size);
+    return {alloc_buffer<int32_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_UINT32:
-    return alloc_buffer<uint32_t>(rounded_size);
+    return {alloc_buffer<uint32_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_INT64:
-    return alloc_buffer<int64_t>(rounded_size);
+    return {alloc_buffer<int64_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_UINT64:
-    return alloc_buffer<uint64_t>(rounded_size);
+    return {alloc_buffer<uint64_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_CHAR:
   case tiledb_datatype_t::TILEDB_STRING_ASCII:
-    return alloc_buffer<char>(rounded_size);
+    return {alloc_buffer<char>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_STRING_UTF8:
-    return alloc_buffer<uint8_t>(rounded_size);
+    return {alloc_buffer<uint8_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_STRING_UTF16:
-    return alloc_buffer<uint16_t>(rounded_size);
+    return {alloc_buffer<uint16_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_STRING_UTF32:
-    return alloc_buffer<uint32_t>(rounded_size);
+    return {alloc_buffer<uint32_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_STRING_UCS2:
-    return alloc_buffer<uint16_t>(rounded_size);
+    return {alloc_buffer<uint16_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_STRING_UCS4:
-    return alloc_buffer<uint32_t>(rounded_size);
+    return {alloc_buffer<uint32_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_DATETIME_YEAR:
   case tiledb_datatype_t::TILEDB_DATETIME_MONTH:
@@ -767,15 +767,15 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
   case tiledb_datatype_t::TILEDB_TIME_PS:
   case tiledb_datatype_t::TILEDB_TIME_FS:
   case tiledb_datatype_t::TILEDB_TIME_AS:
-    return alloc_buffer<int64_t>(rounded_size);
+    return {alloc_buffer<int64_t>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_BLOB:
   case tiledb_datatype_t::TILEDB_GEOM_WKB:
   case tiledb_datatype_t::TILEDB_GEOM_WKT:
-    return alloc_buffer<std::byte>(rounded_size);
+    return {alloc_buffer<std::byte>(rounded_size), rounded_size};
 
   case tiledb_datatype_t::TILEDB_BOOL:
-    return alloc_buffer<bool>(rounded_size);
+    return {alloc_buffer<bool>(rounded_size), rounded_size};
 
   default: {
     my_printf_error(ER_UNKNOWN_ERROR,
@@ -783,7 +783,7 @@ void *tile::alloc_buffer(tiledb_datatype_t type, uint64_t size) {
                     ME_ERROR_LOG | ME_FATAL);
   }
   }
-  return 0;
+  return {0,0};
 }
 
 bool tile::set_field_null_from_validity(std::shared_ptr<buffer> &buff,

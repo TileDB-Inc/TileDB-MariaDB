@@ -853,7 +853,6 @@ int tile::mytile::open(const char *name, int mode, uint test_if_locked) {
       this->dimensionNames.push_back(dim.name());
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
         any_var_length = true;
-        break;
       }
       this->ref_length += sizeof(uint64_t);
       this->ref_length += tiledb_datatype_size(dim.type());
@@ -1130,31 +1129,31 @@ void tile::mytile::get_field_default_value(TABLE *table_arg, size_t field_idx,
 
   auto size = tile::sysvars::write_buffer_size(this->ha_thd());
   buff->buffer_size = 0;
-  buff->allocated_buffer_size = size;
 
   uint64_t *offset_buffer = nullptr;
   tiledb_datatype_t datatype = tile::mysqlTypeToTileDBType(
       table_arg->s->field[field_idx]->type(), false);
-  auto data_buffer = alloc_buffer(datatype, size);
+  auto [data_buff_ptr, data_allocated_size] = alloc_buffer(datatype, size);
+  buff->allocated_buffer_size = data_allocated_size;
   buff->fixed_size_elements = attr->cell_val_num();
   if (attr->variable_sized()) {
-    offset_buffer = static_cast<uint64_t *>(
-        alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size));
+    auto [buff_ptr, allocated_size] = alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, size);
+    offset_buffer = static_cast<uint64_t *>(buff_ptr);
     buff->offset_buffer_size = 0;
-    buff->allocated_offset_buffer_size = size;
+    buff->allocated_offset_buffer_size = allocated_size;
   }
 
   buff->validity_buffer = nullptr;
 
   if (attr->nullable()) {
-    buff->validity_buffer = static_cast<uint8 *>(
-        alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size));
+    auto [buff_ptr, allocated_size] = alloc_buffer(tiledb_datatype_t::TILEDB_UINT8, size);
+    buff->validity_buffer = static_cast<uint8 *>(buff_ptr);
     buff->validity_buffer_size = 0;
-    buff->allocated_validity_buffer_size = size;
+    buff->allocated_validity_buffer_size = allocated_size;
   }
 
   buff->offset_buffer = offset_buffer;
-  buff->buffer = data_buffer;
+  buff->buffer = data_buff_ptr;
   buff->type = attr->type();
 
   set_buffer_from_field(table_arg->s->field[field_idx], buff,
@@ -1742,7 +1741,9 @@ int tile::mytile::rnd_end() {
   this->records = 0;
   this->records_read = 0;
   this->status = tiledb::Query::Status::UNINITIALIZED;
-  this->query = nullptr;
+  if (this->query != nullptr) {
+    this->query = nullptr;
+  }
   ds_mrr.dsmrr_close();
   DBUG_RETURN(close());
 };
@@ -1918,17 +1919,17 @@ void tile::mytile::dealloc_buffer(std::shared_ptr<buffer> buff) const {
   DBUG_ENTER("tile::mytile::dealloc_buffer");
 
   if (buff->validity_buffer != nullptr) {
-    free(buff->validity_buffer);
+    std::free(buff->validity_buffer);
     buff->validity_buffer = nullptr;
   }
 
   if (buff->offset_buffer != nullptr) {
-    free(buff->offset_buffer);
+    std::free(buff->offset_buffer);
     buff->offset_buffer = nullptr;
   }
 
   if (buff->buffer != nullptr) {
-    free(buff->buffer);
+    std::free(buff->buffer);
     buff->buffer = nullptr;
   }
 
@@ -3004,12 +3005,11 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       data_size = bufferSizesByType.SizeByType(datatype);
 
       if (dim.cell_val_num() == TILEDB_VAR_NUM) {
-        uint64_t *offset_buffer = static_cast<uint64_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
-                         bufferSizesByType.uint64_buffer_size));
-        buff->offset_buffer_size = bufferSizesByType.uint64_buffer_size;
-        buff->allocated_offset_buffer_size =
-            bufferSizesByType.uint64_buffer_size;
+        auto [buff_ptr, allocated_size] = alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
+                         bufferSizesByType.uint64_buffer_size);
+        uint64_t *offset_buffer = static_cast<uint64_t *>(buff_ptr);
+        buff->offset_buffer_size = allocated_size;
+        buff->allocated_offset_buffer_size = allocated_size;
         buff->offset_buffer = offset_buffer;
 
         // Override buffer size as this is var length
@@ -3026,21 +3026,17 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       data_size = bufferSizesByType.SizeByType(datatype);
 
       if (attr.nullable()) {
-        validity_buffer = static_cast<uint8_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT8,
-                         bufferSizesByType.var_length_uint8_buffer_size));
-        buff->validity_buffer_size =
-            bufferSizesByType.var_length_uint8_buffer_size;
-        buff->allocated_validity_buffer_size =
-            bufferSizesByType.var_length_uint8_buffer_size;
+        auto [buff_ptr, allocated_size] = alloc_buffer(tiledb_datatype_t::TILEDB_UINT8,
+                         bufferSizesByType.var_length_uint8_buffer_size);
+        validity_buffer = static_cast<uint8_t *>(buff_ptr);
+        buff->validity_buffer_size = allocated_size;
+        buff->allocated_validity_buffer_size = allocated_size;
       }
       if (attr.variable_sized()) {
-        offset_buffer = static_cast<uint64_t *>(
-            alloc_buffer(tiledb_datatype_t::TILEDB_UINT64,
-                         bufferSizesByType.uint64_buffer_size));
-        buff->offset_buffer_size = bufferSizesByType.uint64_buffer_size;
-        buff->allocated_offset_buffer_size =
-            bufferSizesByType.uint64_buffer_size;
+        auto [buff_ptr, allocated_size] = alloc_buffer(tiledb_datatype_t::TILEDB_UINT64, bufferSizesByType.uint64_buffer_size);
+        offset_buffer = static_cast<uint64_t *>(buff_ptr);
+        buff->offset_buffer_size = allocated_size;
+        buff->allocated_offset_buffer_size = allocated_size;
 
         // Override buffer size as this is var length
         data_size = bufferSizesByType.var_length_uint8_buffer_size;
@@ -3050,10 +3046,11 @@ void tile::mytile::alloc_buffers(uint64_t memory_budget) {
       buff->offset_buffer = offset_buffer;
       buff->type = attr.type();
     }
-    buff->buffer = alloc_buffer(datatype, data_size);
+    auto [buff_ptr, allocated_size] = alloc_buffer(datatype, data_size);
+    buff->buffer = buff_ptr;
     buff->type = datatype;
-    buff->buffer_size = data_size;
-    buff->allocated_buffer_size = data_size;
+    buff->buffer_size = allocated_size;
+    buff->allocated_buffer_size = allocated_size;
     this->buffers[fieldIndex] = buff;
   }
   DBUG_VOID_RETURN;
@@ -3141,6 +3138,29 @@ int tile::mytile::mysql_row_to_tiledb_buffers(const uchar *buf) {
       std::shared_ptr<buffer> buffer = this->buffers[fieldIndex];
       error = set_buffer_from_field(field, buffer, this->record_index, ha_thd(),
                                     true /* check null */);
+      if (error) {
+        // if we need to flush, reset all fields to last record size
+        for (size_t fieldIndexToReset = 0; fieldIndexToReset < fieldIndex; fieldIndexToReset++) {
+          buffer = this->buffers[fieldIndexToReset];
+          if (buffer != nullptr) {
+            if (buffer->offset_buffer != nullptr) {
+              buffer->buffer_size = static_cast<uint64_t*>(buffer->offset_buffer)[(buffer->offset_buffer_size / sizeof(uint64_t))-1];
+              buffer->offset_buffer_size -= sizeof(uint64_t);
+            } else {
+              uint64_t fixed_element_size = tiledb_datatype_size(buffer->type);
+              if (buffer->fixed_size_elements > 1) {
+                buffer->buffer_size -= (fixed_element_size * buffer->fixed_size_elements) ;
+              } else {
+                buffer->buffer_size -= fixed_element_size;
+              }
+            }
+            if (buffer->validity_buffer != nullptr) {
+              buffer->validity_buffer -= sizeof(uint8_t);
+            }
+          }
+        }
+        DBUG_RETURN(error);
+      }
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors
@@ -3247,7 +3267,6 @@ int tile::mytile::flush_write() {
   try {
 
     for (auto &buff : this->buffers) {
-
       if (buff == nullptr)
         continue;
 
@@ -3310,6 +3329,21 @@ int tile::mytile::flush_write() {
       buff->buffer_size = 0;
       buff->offset_buffer_size = 0;
       buff->validity_buffer_size = 0;
+    }
+
+    if (this->query != nullptr && this->query->query_layout() != tiledb_layout_t::TILEDB_GLOBAL_ORDER) {
+      this->query = std::make_unique<tiledb::Query>(this->ctx, *this->array,
+                                                    TILEDB_WRITE);
+
+      if (this->array_schema->array_type() ==
+          tiledb_array_type_t::TILEDB_SPARSE) {
+        this->query->set_layout(tiledb_layout_t::TILEDB_UNORDERED);
+      } else {
+        this->query->set_layout(this->array_schema->cell_order());
+        // dense writes need a subarray
+        this->subarray = std::unique_ptr<tiledb::Subarray>(
+            new tiledb::Subarray(this->ctx, *this->array));
+      }
     }
   } catch (const tiledb::TileDBError &e) {
     // Log errors

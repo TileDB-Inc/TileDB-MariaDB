@@ -1,7 +1,7 @@
 # MyTile
 
 > [!NOTE]
-> This repository is deprecated in favor of the TileDB-Tables repository which offers compatibility with DataFusion.
+> TileDB's SQL-query support is now provided by TileDB Tables. The TileDB storage engine for MariaDB, imported as `tiledb.sql`, and also known as [MyTile or TileDB-MariaDB](https://github.com/TileDB-Inc/TileDB-MariaDB), is now deprecated.
 
 [![Build Status](https://img.shields.io/azure-devops/build/tiledb-inc/836549eb-f74a-4986-a18f-7fbba6bbb5f0/8?label=Azure%20Pipelines&logo=azure-pipelines&style=flat-square)](https://dev.azure.com/TileDB-Inc/CI/_build/latest?definitionId=10&branchName=master)
 [![tiledb-mariadb](https://img.shields.io/static/v1?label=Docker&message=tiledb-mariadb&color=099cec&logo=docker&style=flat-square)](https://hub.docker.com/r/tiledb/tiledb-mariadb)

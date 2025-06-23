@@ -1,9 +1,9 @@
 #
 # The purpose of this test is to subset the columns on an existing array
 #
-call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd): Error in creating table \\[TileDB::ArraySchema\\] Error: Cannot set domain; Domain must contain at least one dimension");
+call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd): Error in creating table ArraySchema: Cannot set domain; Domain must contain at least one dimension");
 CREATE TABLE t1 (a int) ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;
-ERROR HY000: Error in creating table [TileDB::ArraySchema] Error: Cannot set domain; Domain must contain at least one dimension
+ERROR HY000: Error in creating table ArraySchema: Cannot set domain; Domain must contain at least one dimension
 SET mytile_delete_arrays=0;
 SET mytile_create_allow_subset_existing_array=1;
 CREATE TABLE t1 (a int) ENGINE=mytile uri='MTR_SUITE_DIR/test_data/tiledb_arrays/1.6/quickstart_dense';;

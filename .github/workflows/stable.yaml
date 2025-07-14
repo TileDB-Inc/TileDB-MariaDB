@@ -12,16 +12,12 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    name: stable-${{ matrix.os }}-${{ matrix.superbuild && 'superbuild' || 'default' }}
+    runs-on: ubuntu-24.04
+    name: stable-${{ matrix.superbuild && 'superbuild' || 'default' }}
     strategy:
       fail-fast: false
       matrix:
-        os: ["macos-13", "ubuntu-24.04"]
         superbuild: [true, false]
-        exclude:
-          - os: "macos-13"
-            superbuild: true
     env:
       OWNER_TILEDB_MARIADB: ${{ github.repository_owner }} # support building from a fork
       REF_MARIADB: mariadb-11.0.2
@@ -33,12 +29,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Clone and checkout repos
         run: bash scripts/ci/checkout.sh
-      - name: Setup Ubuntu
-        if: runner.os == 'Linux'
+      - name: Setup
         run: sudo bash scripts/ci/setup-ubuntu.sh
-      - name: Setup macOS
-        if: runner.os == 'macOS'
-        run: bash scripts/ci/setup-macos.sh
       - name: Build libtiledb
         if: ${{ ! matrix.superbuild }}
         run: bash scripts/ci/build-libtiledb.sh

@@ -2,10 +2,12 @@
 --echo # The purpose of this test is to test multi value cells of fixed_length attributes functionality
 --echo #
 
+--disable_query_log
 call mtr.add_suppression("\\[ERROR\\] (mysqld|mariadbd): Error in creating table .* Cannot set domain; Domain must contain at least one dimension");
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE multi_attribute ENGINE=mytile uri='$MTR_SUITE_DIR/test_data/tiledb_arrays/multi_attribute';
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
+--enable_query_log
 
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 show create table multi_attribute;

@@ -1,2 +1,4 @@
 mysql-test/mytile/r/*.reject
 mysql-test/mytile/my.cnf
+
+.idea/

@@ -46,30 +46,16 @@ RUN apt-get update && apt-get install -y \
   git \
   wget \
   libcurl4-openssl-dev \
+  libcurl4 \
   && rm -rf /var/lib/apt/lists/*
 
 ENV MTR_MEM /tmp
-
-WORKDIR /tmp
-
-ENV MARIADB_VERSION="mariadb-11.0.2"
-
-ARG MYTILE_VERSION="0.37.0"
 
 ARG TILEDB_VERSION="2.29.1"
 ARG TILEDB_VERSION_SHORT_SHA="9a6284d"
 ARG TILEDB_PREBUILT_FILE="tiledb-linux-x86_64-${TILEDB_VERSION}-${TILEDB_VERSION_SHORT_SHA}.tar.gz"
 
-# Download mytile release
-RUN wget https://github.com/TileDB-Inc/TileDB-MariaDB/archive/${MYTILE_VERSION}.tar.gz -O /tmp/${MYTILE_VERSION}.tar.gz \
-  && tar xf /tmp/${MYTILE_VERSION}.tar.gz \
-  && mv TileDB-MariaDB-${MYTILE_VERSION} mytile
-
-# Copy example arrays to opt
-RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
-
-# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
-RUN groupadd -r mysql && useradd -r -g mysql mysql
+WORKDIR /tmp
 
 # Set git config so superbuild of tiledb can cherry-pick capnp fix
 RUN git config --global user.email "you@example.com" \
@@ -78,8 +64,18 @@ RUN git config --global user.email "you@example.com" \
 # Install tiledb
 RUN wget https://github.com/TileDB-Inc/TileDB/releases/download/${TILEDB_VERSION}/${TILEDB_PREBUILT_FILE} \
  && tar xf ${TILEDB_PREBUILT_FILE} -C /usr \
- && rm ${TILEDB_PREBUILT_FILE} \
+ && rm  ${TILEDB_PREBUILT_FILE} \
  && ldconfig
+
+ENV MARIADB_VERSION="mariadb-11.0.2"
+
+ADD . /tmp/mytile
+
+# Copy example arrays to opt
+RUN cp -r /tmp/mytile/mysql-test/mytile/test_data/tiledb_arrays /opt/
+
+# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+RUN groupadd -r mysql && useradd -r -g mysql mysql
 
 RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
  && cp /tmp/mytile/docker/mytile.cnf /etc/mysql/conf.d/mytile.cnf \
@@ -87,14 +83,8 @@ RUN cp /tmp/mytile/docker/my.cnf /etc/mysql/my.cnf \
 
 RUN cp /tmp/mytile/docker/init.sh /tmp/init.sh
 
-# Install curl after building tiledb
-RUN apt-get update && apt-get install -y \
-  libcurl4 \
-  libcurl4-openssl-dev \
-  && rm -rf /var/lib/apt/lists/*
-
-ENV CXXFLAGS="${CXXFLAGS} -Wno-error=deprecated-declarations"
-ENV CFLAGS="${CFLAGS} -Wno-error=deprecated-declarations"
+ENV CFLAGS "${CFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
+ENV CXXFLAGS "${CXXFLAGS} -Wno-error=noexcept-type -Wno-error=deprecated-declarations"
 
 RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSION}.tar.gz \
   && tar xf ${MARIADB_VERSION}.tar.gz \
@@ -102,7 +92,7 @@ RUN wget https://archive.mariadb.org//${MARIADB_VERSION}/source/${MARIADB_VERSIO
   && cd ${MARIADB_VERSION} \
   && mkdir builddir \
   && cd builddir \
-  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=Release -SWITH_DEBUG=0 -DBUILD_CONFIG=mysql_release -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
+  && cmake -DPLUGIN_INNODB=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_SPHINX=NO -DPLUGIN_FEDERATED=NO -DPLUGIN_FEDERATEDX=NO -DPLUGIN_CONNECT=NO -DCMAKE_BUILD_TYPE=DEBUG -SWITH_DEBUG=1 -DWITH_EMBEDDED_SERVER=OFF -DCMAKE_INSTALL_PREFIX=/opt/server .. \
   && make -j$(nproc) \
   && make install \
   && cd ../../ \
@@ -142,6 +132,11 @@ RUN chown -R mysql:mysql /var/log/mysql
 RUN chown -R mysql:mysql /opt/server
 
 RUN chown -R mysql:mysql /opt/tiledb_arrays
+
+# Set defaults for initializing the server
+ENV MYSQL_ALLOW_EMPTY_PASSWORD=1
+
+ENV MYSQL_DATABASE=test
 
 # Set paths needed for bitnami helm mariadb
 RUN mkdir /opt/bitnami
